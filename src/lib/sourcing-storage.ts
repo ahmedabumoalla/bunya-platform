@@ -1,0 +1,8 @@
+"use client";
+import type {BunyaCustomerQuote,InternalFulfillmentOrder,InternalSelectionResult,InternalSourcingRequest,ProviderPricingResponse,ProviderProductPrice} from "./sourcing-types";
+import {bunyaCustomerQuotesMock,internalFulfillmentOrdersMock,internalSelectionResultsMock,internalSourcingRequestsMock,providerPricingResponsesMock,providerProductPricesMock} from "./sourcing-data";
+export const sourcingKeys={requests:"bunya-internal-sourcing-requests",prices:"bunya-provider-price-confirmations",responses:"bunya-provider-price-responses",selections:"bunya-internal-selection-results",quotes:"bunya-customer-bunya-quotes",fulfillment:"bunya-internal-fulfillment-orders"} as const;
+type Store={requests:InternalSourcingRequest[];prices:ProviderProductPrice[];responses:ProviderPricingResponse[];selections:InternalSelectionResult[];quotes:BunyaCustomerQuote[];fulfillment:InternalFulfillmentOrder[]};
+const defaults:Store={requests:internalSourcingRequestsMock,prices:providerProductPricesMock,responses:providerPricingResponsesMock,selections:internalSelectionResultsMock,quotes:bunyaCustomerQuotesMock,fulfillment:internalFulfillmentOrdersMock};
+export function readSourcing<K extends keyof Store>(key:K):Store[K]{if(typeof window==="undefined")return structuredClone(defaults[key]);try{const raw=localStorage.getItem(sourcingKeys[key]);return raw?JSON.parse(raw) as Store[K]:structuredClone(defaults[key])}catch{return structuredClone(defaults[key])}}
+export function writeSourcing<K extends keyof Store>(key:K,value:Store[K]){localStorage.setItem(sourcingKeys[key],JSON.stringify(value));window.dispatchEvent(new CustomEvent("bunya-sourcing-data",{detail:key}))}

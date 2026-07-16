@@ -1,0 +1,88 @@
+:root{
+  --glass-bg:rgb(8 27 50 / .68);
+  --glass-bg-strong:rgb(5 22 43 / .86);
+  --glass-bg-dark:rgb(3 17 34 / .9);
+  --glass-inset:rgb(255 255 255 / .075);
+  --glass-border:rgb(186 230 253 / .2);
+  --glass-border-strong:rgb(103 232 249 / .32);
+  --glass-shadow:0 24px 70px rgb(0 0 0 / .3);
+  --glass-shadow-soft:0 14px 38px rgb(0 0 0 / .2);
+  --glass-blur:18px;
+  --glass-highlight:linear-gradient(145deg,rgb(255 255 255 / .13),rgb(255 255 255 / .035));
+  --text-primary:#f8fbff;
+  --text-secondary:#bfd1e5;
+  --text-muted:#8eabc8;
+  --accent-blue:#2d8cff;
+  --accent-cyan:#67e8f9;
+  --accent-success:#6ee7b7;
+  --accent-warning:#fde68a;
+  --accent-danger:#fda4af;
+  --focus-ring:0 0 0 3px rgb(103 232 249 / .25);
+}
+
+html{background:#030d1a;color-scheme:dark}
+body{position:relative;isolation:isolate;min-height:100dvh;background:#030d1a!important;color:var(--text-primary)}
+body::before,body::after{content:"";position:fixed;inset:0;pointer-events:none}
+body::before{z-index:-2;background-image:url("/assets/bunya-construction-background.webp?v=023");background-repeat:no-repeat;background-position:center;background-size:cover}
+body::after{z-index:-1;background:linear-gradient(135deg,rgb(2 10 24 / .84),rgb(4 24 49 / .65) 48%,rgb(3 13 29 / .82)),radial-gradient(circle at 72% 42%,rgb(14 116 214 / .12),transparent 38rem)}
+
+:where(.store-home,.portal-page,.contractors-page,.customer-app,.provider-app,.contractor-app,.driver-app,.admin-app,.offline-page,.app-stage){background:transparent!important;color:var(--text-primary)!important}
+:where(.store-home,.portal-page,.contractors-page)::before{background-image:none!important}
+:where(.customer-workspace,.provider-workspace,.contractor-workspace,.admin-workspace,.driver-content,.customer-content,.provider-content,.contractor-content,.admin-content){background:transparent!important}
+
+:where(.store-header,.directory-header,.customer-topbar,.provider-topbar,.contractor-topbar,.driver-top,.admin-topbar,.customer-breadcrumb,.provider-breadcrumb,.contractor-breadcrumb,.admin-breadcrumb){border-color:var(--glass-border)!important;background:rgb(4 20 39 / .72)!important;box-shadow:var(--glass-shadow-soft)!important;color:var(--text-primary)!important;-webkit-backdrop-filter:blur(var(--glass-blur)) saturate(135%);backdrop-filter:blur(var(--glass-blur)) saturate(135%)}
+:where(.customer-sidebar,.provider-sidebar,.contractor-sidebar,.admin-sidebar){border-inline-end:1px solid var(--glass-border)!important;background:linear-gradient(180deg,rgb(3 18 37 / .94),rgb(5 28 54 / .84))!important;box-shadow:-18px 0 60px rgb(0 0 0 / .34)!important;-webkit-backdrop-filter:blur(20px) saturate(130%);backdrop-filter:blur(20px) saturate(130%)}
+:where(.customer-sidebar,.provider-sidebar,.contractor-sidebar,.admin-sidebar) nav{scrollbar-width:none}
+:where(.customer-sidebar,.provider-sidebar,.contractor-sidebar,.admin-sidebar) nav::-webkit-scrollbar{display:none}
+:where(.customer-sidebar,.provider-sidebar,.contractor-sidebar,.admin-sidebar) nav a.active{border:1px solid rgb(103 232 249 / .24)!important;background:linear-gradient(135deg,rgb(45 140 255 / .3),rgb(34 211 238 / .12))!important;box-shadow:inset 0 1px rgb(255 255 255 / .08);color:#fff!important}
+
+:where(.store-quick-panel,.store-latest-card,.store-product-card,.store-empty,.store-detail-panel,.store-quote-panel,.store-info-block,.store-detail-visual,.store-thumb,.portal-card,.portal-demo-accounts,.directory-filters,.contractor-profile-card,.customer-panel,.customer-request-card,.customer-order-card,.customer-project-request-card,.provider-panel,.provider-request-card,.provider-quote-card,.provider-order-card,.contractor-panel,.contractor-opportunity-card,.contractor-proposal-card,.contractor-project-card,.driver-card,.driver-empty,.driver-password-card,.admin-panel,.admin-record-card,.admin-kpi-grid>a){border:1px solid var(--glass-border)!important;background:var(--glass-highlight),var(--glass-bg)!important;box-shadow:var(--glass-shadow)!important;color:var(--text-primary)!important;-webkit-backdrop-filter:blur(var(--glass-blur)) saturate(135%);backdrop-filter:blur(var(--glass-blur)) saturate(135%)}
+.driver-empty>span{color:var(--accent-cyan)!important}
+.driver-empty p{color:var(--text-secondary)!important}
+:where(.store-quote-panel,.portal-card,.customer-form-panel,.provider-form-panel,.contractor-form-panel,.driver-modal,.customer-modal,.provider-modal,.contractor-modal,.admin-modal,.admin-panel,.customer-table-wrap,.provider-table-wrap,.contractor-table-wrap,.admin-table-wrap){background:var(--glass-highlight),var(--glass-bg-strong)!important}
+
+:where(.customer-app,.provider-app,.contractor-app,.driver-app,.admin-app) :where(h1,h2,h3,h4,dd,strong){color:var(--text-primary)!important}
+:where(.customer-app,.provider-app,.contractor-app,.driver-app,.admin-app) :where(p,small,dt,label){color:var(--text-secondary)!important}
+:where(.customer-page-header,.provider-page-header,.contractor-page-header,.driver-heading,.admin-page-header) span{color:var(--text-secondary)!important}
+:where(.customer-page-header,.provider-page-header,.contractor-page-header,.driver-heading,.admin-page-header)>p{color:var(--accent-cyan)!important}
+
+:where(.customer-app,.provider-app,.contractor-app,.driver-app,.admin-app) :where(dl>div,.customer-alerts li,.customer-health article,.admin-health article,.admin-financial-grid article,.admin-record-meta div,.admin-detail-meta div,.admin-operation-timeline dl div,.admin-alert-grid dl div,.provider-info-grid div,.contractor-info-grid div,.driver-card dl div,.customer-info-grid div,.customer-request-card dl div,.customer-order-card dl div,.customer-project-request-card dl div,.customer-notifications a,.project-stepper){border:1px solid rgb(255 255 255 / .08)!important;background:var(--glass-inset)!important}
+
+:where(.customer-table-wrap,.provider-table-wrap,.contractor-table-wrap,.admin-table-wrap){overflow:auto!important;border:1px solid var(--glass-border)!important;border-radius:16px;box-shadow:var(--glass-shadow-soft)}
+:where(.customer-app,.provider-app,.contractor-app,.admin-app) table{background:rgb(4 19 38 / .72)!important;color:var(--text-primary)!important}
+:where(.customer-app,.provider-app,.contractor-app,.admin-app) th{background:rgb(3 17 35 / .92)!important;color:#d9ecff!important}
+:where(.customer-app,.provider-app,.contractor-app,.admin-app) :where(th,td){border-color:rgb(186 230 253 / .11)!important}
+:where(.customer-app,.provider-app,.contractor-app,.admin-app) tbody tr:hover{background:rgb(45 140 255 / .12)!important}
+
+:where(.portal-page,.contractors-page,.customer-app,.provider-app,.contractor-app,.driver-app,.admin-app) :where(input,select,textarea){border:1px solid rgb(186 230 253 / .22)!important;background:rgb(2 15 31 / .66)!important;color:#fff!important;box-shadow:inset 0 1px rgb(255 255 255 / .04);caret-color:var(--accent-cyan)}
+:where(.portal-page,.contractors-page,.customer-app,.provider-app,.contractor-app,.driver-app,.admin-app) :where(input,textarea)::placeholder{color:#8da9c5!important}
+:where(.portal-page,.contractors-page,.customer-app,.provider-app,.contractor-app,.driver-app,.admin-app) select option{background:#071b32;color:#fff}
+:where(input,select,textarea,button,a):focus-visible{outline:2px solid var(--accent-cyan)!important;outline-offset:2px!important;box-shadow:var(--focus-ring)!important}
+
+:where(.customer-modal-backdrop,.provider-modal-backdrop,.contractor-modal-backdrop,.driver-modal-backdrop,.admin-modal-backdrop,.project-policy-backdrop,.store-detail-backdrop,.portal-demo-backdrop,.pwa-install-backdrop){background:rgb(1 8 20 / .72)!important;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+:where(.customer-modal,.provider-modal,.contractor-modal,.driver-modal,.admin-modal,.project-policy-modal,.portal-demo-backdrop>section,.pwa-install-backdrop>section){border:1px solid var(--glass-border-strong)!important;background:var(--glass-highlight),var(--glass-bg-strong)!important;box-shadow:0 32px 100px rgb(0 0 0 / .48)!important;color:var(--text-primary)!important}
+
+:where(.customer-primary,.provider-primary,.contractor-primary,.driver-primary,.admin-primary,.portal-primary-button,.store-submit-button){border:1px solid rgb(103 232 249 / .36)!important;background:linear-gradient(135deg,#177de1,#0758a8 58%,#087d88)!important;box-shadow:0 14px 36px rgb(6 95 179 / .28)!important;color:#fff!important}
+:where(.customer-secondary,.provider-secondary,.contractor-secondary,.driver-secondary,.admin-secondary,.customer-ghost,.provider-ghost,.contractor-ghost,.admin-ghost){border:1px solid var(--glass-border)!important;background:rgb(255 255 255 / .09)!important;color:#dff3ff!important}
+:where(.customer-danger,.provider-danger,.contractor-danger,.driver-danger,.admin-danger){border:1px solid rgb(253 164 175 / .24)!important;background:rgb(159 18 57 / .2)!important;color:#fecdd3!important}
+:where(.customer-error,.provider-error,.contractor-error,.driver-error,.admin-error,.portal-error){color:#fecaca!important}
+:where(.customer-success-note,.provider-success-note,.contractor-success-note,.driver-toast,.admin-toast){border:1px solid rgb(110 231 183 / .22)!important;background:rgb(6 95 70 / .38)!important;color:#d1fae5!important}
+
+.pwa-install-card{border-color:var(--glass-border-strong)!important;background:var(--glass-highlight),var(--glass-bg-strong)!important;box-shadow:var(--glass-shadow)!important;-webkit-backdrop-filter:blur(var(--glass-blur));backdrop-filter:blur(var(--glass-blur))}
+.offline-page section{border:1px solid var(--glass-border)!important;background:var(--glass-highlight),var(--glass-bg-strong)!important;box-shadow:var(--glass-shadow)!important;color:var(--text-primary)!important;-webkit-backdrop-filter:blur(var(--glass-blur));backdrop-filter:blur(var(--glass-blur))}
+
+@supports not ((-webkit-backdrop-filter:blur(1px)) or (backdrop-filter:blur(1px))){
+  :where(.store-header,.directory-header,.customer-topbar,.provider-topbar,.contractor-topbar,.driver-top,.admin-topbar,.customer-sidebar,.provider-sidebar,.contractor-sidebar,.admin-sidebar,.portal-card,.customer-panel,.provider-panel,.contractor-panel,.driver-card,.admin-panel){background:rgb(5 22 43 / .96)!important}
+}
+
+@media(max-width:820px){
+  body::before{background-position:54% center}
+  :root{--glass-blur:14px;--glass-shadow:0 16px 45px rgb(0 0 0 / .25)}
+  :where(.customer-sidebar,.provider-sidebar,.contractor-sidebar,.admin-sidebar){background:rgb(3 18 37 / .96)!important}
+}
+@media(max-width:560px){
+  :root{--glass-blur:10px}
+  body::after{background:linear-gradient(180deg,rgb(2 10 24 / .82),rgb(3 18 38 / .72),rgb(2 10 24 / .86))}
+  :where(.customer-content,.provider-content,.contractor-content,.driver-content,.admin-content){padding-inline:max(12px,env(safe-area-inset-left))!important}
+}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}}

@@ -1,0 +1,11 @@
+"use client";
+import type {ReactNode} from "react";
+import Link from "next/link";
+const good=["active","approved","completed","success","resolved","published","receiving_proposals","transferred","valid","ready","accepted","verified","read"];
+const bad=["rejected","blocked","failed","suspended","cancelled","expired","unavailable","critical"];
+export function AdminStatus({value}:{value:string}){return <span className={`admin-status ${good.includes(value)?"good":bad.includes(value)?"bad":["running","new","pending_review","under_review","open","unread"].includes(value)?"info":""}`}>{value}</span>}
+export function AdminHeader({eyebrow,title,description,action}:{eyebrow:string;title:string;description:string;action?:ReactNode}){return <header className="admin-page-header"><div><p>{eyebrow}</p><h2>{title}</h2><span>{description}</span></div>{action}</header>}
+export function AdminEmpty({text}:{text:string}){return <div className="admin-empty"><span>◇</span><h3>لا توجد بيانات</h3><p>{text}</p></div>}
+export function AdminToast({message}:{message:string}){return message?<div className="admin-toast" role="status">✓ {message}</div>:null}
+export function AdminDecisionDialog({title,description,reason,onReason,onCancel,onConfirm,confirmLabel="تأكيد الإجراء"}:{title:string;description:string;reason:string;onReason:(value:string)=>void;onCancel:()=>void;onConfirm:()=>void;confirmLabel?:string}){return <div className="admin-modal-backdrop" onMouseDown={onCancel}><section className="admin-modal" role="dialog" aria-modal="true" onMouseDown={event=>event.stopPropagation()}><h3>{title}</h3><p>{description}</p><label><span>سبب الإجراء — إلزامي</span><textarea rows={4} value={reason} onChange={event=>onReason(event.target.value)} placeholder="اكتب سببًا واضحًا يظهر في سجل التدقيق"/></label><p className="admin-decision-note">سيُسجل المدير والوقت والبيانات قبل وبعد في Audit log المحلي.</p><footer><button className="admin-secondary" onClick={onCancel}>تراجع</button><button className="admin-primary" disabled={reason.trim().length<5} onClick={onConfirm}>{confirmLabel}</button></footer></section></div>}
+export function AdminDetailLink({href,label="فتح التفاصيل"}:{href:string;label?:string}){return <Link className="admin-secondary" href={href}>{label}</Link>}

@@ -1,0 +1,4 @@
+"use client";
+import type {PlatformPolicy} from "@/lib/project-request-types";
+
+export function ProjectPolicyModal({policy,onClose}:{policy:PlatformPolicy;onClose:()=>void}){return <div className="project-policy-backdrop" onMouseDown={onClose}><section className="project-policy-modal" role="dialog" aria-modal="true" aria-labelledby={`policy-${policy.id}`} onMouseDown={event=>event.stopPropagation()}><button type="button" onClick={onClose} aria-label="إغلاق السياسة">×</button><p>الإصدار {policy.version}</p><h2 id={`policy-${policy.id}`}>{policy.title}</h2><ul>{policy.content.map(item=><li key={item}>{item}</li>)}</ul><small>آخر تحديث: {new Date(policy.updatedAt).toLocaleDateString("ar-SA")}</small><button className="project-policy-understand" type="button" onClick={onClose}>فهمت السياسة</button></section></div>}
