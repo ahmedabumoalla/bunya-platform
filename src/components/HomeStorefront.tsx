@@ -1,10 +1,12 @@
 "use client";
 
-import type { CSSProperties, FormEvent, KeyboardEvent } from "react";
+import type { FormEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import Link from "next/link";
-import type { Product, ProductCategory, ProductImage, QuoteRequestItem } from "@/lib/bunya-types";
+import type { Product, ProductCategory, QuoteRequestItem } from "@/lib/bunya-types";
 import {PwaInstallPrompt} from "./PwaInstallPrompt";
+import { Icon, LatestProductCard, ProductArtwork, ProductCard, StoreHeader } from "./home/HomeStorefrontUi";
 
 type HomeStorefrontProps = {
   categories: ProductCategory[];
@@ -22,23 +24,11 @@ type QuoteFormState = {
 
 type QuoteErrors = Partial<Record<keyof QuoteFormState, string>>;
 
-type ProductVisualStyle = CSSProperties & {
-  "--product-tone"?: string;
-  "--product-ink"?: string;
-};
-
 const quoteStorageKey = "bunya-home-quote-items";
 
-const visualTone: Record<ProductImage["tone"], { tone: string; ink: string }> = {
-  cement: { tone: "#dbe8f7", ink: "#7b8794" },
-  steel: { tone: "#b9c9df", ink: "#334155" },
-  blocks: { tone: "#d7e0ea", ink: "#64748b" },
-  insulation: { tone: "#58a6ff", ink: "#0f3d73" },
-  plumbing: { tone: "#eef7ff", ink: "#2f80c8" },
-  electric: { tone: "#f5c84c", ink: "#1d4ed8" },
-  wood: { tone: "#d8aa68", ink: "#6b3f1d" },
-  paint: { tone: "#dceafe", ink: "#2563eb" },
-  tools: { tone: "#c6d3e4", ink: "#172554" },
+type StoreViewTransition = { finished: Promise<void> };
+type StoreViewTransitionDocument = Document & {
+  startViewTransition?: (update: () => void) => StoreViewTransition;
 };
 
 function getTodayValue() {
@@ -124,89 +114,11 @@ function isGoogleMapsUrl(value: string) {
   }
 }
 
-function Icon({ name }: { name: "search" | "grid" | "spark" | "quote" | "close" | "plus" | "check" }) {
-  const paths = {
-    search: (
-      <>
-        <circle cx="11" cy="11" r="6" />
-        <path d="m16 16 4 4" />
-      </>
-    ),
-    grid: (
-      <>
-        <path d="M4 4h6v6H4z" />
-        <path d="M14 4h6v6h-6z" />
-        <path d="M4 14h6v6H4z" />
-        <path d="M14 14h6v6h-6z" />
-      </>
-    ),
-    spark: (
-      <>
-        <path d="M12 3v5" />
-        <path d="M12 16v5" />
-        <path d="M3 12h5" />
-        <path d="M16 12h5" />
-        <path d="m6 6 3 3" />
-        <path d="m15 15 3 3" />
-        <path d="m18 6-3 3" />
-        <path d="m9 15-3 3" />
-      </>
-    ),
-    quote: (
-      <>
-        <path d="M7 7h10" />
-        <path d="M7 12h7" />
-        <path d="M7 17h5" />
-        <path d="M5 3h14v18H5z" />
-      </>
-    ),
-    close: (
-      <>
-        <path d="M6 6 18 18" />
-        <path d="M18 6 6 18" />
-      </>
-    ),
-    plus: (
-      <>
-        <path d="M12 5v14" />
-        <path d="M5 12h14" />
-      </>
-    ),
-    check: <path d="m5 12 4 4L19 6" />,
-  };
-
-  return (
-    <svg aria-hidden="true" className="h-5 w-5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
-      {paths[name]}
-    </svg>
-  );
-}
-
-function ProductArtwork({ image, large = false }: { image?: ProductImage; large?: boolean }) {
-  const tone = image ? visualTone[image.tone] : visualTone.cement;
-  const style: ProductVisualStyle = {
-    "--product-tone": tone.tone,
-    "--product-ink": tone.ink,
-  };
-
-  return (
-    <figure
-      aria-label={image?.alt ?? "صورة منتج مواد بناء"}
-      className={`store-product-art ${large ? "store-product-art-large" : ""} ${image ? `store-product-art-${image.tone}` : ""}`}
-      role="img"
-      style={style}
-    >
-      <span className="store-art-sheen" />
-      <span className="store-art-object store-art-object-main" />
-      <span className="store-art-object store-art-object-alt" />
-      <figcaption className="sr-only">{image?.alt ?? "صورة منتج مواد بناء"}</figcaption>
-    </figure>
-  );
-}
-
 export function HomeStorefront({ categories, products }: HomeStorefrontProps) {
   const [query, setQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<ProductCategory | "الكل">("الكل");
+  const [headerCompact, setHeaderCompact] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [activeImageId, setActiveImageId] = useState<string>("");
   const [quoteItems, setQuoteItems] = useState<QuoteRequestItem[]>([]);
@@ -215,6 +127,38 @@ export function HomeStorefront({ categories, products }: HomeStorefrontProps) {
   const [feedback, setFeedback] = useState("");
   const [duplicateItemId, setDuplicateItemId] = useState<string | null>(null);
   const storageReadyRef = useRef(false);
+  const storefrontRef = useRef<HTMLElement>(null);
+  const productOriginRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const onScroll = () => setHeaderCompact(window.scrollY > 20);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    const root = storefrontRef.current;
+    if (!root) return;
+
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const elements = Array.from(root.querySelectorAll<HTMLElement>("[data-store-reveal]"));
+    if (reduceMotion || !("IntersectionObserver" in window)) {
+      elements.forEach((element) => element.classList.add("store-revealed"));
+      return;
+    }
+
+    root.classList.add("store-motion-ready");
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add("store-revealed");
+        observer.unobserve(entry.target);
+      });
+    }, { rootMargin: "0px 0px -8%", threshold: 0.08 });
+    elements.forEach((element) => observer.observe(element));
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -276,19 +220,42 @@ export function HomeStorefront({ categories, products }: HomeStorefrontProps) {
   const activeImage = selectedProduct?.images.find((image) => image.id === activeImageId) ?? selectedProduct?.images[0];
   const selectedMeasurement = selectedProduct?.measurements.find((item) => item.id === quoteForm.measurementId);
 
-  const openProduct = (product: Product) => {
-    setActiveImageId(product.images[0]?.id ?? "");
-    setQuoteForm(createInitialForm(product));
-    setErrors({});
-    setFeedback("");
-    setSelectedProduct(product);
+  const runViewTransition = (update: () => void) => {
+    const transitionDocument = document as StoreViewTransitionDocument;
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!transitionDocument.startViewTransition || reduceMotion) {
+      update();
+      return null;
+    }
+    return transitionDocument.startViewTransition(() => flushSync(update));
   };
 
-  const openProductFromKeyboard = (event: KeyboardEvent<HTMLElement>, product: Product) => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      openProduct(product);
-    }
+  const updateFilters = (update: () => void) => {
+    runViewTransition(update);
+  };
+
+  const openProduct = (product: Product, origin: HTMLElement) => {
+    productOriginRef.current = origin;
+    origin.style.viewTransitionName = "store-product-detail";
+    const transition = runViewTransition(() => {
+      origin.style.viewTransitionName = "";
+      setActiveImageId(product.images[0]?.id ?? "");
+      setQuoteForm(createInitialForm(product));
+      setErrors({});
+      setFeedback("");
+      setSelectedProduct(product);
+    });
+    if (!transition) origin.style.viewTransitionName = "";
+  };
+
+  const closeProduct = () => {
+    const origin = productOriginRef.current;
+    const transition = runViewTransition(() => {
+      if (origin?.isConnected) origin.style.viewTransitionName = "store-product-detail";
+      setSelectedProduct(null);
+    });
+    if (origin && transition) transition.finished.finally(() => { origin.style.viewTransitionName = ""; });
+    else if (origin) origin.style.viewTransitionName = "";
   };
 
   const updateForm = <Key extends keyof QuoteFormState>(key: Key, value: QuoteFormState[Key]) => {
@@ -363,80 +330,32 @@ export function HomeStorefront({ categories, products }: HomeStorefrontProps) {
   };
 
   return (
-    <main className="store-home min-h-screen overflow-hidden text-white">
-      <PwaInstallPrompt />
-      <header className="store-header sticky top-0 z-40 border-b border-white/10">
-        <div className="store-header-layout mx-auto max-w-[90rem] px-4 py-3">
-          <div className="flex items-center justify-between gap-4">
-            <a className="flex items-center gap-3" href="#products" aria-label="بُنية - متجر مواد البناء">
-              <span className="grid h-12 w-12 place-items-center rounded-lg border border-sky-200/20 bg-sky-300/15 text-2xl font-black shadow-[0_18px_45px_rgb(14_165_233/0.18)]">
-                ب
-              </span>
-              <span>
-                <span className="block text-2xl font-black">بُنية</span>
-                <span className="block text-xs font-bold text-sky-100/75">متجر مواد البناء</span>
-              </span>
-            </a>
-            <a
-              href="#quote"
-              className="store-icon-button lg:hidden"
-              aria-label={`طلب عرض السعر يحتوي على ${quoteItems.length.toLocaleString("ar-SA")} منتج`}
-            >
-              <Icon name="quote" />
-              <span>{quoteItems.length.toLocaleString("ar-SA")}</span>
-            </a>
-          </div>
+    <main className="store-home min-h-screen overflow-hidden text-white" ref={storefrontRef}>
+      <StoreHeader compact={headerCompact} menuOpen={mobileMenuOpen} onMenuToggle={() => setMobileMenuOpen((current) => !current)} onNavigate={() => setMobileMenuOpen(false)} quoteCount={quoteItems.length} />
 
-          <div className="store-search relative">
-            <Icon name="search" />
-            <input
-              aria-label="البحث عن المنتجات"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="ابحث عن أسمنت، حديد، عزل..."
-              className="w-full rounded-lg border border-white/15 bg-white/10 py-3 pe-4 ps-11 text-sm font-bold text-white outline-none backdrop-blur placeholder:text-sky-100/55 focus:border-sky-200/70 focus:bg-white/14"
-            />
-          </div>
-
-          <nav className="store-main-nav" aria-label="روابط المتجر">
-            <a className="store-nav-link" href="#categories">
-              <Icon name="grid" />
-              التصنيفات
-            </a>
-            <a className="store-nav-link" href="#latest">
-              <Icon name="spark" />
-              أحدث المنتجات
-            </a>
-            <a
-              href="#quote"
-              className="store-nav-link hidden lg:inline-flex"
-              aria-label={`طلب عرض السعر يحتوي على ${quoteItems.length.toLocaleString("ar-SA")} منتج`}
-            >
-              <Icon name="quote" />
-              طلب السعر
-              <span className="store-count">{quoteItems.length.toLocaleString("ar-SA")}</span>
-            </a>
-          </nav>
-          <nav className="store-portal-nav" aria-label="بوابات بُنية">
-            <Link className="store-portal-link store-portal-link-primary" href="/login">لوحة التحكم</Link>
-            <Link className="store-portal-link" href="/providers/join">بوابة المزودين</Link>
-            <Link className="store-portal-link" href="/contractors/join">بوابة المقاولين</Link>
-          </nav>
-        </div>
-      </header>
-
-      <section className="store-intro px-4">
+      <section className="store-intro px-4" data-store-reveal>
         <div className="store-intro-copy mx-auto">
           <h1>مواد البناء في مكان واحد</h1>
           <p>اطلبها بسهولة</p>
+          <div className="store-intro-actions">
+            <a className="store-hero-primary" href="#products"><Icon name="grid" />تصفح المنتجات</a>
+            <Link className="store-contractor-search" href="/contractors"><Icon name="search" />ابحث عن مقاول</Link>
+          </div>
         </div>
       </section>
 
-      <section id="categories" className="px-4 pb-8">
+      <section className="store-search-section px-4" data-store-reveal>
+        <div className="store-search mx-auto max-w-3xl">
+          <Icon name="search" />
+          <input aria-label="البحث عن المنتجات" value={query} onChange={(event) => { const value = event.currentTarget.value; updateFilters(() => setQuery(value)); }} placeholder="ابحث عن أسمنت، حديد، عزل..." />
+          {query ? <button aria-label="مسح البحث" className="store-search-clear" onClick={() => updateFilters(() => setQuery(""))} type="button"><Icon name="close" /></button> : null}
+        </div>
+      </section>
+
+      <section id="categories" className="store-home-section px-4" data-store-reveal>
         <div className="mx-auto max-w-7xl">
           <div className="store-category-heading">
             <div><h2 className="text-xl font-black">التصنيفات</h2><span className="text-sm font-bold text-sky-100/65">فلترة محلية فورية</span></div>
-            <Link className="store-contractor-search" href="/contractors"><Icon name="search" />ابحث عن مقاول</Link>
           </div>
           <div className="store-category-row" role="list" aria-label="تصنيفات المنتجات">
             {(["الكل", ...categories] as const).map((category) => {
@@ -446,7 +365,7 @@ export function HomeStorefront({ categories, products }: HomeStorefrontProps) {
                   aria-pressed={isActive}
                   className={`store-category-chip ${isActive ? "store-category-chip-active" : ""}`}
                   key={category}
-                  onClick={() => setActiveCategory(category)}
+                  onClick={() => updateFilters(() => setActiveCategory(category))}
                   type="button"
                 >
                   {category}
@@ -457,100 +376,49 @@ export function HomeStorefront({ categories, products }: HomeStorefrontProps) {
         </div>
       </section>
 
-      <section id="latest" className="px-4 pb-8">
+      <section id="latest" className="store-home-section px-4" data-store-reveal>
         <div className="mx-auto max-w-7xl">
-          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div className="store-section-heading">
             <div>
               <p className="store-eyebrow">وصلت حديثا</p>
-              <h2 className="mt-2 text-2xl font-black">أحدث المنتجات</h2>
+              <h2>أحدث المنتجات</h2>
             </div>
-            <a className="store-text-link" href="#products">
-              عرض الشبكة كاملة
-            </a>
+            <a className="store-text-link" href="#products">عرض الشبكة كاملة</a>
           </div>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {latestProducts.map((product) => (
-              <button
-                className="store-latest-card text-start"
-                key={product.id}
-                onClick={() => openProduct(product)}
-                type="button"
-              >
-                <ProductArtwork image={product.images[0]} />
-                <span className="mt-4 block text-xs font-black text-cyan-100/70">{product.category}</span>
-                <span className="mt-2 block text-lg font-black">{product.name}</span>
-                <span className="mt-2 block text-sm font-bold text-sky-50/68">{product.leadTime}</span>
-              </button>
-            ))}
+          <div className="store-latest-grid">
+            {latestProducts.map((product, index) => <LatestProductCard index={index} key={product.id} onOpen={openProduct} product={product} />)}
           </div>
         </div>
       </section>
 
-      <section id="products" className="px-4 pb-16">
+      <section id="products" className="store-home-section store-products-section px-4" data-store-reveal>
         <div className="mx-auto max-w-7xl">
-          <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+          <div className="store-section-heading">
             <div>
               <p className="store-eyebrow">كتالوج مواد البناء</p>
-              <h2 className="mt-2 text-2xl font-black">المنتجات</h2>
+              <h2>جميع المنتجات</h2>
             </div>
-            <p className="rounded-lg border border-white/10 bg-white/8 px-4 py-2 text-sm font-bold text-sky-50/72">
-              {filteredProducts.length.toLocaleString("ar-SA")} منتج مطابق
-            </p>
+            <p className="store-result-count">{filteredProducts.length.toLocaleString("ar-SA")} منتج مطابق</p>
           </div>
 
           {filteredProducts.length > 0 ? (
-            <div className="store-product-grid">
-              {filteredProducts.map((product) => (
-                <article
-                  aria-label={`عرض تفاصيل ${product.name}`}
-                  className="store-product-card"
-                  key={product.id}
-                  onClick={() => openProduct(product)}
-                  onKeyDown={(event) => openProductFromKeyboard(event, product)}
-                  role="button"
-                  tabIndex={0}
-                >
-                  <ProductArtwork image={product.images[0]} />
-                  <div className="mt-5 flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-black text-cyan-100/70">{product.category}</p>
-                      <h3 className="mt-2 text-xl font-black leading-7">{product.name}</h3>
-                    </div>
-                    <span className="store-status-pill">{product.availabilityStatus}</span>
-                  </div>
-                  <p className="mt-3 min-h-12 text-sm font-semibold leading-6 text-sky-50/72">{product.shortDescription}</p>
-                  <dl className="mt-5 grid gap-2 text-sm">
-                    <div className="store-card-fact">
-                      <dt>الوحدة</dt>
-                      <dd>{product.unit}</dd>
-                    </div>
-                    <div className="store-card-fact">
-                      <dt>التوصيل</dt>
-                      <dd>{product.delivery.window}</dd>
-                    </div>
-                    <div className="store-card-fact">
-                      <dt>التوفر</dt>
-                      <dd>{product.regions[0]?.city ?? product.availability}</dd>
-                    </div>
-                  </dl>
-                  <span className="store-detail-cue">
-                    عرض التفاصيل
-                    <Icon name="plus" />
-                  </span>
-                </article>
-              ))}
+            <div className="store-product-grid" key={`${activeCategory}:${query}`}>
+              {filteredProducts.map((product, index) => <ProductCard index={index} key={product.id} onOpen={openProduct} product={product} />)}
             </div>
           ) : (
             <div className="store-empty rounded-lg p-8 text-center">
               <h3 className="text-xl font-black">لا توجد منتجات مطابقة</h3>
               <p className="mt-2 font-semibold text-sky-50/70">جرّب تصنيفا آخر أو امسح نص البحث.</p>
+              {query ? <button className="store-empty-clear" onClick={() => updateFilters(() => setQuery(""))} type="button">مسح البحث</button> : null}
             </div>
           )}
         </div>
       </section>
 
+      <PwaInstallPrompt />
+
       {selectedProduct ? (
-        <div className="store-detail-backdrop" onMouseDown={() => setSelectedProduct(null)}>
+        <div className="store-detail-backdrop" onMouseDown={closeProduct}>
           <section
             aria-labelledby="product-detail-title"
             aria-modal="true"
@@ -562,7 +430,7 @@ export function HomeStorefront({ categories, products }: HomeStorefrontProps) {
             <button
               aria-label="إغلاق تفاصيل المنتج"
               className="store-close-button"
-              onClick={() => setSelectedProduct(null)}
+              onClick={closeProduct}
               type="button"
             >
               <Icon name="close" />
