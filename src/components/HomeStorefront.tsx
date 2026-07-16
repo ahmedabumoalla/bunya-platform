@@ -425,29 +425,10 @@ export function HomeStorefront({ categories, products }: HomeStorefrontProps) {
         </div>
       </header>
 
-      <section className="px-4 pb-7 pt-8 md:pt-10">
-        <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-[1fr_auto] lg:items-end">
-          <div className="max-w-3xl">
-            <p className="store-eyebrow">مواد بناء جاهزة للمقارنة</p>
-            <h1 className="mt-3 text-3xl font-black leading-tight text-white md:text-5xl">
-              اختر المنتج، قارن التفاصيل، وأضفه إلى طلب عرض سعر واحد.
-            </h1>
-            <p className="mt-4 max-w-2xl text-base font-semibold leading-8 text-sky-50/78">
-              متجر مختصر لمواد البناء الأساسية مع تصنيفات واضحة، تفاصيل توريد دقيقة، وطلب عرض سعر محلي بدون دفع أو ربط قاعدة بيانات.
-            </p>
-          </div>
-          <div className="store-quick-panel grid gap-3 rounded-lg p-4 sm:grid-cols-3 lg:min-w-[25rem]">
-            {[
-              ["تصنيف", categories.length.toLocaleString("ar-SA")],
-              ["منتج", products.length.toLocaleString("ar-SA")],
-              ["طلب محلي", quoteItems.length.toLocaleString("ar-SA")],
-            ].map(([label, value]) => (
-              <div key={label} className="rounded-lg border border-white/10 bg-white/8 p-3">
-                <p className="text-xs font-bold text-sky-100/65">{label}</p>
-                <p className="mt-1 text-2xl font-black">{value}</p>
-              </div>
-            ))}
-          </div>
+      <section className="store-intro px-4">
+        <div className="store-intro-copy mx-auto">
+          <h1>مواد البناء في مكان واحد</h1>
+          <p>اطلبها بسهولة</p>
         </div>
       </section>
 

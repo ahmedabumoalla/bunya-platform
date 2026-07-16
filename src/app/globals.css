@@ -469,10 +469,42 @@ html[data-theme="dark"] .glass-card-strong {
 
 .store-contractor-search {
   min-height: 2.8rem;
-  border-color: rgb(103 232 249 / 0.42);
-  background: linear-gradient(135deg, rgb(14 165 233 / 0.3), rgb(45 212 191 / 0.18));
+  border-color: rgb(103 232 249 / 0.62);
+  background: linear-gradient(135deg, rgb(14 165 233 / 0.42), rgb(8 145 178 / 0.28));
+  box-shadow:
+    0 10px 26px rgb(14 165 233 / 0.2),
+    inset 0 1px 0 rgb(255 255 255 / 0.12);
   font-size: 0.85rem;
   padding-inline: 1rem;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.store-contractor-search:hover,
+.store-contractor-search:focus-visible {
+  border-color: rgb(165 243 252 / 0.86);
+  background: linear-gradient(135deg, rgb(14 165 233 / 0.55), rgb(8 145 178 / 0.38));
+  box-shadow:
+    0 14px 32px rgb(14 165 233 / 0.27),
+    0 0 0 1px rgb(103 232 249 / 0.14),
+    inset 0 1px 0 rgb(255 255 255 / 0.16);
+  outline: none;
+  transform: translateY(-2px);
+}
+
+.store-contractor-search:focus-visible {
+  outline: 2px solid #67e8f9;
+  outline-offset: 3px;
+}
+
+.store-contractor-search:active {
+  box-shadow:
+    0 6px 16px rgb(14 165 233 / 0.18),
+    inset 0 2px 5px rgb(2 23 42 / 0.3);
+  transform: translateY(1px) scale(0.99);
 }
 
 .portal-page {
@@ -836,7 +868,39 @@ html[data-theme="dark"] .glass-card-strong {
   letter-spacing: 0;
 }
 
-.store-quick-panel,
+.store-intro {
+  padding-block: clamp(1.75rem, 4vw, 3rem) clamp(1.35rem, 3vw, 2.25rem);
+}
+
+.store-intro-copy {
+  width: fit-content;
+  max-width: min(100%, 46rem);
+  border: 1px solid rgb(186 230 253 / 0.13);
+  border-radius: 1rem;
+  background: linear-gradient(145deg, rgb(5 22 43 / 0.34), rgb(8 27 50 / 0.18));
+  box-shadow: 0 14px 38px rgb(0 0 0 / 0.14);
+  padding: clamp(0.9rem, 2.2vw, 1.3rem) clamp(1.35rem, 4vw, 3rem);
+  text-align: center;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+.store-intro-copy h1 {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(1.75rem, 4vw, 3rem);
+  font-weight: 950;
+  line-height: 1.2;
+  text-wrap: balance;
+}
+
+.store-intro-copy p {
+  margin: 0.45rem 0 0;
+  color: rgb(207 250 254 / 0.88);
+  font-size: clamp(0.95rem, 1.8vw, 1.15rem);
+  font-weight: 800;
+}
+
 .store-latest-card,
 .store-product-card,
 .store-empty,
