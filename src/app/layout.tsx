@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import "./glass-theme.css";
+import "./bunya-design-system.css";
 import {PwaRuntime} from "@/components/PwaRuntime";
+import {BunyaVisualRuntime} from "@/components/BunyaVisualRuntime";
 
 export const metadata: Metadata = {
   title: "بُنية | منصة توريد مواد البناء",
@@ -21,7 +23,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ar" dir="rtl">
-      <body><PwaRuntime/>{children}</body>
+      <body><PwaRuntime/><BunyaVisualRuntime/>{children}</body>
     </html>
   );
 }
