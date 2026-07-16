@@ -1,51 +1,37 @@
-import type {ContractorApplication, CustomerRegistration, ProviderApplication} from "./bunya-types";
+import type {ContractorApplication,CustomerRegistration,ProviderApplication} from "./bunya-types";
 import {contractorProfileMock} from "./contractor-data";
 import {customerProfileMock} from "./customer-data";
-import {localStorageKeys, normalizeValue, readLocalCollection} from "./bunya-local";
+import {createPasswordProof,localStorageKeys,normalizeValue,readLocalCollection} from "./bunya-local";
+import {demoAccountCredentials,demoPasswordProof,demoSeedVersion,demoSeedVersionKey} from "./demo-account-definitions";
+import type {DemoAccountCredential,DemoAccountRole} from "./demo-account-definitions";
 import {providerProfileMock} from "./provider-data";
 
-const DEMO_PASSWORD_PROOF = "f0832245d7b76d85a0eaa33188ea74e6417d2e6eb0ee18fb4dc18b282ac4960d";
+export {demoAccountCredentials,demoSeedVersion};
+
 const SEEDED_AT = "2026-07-16T00:00:00.000Z";
-
-export type DemoAccountRole = "customer" | "provider" | "contractor";
-export type DemoAccount = {
-  id:string;
-  role:DemoAccountRole;
-  displayName:string;
-  email:string;
-  username:string;
-  mobile:string;
-  passwordProof:string;
-  route:"/customer"|"/merchant"|"/contractor";
-  status:"active"|"approved";
-};
-
-export const demoAccountCredentials = [
-  {role:"customer",label:"حساب العميل",email:"customer.demo@bunya.test",username:"customer.demo",mobile:"0500000101",password:"Bunya@123",route:"/customer"},
-  {role:"provider",label:"حساب المزود",email:"provider.demo@bunya.test",username:"provider.demo",mobile:"0500000102",password:"Bunya@123",route:"/merchant"},
-  {role:"contractor",label:"حساب المقاول",email:"contractor.demo@bunya.test",username:"contractor.demo",mobile:"0500000103",password:"Bunya@123",route:"/contractor"},
-] as const;
-
-export const demoAccounts:readonly DemoAccount[] = [
-  {id:"customer-adel",role:"customer",displayName:"عميل بُنية التجريبي",email:"customer.demo@bunya.test",username:"customer.demo",mobile:"0500000101",passwordProof:DEMO_PASSWORD_PROOF,route:"/customer",status:"active"},
-  {id:"provider-modern-materials",role:"provider",displayName:"شركة بُنية لمواد البناء",email:"provider.demo@bunya.test",username:"provider.demo",mobile:"0500000102",passwordProof:DEMO_PASSWORD_PROOF,route:"/merchant",status:"approved"},
-  {id:"ctr-asas",role:"contractor",displayName:"مؤسسة بُنية للمقاولات",email:"contractor.demo@bunya.test",username:"contractor.demo",mobile:"0500000103",passwordProof:DEMO_PASSWORD_PROOF,route:"/contractor",status:"approved"},
-];
+const demoIds = new Set(demoAccountCredentials.map(account=>account.id));
 
 type DemoProviderRecord = ProviderApplication & {passwordProof:string};
 type DemoContractorRecord = ContractorApplication & {username:string;passwordProof:string;availability:"available"};
+type DemoRecord = CustomerRegistration|DemoProviderRecord|DemoContractorRecord;
+type UpsertState = "created"|"repaired"|"ready";
+export type DemoBootstrapResult={created:number;repaired:number;total:number;ready:boolean;version:string};
 
-function matchesDemo(record:{id?:string;email?:string;username?:string;mobile?:string},account:DemoAccount){
+function matchesDemo(record:{id?:string;email?:string;username?:string;mobile?:string},account:DemoAccountCredential){
   const targets=[account.email,account.username,account.mobile].map(normalizeValue);
   return record.id===account.id||[record.email,record.username,record.mobile].some(value=>Boolean(value)&&targets.includes(normalizeValue(value??"")));
 }
 
-function upsertDemo<T extends {id:string;email:string;username?:string;mobile:string}>(key:string,seed:T){
+function upsertDemo<T extends {id:string;email:string;username?:string;mobile:string}>(key:string,seed:T,account:DemoAccountCredential):UpsertState{
   const current=readLocalCollection<T>(key);
-  const index=current.findIndex(item=>matchesDemo(item,demoAccounts.find(account=>account.id===seed.id)!));
-  const next=index<0?[seed,...current]:current.map((item,itemIndex)=>itemIndex===index?{...item,...seed}:item);
-  window.localStorage.setItem(key,JSON.stringify(next));
-  return index<0;
+  const matches=current.filter(item=>matchesDemo(item,account));
+  const existing=matches[0];
+  const canonical={...existing,...seed};
+  const untouched=current.filter(item=>!matchesDemo(item,account));
+  const next=[canonical,...untouched];
+  const state:UpsertState=!existing?"created":matches.length!==1||JSON.stringify(existing)!==JSON.stringify(canonical)?"repaired":"ready";
+  if(state!=="ready")window.localStorage.setItem(key,JSON.stringify(next));
+  return state;
 }
 
 function seedProfiles(){
@@ -54,18 +40,45 @@ function seedProfiles(){
   if(!localStorage.getItem("bunya-contractor-profile"))localStorage.setItem("bunya-contractor-profile",JSON.stringify({...contractorProfileMock,id:"ctr-asas",displayName:"مؤسسة بُنية للمقاولات",companyName:"مؤسسة بُنية للمقاولات",mobile:"0500000103",email:"contractor.demo@bunya.test",availability:"available",accountStatus:"approved"}));
 }
 
-export function bootstrapDemoAccounts(){
-  if(process.env.NODE_ENV!=="development")return {created:0,total:0};
-  const customer=demoAccounts[0];const provider=demoAccounts[1];const contractor=demoAccounts[2];
-  const created=[
-    upsertDemo<CustomerRegistration>(localStorageKeys.customers,{id:customer.id,fullName:customer.displayName,mobile:customer.mobile,email:customer.email,username:customer.username,passwordProof:customer.passwordProof,createdAt:SEEDED_AT}),
-    upsertDemo<DemoProviderRecord>(localStorageKeys.providers,{id:provider.id,companyName:provider.displayName,contactName:"مسؤول حساب المزود التجريبي",mobile:provider.mobile,email:provider.email,username:provider.username,passwordProof:provider.passwordProof,mapsUrl:providerProfileMock.mapsUrl,latitude:providerProfileMock.latitude,longitude:providerProfileMock.longitude,categories:providerProfileMock.categories,deliveryAvailable:providerProfileMock.deliveryAvailable,deliveryRegions:providerProfileMock.deliveryRegions,status:"approved",createdAt:SEEDED_AT}),
-    upsertDemo<DemoContractorRecord>(localStorageKeys.contractors,{id:contractor.id,contractorName:contractor.displayName,mobile:contractor.mobile,email:contractor.email,username:contractor.username,passwordProof:contractor.passwordProof,availability:"available",workRegions:contractorProfileMock.workRegions,specialties:contractorProfileMock.specialties,documents:[],status:"approved",createdAt:SEEDED_AT}),
+export async function bootstrapDemoAccounts():Promise<DemoBootstrapResult>{
+  if(process.env.NODE_ENV!=="development")return {created:0,repaired:0,total:0,ready:false,version:demoSeedVersion};
+  const passwordProof=await createPasswordProof(demoAccountCredentials[0].password);
+  if(passwordProof!==demoPasswordProof)throw new Error("DEMO_PASSWORD_PROOF_MISMATCH");
+  const customer=demoAccountCredentials[0];const provider=demoAccountCredentials[1];const contractor=demoAccountCredentials[2];
+  const states=[
+    upsertDemo<CustomerRegistration>(localStorageKeys.customers,{id:customer.id,fullName:customer.displayName,mobile:customer.mobile,email:customer.email,username:customer.username,passwordProof,createdAt:SEEDED_AT},customer),
+    upsertDemo<DemoProviderRecord>(localStorageKeys.providers,{id:provider.id,companyName:provider.displayName,contactName:"مسؤول حساب المزود التجريبي",mobile:provider.mobile,email:provider.email,username:provider.username,passwordProof,mapsUrl:providerProfileMock.mapsUrl,latitude:providerProfileMock.latitude,longitude:providerProfileMock.longitude,categories:providerProfileMock.categories,deliveryAvailable:providerProfileMock.deliveryAvailable,deliveryRegions:providerProfileMock.deliveryRegions,status:"approved",createdAt:SEEDED_AT},provider),
+    upsertDemo<DemoContractorRecord>(localStorageKeys.contractors,{id:contractor.id,contractorName:contractor.displayName,mobile:contractor.mobile,email:contractor.email,username:contractor.username,passwordProof,availability:"available",workRegions:contractorProfileMock.workRegions,specialties:contractorProfileMock.specialties,documents:[],status:"approved",createdAt:SEEDED_AT},contractor),
   ];
   seedProfiles();
-  return {created:created.filter(Boolean).length,total:3};
+  localStorage.setItem(demoSeedVersionKey,demoSeedVersion);
+  return {created:states.filter(state=>state==="created").length,repaired:states.filter(state=>state==="repaired").length,total:3,ready:true,version:demoSeedVersion};
 }
 
-export function resetDemoAccounts(){return bootstrapDemoAccounts()}
+function collectionFor(role:DemoAccountRole):DemoRecord[]{
+  if(role==="customer")return readLocalCollection<CustomerRegistration>(localStorageKeys.customers);
+  if(role==="provider")return readLocalCollection<DemoProviderRecord>(localStorageKeys.providers);
+  return readLocalCollection<DemoContractorRecord>(localStorageKeys.contractors);
+}
 
-export function findDemoAccount(role:DemoAccountRole,userId:string){return demoAccounts.find(account=>account.role===role&&account.id===userId)}
+export async function ensureDemoAccount(role:DemoAccountRole){
+  const result=await bootstrapDemoAccounts();
+  const account=demoAccountCredentials.find(item=>item.role===role);
+  if(!result.ready||!account)return null;
+  const record=collectionFor(role).find(item=>matchesDemo(item,account));
+  if(!record||record.passwordProof!==demoPasswordProof)return null;
+  return account;
+}
+
+export async function resetDemoAccounts(){
+  const result=await bootstrapDemoAccounts();
+  const raw=localStorage.getItem("bunya-local-session");
+  if(raw){
+    try{
+      const session=JSON.parse(raw) as {userId?:string};
+      if(session.userId&&demoIds.has(session.userId as (typeof demoAccountCredentials)[number]["id"]))localStorage.removeItem("bunya-local-session");
+    }catch{localStorage.removeItem("bunya-local-session")}
+  }
+  return result;
+}
+

@@ -30,9 +30,10 @@ export async function createProviderDriver(input:Omit<ProviderDriver,"id"|"provi
 
 export async function authenticateDriver(identifier:string,password:string){
   const proof=await createPasswordProof(password);const normalized=normalizeValue(identifier);
-  const driver=readDrivers().find(item=>[item.email,item.mobile,item.username].some(value=>normalizeValue(value)===normalized)&&item.passwordProof===proof);
-  if(!driver)return {ok:false as const,message:"بيانات الدخول غير مطابقة."};
-  if(driver.status==="suspended")return {ok:false as const,message:"حساب السائق موقوف. تواصل مع المزود."};
+  const driver=readDrivers().find(item=>[item.email,item.mobile,item.username].some(value=>normalizeValue(value)===normalized));
+  if(!driver)return {ok:false as const,code:"not_found" as const,message:"الحساب غير موجود في التخزين المحلي."};
+  if(driver.passwordProof!==proof)return {ok:false as const,code:"invalid_password" as const,message:"كلمة المرور غير صحيحة."};
+  if(driver.status==="suspended")return {ok:false as const,code:"suspended" as const,message:"حساب السائق موقوف. تواصل مع المزود."};
   const now=new Date().toISOString();const session:DriverSession={id:createProviderId("driver-session"),driverId:driver.id,providerId:driver.providerId,createdAt:now,lastActiveAt:now};
   writeDriverSessions([session,...readDriverSessions()]);
   writeDrivers(readDrivers().map(item=>item.id===driver.id?{...item,lastActiveAt:now,updatedAt:now}:item));

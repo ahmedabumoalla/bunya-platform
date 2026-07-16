@@ -55,7 +55,7 @@ export function LoginFlow() {
     }
   };
 
-  const reset=()=>{const result=resetDemoAccounts();setSeedMessage(result.created?"أعيد إنشاء الحسابات التجريبية الناقصة.":"الحسابات التجريبية جاهزة دون تكرار.");setResetOpen(false)};
+  const reset=async()=>{const result=await resetDemoAccounts();setSeedMessage(result.created?"أعيد إنشاء الحسابات التجريبية الناقصة.":"الحسابات التجريبية جاهزة دون تكرار.");setResetOpen(false)};
   return <PortalShell><AuthCard eyebrow="تسجيل الدخول الموحد" title="مرحبًا بعودتك" description="ادخل إلى لوحة دورك عبر البريد أو اسم المستخدم أو رقم الجوال.">
     <form className="portal-form" onSubmit={submit} noValidate>
       <div className="portal-field"><label htmlFor="login-id">البريد الإلكتروني أو اسم المستخدم أو رقم الجوال</label><input id="login-id" autoComplete="username" value={identifier} onChange={(event) => { setIdentifier(event.target.value); setErrors({}); }} />{errors.identifier ? <small className="portal-error">{errors.identifier}</small> : null}</div>
