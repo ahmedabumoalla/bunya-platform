@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import Link from "next/link";
 import type { Product, ProductImage } from "@/lib/bunya-types";
+import { BunyaLogo } from "@/components/brand/BunyaLogo";
 
 type ProductVisualStyle = CSSProperties & {
   "--product-tone"?: string;
@@ -63,8 +64,7 @@ export function StoreHeader({ compact, menuOpen, quoteCount, onMenuToggle, onNav
     <header className={`store-header ${compact ? "store-header-compact" : ""}`}>
       <div className="store-header-layout mx-auto max-w-[90rem]">
         <a className="store-brand" href="#products" aria-label="بُنية - متجر مواد البناء" onClick={onNavigate}>
-          <span className="store-brand-mark">ب</span>
-          <span><strong>بُنية</strong><small>متجر مواد البناء</small></span>
+          <BunyaLogo priority />
         </a>
 
         <nav className="store-desktop-nav" aria-label="روابط المتجر">

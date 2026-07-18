@@ -1,88 +1,1169 @@
-:root{
-  --glass-bg:rgb(8 27 50 / .68);
-  --glass-bg-strong:rgb(5 22 43 / .86);
-  --glass-bg-dark:rgb(3 17 34 / .9);
-  --glass-inset:rgb(255 255 255 / .075);
-  --glass-border:rgb(186 230 253 / .2);
-  --glass-border-strong:rgb(103 232 249 / .32);
-  --glass-shadow:0 24px 70px rgb(0 0 0 / .3);
-  --glass-shadow-soft:0 14px 38px rgb(0 0 0 / .2);
-  --glass-blur:18px;
-  --glass-highlight:linear-gradient(145deg,rgb(255 255 255 / .13),rgb(255 255 255 / .035));
-  --text-primary:#f8fbff;
-  --text-secondary:#bfd1e5;
-  --text-muted:#8eabc8;
-  --accent-blue:#2d8cff;
-  --accent-cyan:#67e8f9;
-  --accent-success:#6ee7b7;
-  --accent-warning:#fde68a;
-  --accent-danger:#fda4af;
-  --focus-ring:0 0 0 3px rgb(103 232 249 / .25);
+:root {
+  --bunya-bg: #fffaf2;
+  --bunya-bg-soft: #f5eadb;
+  --bunya-surface: rgb(255 253 248 / 0.88);
+  --bunya-surface-strong: rgb(255 253 248 / 0.97);
+  --bunya-surface-muted: #f3e8d9;
+  --bunya-surface-soft: var(--bunya-surface-muted);
+  --bunya-border: #b9a38f;
+  --bunya-border-strong: #8f735f;
+  --bunya-border-active: var(--bunya-border-strong);
+  --bunya-text-primary: #111111;
+  --bunya-text-secondary: #2a2a2a;
+  --bunya-text-muted: #4a4a4a;
+  --bunya-text-on-accent: #fff;
+  --bunya-icon-primary: #111111;
+  --bunya-icon-secondary: #5a4638;
+  --bunya-icon-on-accent: #fff;
+  --bunya-link: #6f321e;
+  --bunya-link-hover: #4d2114;
+  --bunya-focus: #a84f28;
+  --bunya-brand-copper: #b97149;
+  --bunya-brand-copper-strong: #8f5132;
+  --bunya-brand-sand: #d6b486;
+  --bunya-brand-clay: #c9865f;
+  --bunya-brand-charcoal: #2a2a2a;
+  --bunya-accent: #a95f3b;
+  --bunya-accent-hover: #84452d;
+  --bunya-success: #285f49;
+  --bunya-success-bg: #e4f1e9;
+  --bunya-warning: #79520f;
+  --bunya-warning-bg: #fff0cb;
+  --bunya-danger: #963b35;
+  --bunya-danger-bg: #fde9e7;
+  --bunya-info: #2a2a2a;
+  --bunya-info-bg: #e4eff4;
+  --bunya-shadow-sm: 0 8px 24px rgb(83 58 37 / 0.08);
+  --bunya-shadow-md: 0 18px 52px rgb(83 58 37 / 0.12);
+  --bunya-shadow-lg: 0 28px 80px rgb(83 58 37 / 0.16);
+
+  /* Compatibility aliases consumed by the existing role styles. */
+  --bunya-overlay: rgb(255 250 242 / 0.45);
+  --bunya-accent-soft: rgb(185 113 73 / 0.12);
+  --bunya-ink: var(--bunya-text-primary);
+  --bunya-muted: var(--bunya-text-secondary);
+  --bunya-faint: var(--bunya-text-muted);
+  --bunya-line: var(--bunya-border);
+  --bunya-line-strong: var(--bunya-border-active);
+  --bunya-glass-soft: rgb(255 253 248 / 0.62);
+  --bunya-glass: var(--bunya-surface);
+  --bunya-glass-strong: var(--bunya-surface-strong);
+  --bunya-inset: rgb(126 91 61 / 0.055);
+  --glass-bg: var(--bunya-surface);
+  --glass-bg-strong: var(--bunya-surface-strong);
+  --glass-bg-dark: rgb(255 253 248 / 0.96);
+  --glass-inset: var(--bunya-inset);
+  --glass-border: var(--bunya-border);
+  --glass-border-strong: var(--bunya-border-active);
+  --glass-shadow: var(--bunya-shadow-md);
+  --glass-shadow-soft: var(--bunya-shadow-sm);
+  --glass-blur: 14px;
+  --glass-highlight: linear-gradient(145deg, rgb(255 255 255 / 0.55), rgb(255 250 242 / 0.1));
+  --text-primary: var(--bunya-text-primary);
+  --text-secondary: var(--bunya-text-secondary);
+  --text-muted: var(--bunya-text-muted);
+  --accent-success: var(--bunya-success);
+  --accent-warning: var(--bunya-warning);
+  --accent-danger: var(--bunya-danger);
+  --focus-ring: 0 0 0 3px rgb(143 81 50 / 0.24);
 }
 
-html{background:#030d1a;color-scheme:dark}
-body{position:relative;isolation:isolate;min-height:100dvh;background:#030d1a!important;color:var(--text-primary)}
-body::before,body::after{content:"";position:fixed;inset:0;pointer-events:none}
-body::before{z-index:-2;background-image:url("/assets/bunya-construction-background.webp?v=023");background-repeat:no-repeat;background-position:center;background-size:cover}
-body::after{z-index:-1;background:linear-gradient(135deg,rgb(2 10 24 / .84),rgb(4 24 49 / .65) 48%,rgb(3 13 29 / .82)),radial-gradient(circle at 72% 42%,rgb(14 116 214 / .12),transparent 38rem)}
-
-:where(.store-home,.portal-page,.contractors-page,.customer-app,.provider-app,.contractor-app,.driver-app,.admin-app,.offline-page,.app-stage){background:transparent!important;color:var(--text-primary)!important}
-:where(.store-home,.portal-page,.contractors-page)::before{background-image:none!important}
-:where(.customer-workspace,.provider-workspace,.contractor-workspace,.admin-workspace,.driver-content,.customer-content,.provider-content,.contractor-content,.admin-content){background:transparent!important}
-
-:where(.store-header,.directory-header,.customer-topbar,.provider-topbar,.contractor-topbar,.driver-top,.admin-topbar,.customer-breadcrumb,.provider-breadcrumb,.contractor-breadcrumb,.admin-breadcrumb){border-color:var(--glass-border)!important;background:rgb(4 20 39 / .72)!important;box-shadow:var(--glass-shadow-soft)!important;color:var(--text-primary)!important;-webkit-backdrop-filter:blur(var(--glass-blur)) saturate(135%);backdrop-filter:blur(var(--glass-blur)) saturate(135%)}
-:where(.customer-sidebar,.provider-sidebar,.contractor-sidebar,.admin-sidebar){border-inline-end:1px solid var(--glass-border)!important;background:linear-gradient(180deg,rgb(3 18 37 / .94),rgb(5 28 54 / .84))!important;box-shadow:-18px 0 60px rgb(0 0 0 / .34)!important;-webkit-backdrop-filter:blur(20px) saturate(130%);backdrop-filter:blur(20px) saturate(130%)}
-:where(.customer-sidebar,.provider-sidebar,.contractor-sidebar,.admin-sidebar) nav{scrollbar-width:none}
-:where(.customer-sidebar,.provider-sidebar,.contractor-sidebar,.admin-sidebar) nav::-webkit-scrollbar{display:none}
-:where(.customer-sidebar,.provider-sidebar,.contractor-sidebar,.admin-sidebar) nav a.active{border:1px solid rgb(103 232 249 / .24)!important;background:linear-gradient(135deg,rgb(45 140 255 / .3),rgb(34 211 238 / .12))!important;box-shadow:inset 0 1px rgb(255 255 255 / .08);color:#fff!important}
-
-:where(.store-quick-panel,.store-latest-card,.store-product-card,.store-empty,.store-detail-panel,.store-quote-panel,.store-info-block,.store-detail-visual,.store-thumb,.portal-card,.portal-demo-accounts,.directory-filters,.contractor-profile-card,.customer-panel,.customer-request-card,.customer-order-card,.customer-project-request-card,.provider-panel,.provider-request-card,.provider-quote-card,.provider-order-card,.contractor-panel,.contractor-opportunity-card,.contractor-proposal-card,.contractor-project-card,.driver-card,.driver-empty,.driver-password-card,.admin-panel,.admin-record-card,.admin-kpi-grid>a){border:1px solid var(--glass-border)!important;background:var(--glass-highlight),var(--glass-bg)!important;box-shadow:var(--glass-shadow)!important;color:var(--text-primary)!important;-webkit-backdrop-filter:blur(var(--glass-blur)) saturate(135%);backdrop-filter:blur(var(--glass-blur)) saturate(135%)}
-.driver-empty>span{color:var(--accent-cyan)!important}
-.driver-empty p{color:var(--text-secondary)!important}
-:where(.store-quote-panel,.portal-card,.customer-form-panel,.provider-form-panel,.contractor-form-panel,.driver-modal,.customer-modal,.provider-modal,.contractor-modal,.admin-modal,.admin-panel,.customer-table-wrap,.provider-table-wrap,.contractor-table-wrap,.admin-table-wrap){background:var(--glass-highlight),var(--glass-bg-strong)!important}
-
-:where(.customer-app,.provider-app,.contractor-app,.driver-app,.admin-app) :where(h1,h2,h3,h4,dd,strong){color:var(--text-primary)!important}
-:where(.customer-app,.provider-app,.contractor-app,.driver-app,.admin-app) :where(p,small,dt,label){color:var(--text-secondary)!important}
-:where(.customer-page-header,.provider-page-header,.contractor-page-header,.driver-heading,.admin-page-header) span{color:var(--text-secondary)!important}
-:where(.customer-page-header,.provider-page-header,.contractor-page-header,.driver-heading,.admin-page-header)>p{color:var(--accent-cyan)!important}
-
-:where(.customer-app,.provider-app,.contractor-app,.driver-app,.admin-app) :where(dl>div,.customer-alerts li,.customer-health article,.admin-health article,.admin-financial-grid article,.admin-record-meta div,.admin-detail-meta div,.admin-operation-timeline dl div,.admin-alert-grid dl div,.provider-info-grid div,.contractor-info-grid div,.driver-card dl div,.customer-info-grid div,.customer-request-card dl div,.customer-order-card dl div,.customer-project-request-card dl div,.customer-notifications a,.project-stepper){border:1px solid rgb(255 255 255 / .08)!important;background:var(--glass-inset)!important}
-
-:where(.customer-table-wrap,.provider-table-wrap,.contractor-table-wrap,.admin-table-wrap){overflow:auto!important;border:1px solid var(--glass-border)!important;border-radius:16px;box-shadow:var(--glass-shadow-soft)}
-:where(.customer-app,.provider-app,.contractor-app,.admin-app) table{background:rgb(4 19 38 / .72)!important;color:var(--text-primary)!important}
-:where(.customer-app,.provider-app,.contractor-app,.admin-app) th{background:rgb(3 17 35 / .92)!important;color:#d9ecff!important}
-:where(.customer-app,.provider-app,.contractor-app,.admin-app) :where(th,td){border-color:rgb(186 230 253 / .11)!important}
-:where(.customer-app,.provider-app,.contractor-app,.admin-app) tbody tr:hover{background:rgb(45 140 255 / .12)!important}
-
-:where(.portal-page,.contractors-page,.customer-app,.provider-app,.contractor-app,.driver-app,.admin-app) :where(input,select,textarea){border:1px solid rgb(186 230 253 / .22)!important;background:rgb(2 15 31 / .66)!important;color:#fff!important;box-shadow:inset 0 1px rgb(255 255 255 / .04);caret-color:var(--accent-cyan)}
-:where(.portal-page,.contractors-page,.customer-app,.provider-app,.contractor-app,.driver-app,.admin-app) :where(input,textarea)::placeholder{color:#8da9c5!important}
-:where(.portal-page,.contractors-page,.customer-app,.provider-app,.contractor-app,.driver-app,.admin-app) select option{background:#071b32;color:#fff}
-:where(input,select,textarea,button,a):focus-visible{outline:2px solid var(--accent-cyan)!important;outline-offset:2px!important;box-shadow:var(--focus-ring)!important}
-
-:where(.customer-modal-backdrop,.provider-modal-backdrop,.contractor-modal-backdrop,.driver-modal-backdrop,.admin-modal-backdrop,.project-policy-backdrop,.store-detail-backdrop,.portal-demo-backdrop,.pwa-install-backdrop){background:rgb(1 8 20 / .72)!important;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
-:where(.customer-modal,.provider-modal,.contractor-modal,.driver-modal,.admin-modal,.project-policy-modal,.portal-demo-backdrop>section,.pwa-install-backdrop>section){border:1px solid var(--glass-border-strong)!important;background:var(--glass-highlight),var(--glass-bg-strong)!important;box-shadow:0 32px 100px rgb(0 0 0 / .48)!important;color:var(--text-primary)!important}
-
-:where(.customer-primary,.provider-primary,.contractor-primary,.driver-primary,.admin-primary,.portal-primary-button,.store-submit-button){border:1px solid rgb(103 232 249 / .36)!important;background:linear-gradient(135deg,#177de1,#0758a8 58%,#087d88)!important;box-shadow:0 14px 36px rgb(6 95 179 / .28)!important;color:#fff!important}
-:where(.customer-secondary,.provider-secondary,.contractor-secondary,.driver-secondary,.admin-secondary,.customer-ghost,.provider-ghost,.contractor-ghost,.admin-ghost){border:1px solid var(--glass-border)!important;background:rgb(255 255 255 / .09)!important;color:#dff3ff!important}
-:where(.customer-danger,.provider-danger,.contractor-danger,.driver-danger,.admin-danger){border:1px solid rgb(253 164 175 / .24)!important;background:rgb(159 18 57 / .2)!important;color:#fecdd3!important}
-:where(.customer-error,.provider-error,.contractor-error,.driver-error,.admin-error,.portal-error){color:#fecaca!important}
-:where(.customer-success-note,.provider-success-note,.contractor-success-note,.driver-toast,.admin-toast){border:1px solid rgb(110 231 183 / .22)!important;background:rgb(6 95 70 / .38)!important;color:#d1fae5!important}
-
-.pwa-install-card{border-color:var(--glass-border-strong)!important;background:var(--glass-highlight),var(--glass-bg-strong)!important;box-shadow:var(--glass-shadow)!important;-webkit-backdrop-filter:blur(var(--glass-blur));backdrop-filter:blur(var(--glass-blur))}
-.offline-page section{border:1px solid var(--glass-border)!important;background:var(--glass-highlight),var(--glass-bg-strong)!important;box-shadow:var(--glass-shadow)!important;color:var(--text-primary)!important;-webkit-backdrop-filter:blur(var(--glass-blur));backdrop-filter:blur(var(--glass-blur))}
-
-@supports not ((-webkit-backdrop-filter:blur(1px)) or (backdrop-filter:blur(1px))){
-  :where(.store-header,.directory-header,.customer-topbar,.provider-topbar,.contractor-topbar,.driver-top,.admin-topbar,.customer-sidebar,.provider-sidebar,.contractor-sidebar,.admin-sidebar,.portal-card,.customer-panel,.provider-panel,.contractor-panel,.driver-card,.admin-panel){background:rgb(5 22 43 / .96)!important}
+html,
+html[data-theme="dark"] {
+  background: var(--bunya-bg);
+  color-scheme: light;
 }
 
-@media(max-width:820px){
-  body::before{background-position:54% center}
-  :root{--glass-blur:14px;--glass-shadow:0 16px 45px rgb(0 0 0 / .25)}
-  :where(.customer-sidebar,.provider-sidebar,.contractor-sidebar,.admin-sidebar){background:rgb(3 18 37 / .96)!important}
+body,
+html[data-theme="dark"] body {
+  position: relative;
+  isolation: isolate;
+  min-height: 100dvh;
+  background: var(--bunya-bg) !important;
+  color: var(--bunya-text-primary);
 }
-@media(max-width:560px){
-  :root{--glass-blur:10px}
-  body::after{background:linear-gradient(180deg,rgb(2 10 24 / .82),rgb(3 18 38 / .72),rgb(2 10 24 / .86))}
-  :where(.customer-content,.provider-content,.contractor-content,.driver-content,.admin-content){padding-inline:max(12px,env(safe-area-inset-left))!important}
+
+body::before,
+body::after {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  content: "";
 }
-@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}}
+
+body:has(.store-home)::after {
+  background: linear-gradient(115deg, rgb(255 250 242 / 0.58), rgb(255 252 247 / 0.32) 48%, rgb(246 231 211 / 0.48));
+}
+
+body::before {
+  background: url("/visuals/bunya-daylight-site.png") center / cover no-repeat;
+}
+
+body::after {
+  z-index: -1;
+  background:
+    linear-gradient(115deg, rgb(255 250 242 / 0.62), rgb(255 252 247 / 0.28) 48%, rgb(246 231 211 / 0.45)),
+    radial-gradient(circle at 78% 12%, rgb(255 255 255 / 0.4), transparent 36rem);
+}
+
+::selection { background: var(--bunya-accent); color: var(--bunya-text-on-accent); }
+
+:where(.store-home,.portal-page,.contractors-page,.customer-app,.provider-app,.contractor-app,.driver-app,.admin-app,.offline-page,.app-stage) {
+  background: transparent !important;
+  color: var(--bunya-text-primary) !important;
+}
+
+:where(.customer-app,.provider-app,.contractor-app,.driver-app,.admin-app) {
+  background: linear-gradient(115deg, rgb(255 250 242 / 0.72), rgb(255 252 247 / 0.56)) !important;
+}
+
+:where(.customer-workspace,.provider-workspace,.contractor-workspace,.admin-workspace,.driver-content,.customer-content,.provider-content,.provider-main,.contractor-content,.admin-content) {
+  background: transparent !important;
+}
+
+:where(.store-header,.directory-header,.customer-topbar,.provider-topbar,.contractor-topbar,.driver-top,.admin-topbar,.customer-breadcrumb,.provider-breadcrumb,.contractor-breadcrumb,.admin-breadcrumb) {
+  border-color: var(--bunya-border) !important;
+  background: rgb(255 253 248 / 0.8) !important;
+  box-shadow: var(--bunya-shadow-sm) !important;
+  color: var(--bunya-text-primary) !important;
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(115%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(115%);
+}
+
+:where(.customer-sidebar,.provider-sidebar,.contractor-sidebar,.admin-sidebar) {
+  border-inline-end: 1px solid var(--bunya-border) !important;
+  background: linear-gradient(180deg, rgb(255 253 248 / 0.94), rgb(244 232 215 / 0.9)) !important;
+  box-shadow: -12px 0 42px rgb(83 58 37 / 0.1) !important;
+  color: var(--bunya-text-primary) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(115%);
+  backdrop-filter: blur(18px) saturate(115%);
+}
+
+:where(.customer-sidebar,.provider-sidebar,.contractor-sidebar,.admin-sidebar) nav {
+  scrollbar-width: none;
+}
+:where(.customer-sidebar,.provider-sidebar,.contractor-sidebar,.admin-sidebar) nav::-webkit-scrollbar { display: none; }
+
+:where(.customer-sidebar,.provider-sidebar,.contractor-sidebar,.admin-sidebar) nav a {
+  color: var(--bunya-text-secondary) !important;
+}
+:where(.customer-sidebar,.provider-sidebar,.contractor-sidebar,.admin-sidebar) nav a:hover {
+  background: rgb(185 113 73 / 0.07) !important;
+  color: var(--bunya-text-primary) !important;
+}
+:where(.customer-sidebar,.provider-sidebar,.contractor-sidebar,.admin-sidebar) nav a.active {
+  border: 1px solid rgb(185 113 73 / 0.22) !important;
+  background: linear-gradient(135deg, rgb(214 180 134 / 0.34), rgb(185 113 73 / 0.12)) !important;
+  box-shadow: inset 0 1px rgb(255 255 255 / 0.65);
+  color: var(--bunya-brand-copper-strong) !important;
+}
+
+:where(.store-quick-panel,.store-latest-card,.store-product-card,.store-empty,.store-detail-panel,.store-quote-panel,.store-info-block,.store-detail-visual,.store-thumb,.portal-card,.portal-demo-accounts,.directory-filters,.contractor-profile-card,.customer-panel,.customer-request-card,.customer-order-card,.customer-project-request-card,.provider-panel,.provider-request-card,.provider-quote-card,.provider-order-card,.contractor-panel,.contractor-opportunity-card,.contractor-proposal-card,.contractor-project-card,.driver-card,.driver-empty,.driver-password-card,.admin-panel,.admin-record-card,.admin-kpi-grid>a,.customer-form-panel,.provider-form-panel,.contractor-form-panel) {
+  border: 1px solid var(--bunya-border) !important;
+  background: var(--glass-highlight), var(--bunya-surface) !important;
+  box-shadow: var(--bunya-shadow-md) !important;
+  color: var(--bunya-text-primary) !important;
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(110%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(110%);
+}
+
+:where(.store-quote-panel,.portal-card,.customer-form-panel,.provider-form-panel,.contractor-form-panel,.driver-modal,.customer-modal,.provider-modal,.contractor-modal,.admin-modal,.admin-panel,.customer-table-wrap,.provider-table-wrap,.contractor-table-wrap,.admin-table-wrap) {
+  background: var(--glass-highlight), var(--bunya-surface-strong) !important;
+}
+
+:where(.customer-app,.provider-app,.contractor-app,.driver-app,.admin-app,.portal-page,.contractors-page,.store-home) :where(h1,h2,h3,h4,dd,strong,b) {
+  color: var(--bunya-text-primary) !important;
+}
+:where(.customer-app,.provider-app,.contractor-app,.driver-app,.admin-app,.portal-page,.contractors-page,.store-home) :where(p,small,dt) {
+  color: var(--bunya-text-secondary) !important;
+}
+:where(.customer-app,.provider-app,.contractor-app,.driver-app,.admin-app,.portal-page,.contractors-page,.store-home) label,
+:where(.customer-app,.provider-app,.contractor-app,.driver-app,.admin-app,.portal-page,.contractors-page,.store-home) label > span,
+:where(.customer-app,.provider-app,.contractor-app,.driver-app,.admin-app,.portal-page,.contractors-page,.store-home) .store-field > span {
+  color: var(--bunya-text-primary) !important;
+  opacity: 1 !important;
+}
+:where(.customer-page-header,.provider-page-header,.contractor-page-header,.driver-heading,.admin-page-header)>p,
+.store-eyebrow {
+  color: var(--bunya-brand-copper-strong) !important;
+}
+
+:where(.customer-app,.provider-app,.contractor-app,.driver-app,.admin-app) :where(dl>div,.customer-alerts li,.customer-health article,.admin-health article,.admin-financial-grid article,.admin-record-meta div,.admin-detail-meta div,.admin-operation-timeline dl div,.admin-alert-grid dl div,.provider-info-grid div,.contractor-info-grid div,.driver-card dl div,.customer-info-grid div,.customer-request-card dl div,.customer-order-card dl div,.customer-project-request-card dl div,.customer-notifications a,.project-stepper) {
+  border: 1px solid rgb(111 82 57 / 0.1) !important;
+  background: var(--bunya-inset) !important;
+}
+
+:where(.customer-table-wrap,.provider-table-wrap,.contractor-table-wrap,.admin-table-wrap) {
+  overflow: auto !important;
+  border: 1px solid var(--bunya-border) !important;
+  border-radius: 16px;
+  box-shadow: var(--bunya-shadow-sm);
+}
+:where(.customer-app,.provider-app,.contractor-app,.admin-app) table {
+  background: rgb(255 253 248 / 0.82) !important;
+  color: var(--bunya-text-primary) !important;
+}
+:where(.customer-app,.provider-app,.contractor-app,.admin-app) th {
+  background: #f0e2cf !important;
+  color: var(--bunya-text-primary) !important;
+}
+:where(.customer-app,.provider-app,.contractor-app,.admin-app) :where(th,td) { border-color: rgb(111 82 57 / 0.11) !important; }
+:where(.customer-app,.provider-app,.contractor-app,.admin-app) tbody tr:nth-child(even) { background: rgb(214 180 134 / 0.06) !important; }
+:where(.customer-app,.provider-app,.contractor-app,.admin-app) tbody tr:hover { background: rgb(185 113 73 / 0.08) !important; }
+
+:where(.portal-page,.contractors-page,.customer-app,.provider-app,.contractor-app,.driver-app,.admin-app,.store-home) :where(input,select,textarea) {
+  border: 1px solid rgb(111 82 57 / 0.22) !important;
+  background: rgb(255 254 251 / 0.9) !important;
+  color: var(--bunya-text-primary) !important;
+  box-shadow: inset 0 1px rgb(255 255 255 / 0.8);
+  caret-color: var(--bunya-brand-copper);
+}
+:where(.portal-page,.contractors-page,.customer-app,.provider-app,.contractor-app,.driver-app,.admin-app,.store-home) :where(input,textarea)::placeholder {
+  color: var(--bunya-text-muted) !important;
+  opacity: 1;
+}
+:where(.portal-page,.contractors-page,.customer-app,.provider-app,.contractor-app,.driver-app,.admin-app,.store-home) select option {
+  background: #fffaf2;
+  color: var(--bunya-text-primary);
+}
+:where(input,select,textarea,button,a):focus-visible {
+  outline: 3px solid var(--bunya-focus) !important;
+  outline-offset: 2px !important;
+  box-shadow: var(--focus-ring) !important;
+}
+
+:where(.customer-modal-backdrop,.provider-modal-backdrop,.contractor-modal-backdrop,.driver-modal-backdrop,.admin-modal-backdrop,.project-policy-backdrop,.store-detail-backdrop,.portal-demo-backdrop,.pwa-install-backdrop) {
+  background: rgb(63 50 40 / 0.42) !important;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+:where(.customer-modal,.provider-modal,.contractor-modal,.driver-modal,.admin-modal,.project-policy-modal,.portal-demo-backdrop>section,.pwa-install-backdrop>section) {
+  border: 1px solid var(--bunya-border-active) !important;
+  background: var(--glass-highlight), rgb(255 253 248 / 0.97) !important;
+  box-shadow: var(--bunya-shadow-lg) !important;
+  color: var(--bunya-text-primary) !important;
+}
+
+:where(.customer-primary,.provider-primary,.contractor-primary,.driver-primary,.admin-primary,.portal-primary-button,.store-submit-button,.store-hero-primary) {
+  border: 1px solid rgb(143 81 50 / 0.3) !important;
+  background: linear-gradient(135deg, var(--bunya-accent), var(--bunya-accent-hover)) !important;
+  box-shadow: 0 12px 30px rgb(143 81 50 / 0.2) !important;
+  color: var(--bunya-text-on-accent) !important;
+}
+:where(.customer-secondary,.provider-secondary,.contractor-secondary,.driver-secondary,.admin-secondary,.customer-ghost,.provider-ghost,.contractor-ghost,.admin-ghost,.store-contractor-search) {
+  border: 1px solid var(--bunya-border) !important;
+  background: rgb(255 253 248 / 0.7) !important;
+  color: var(--bunya-text-primary) !important;
+}
+:where(.customer-danger,.provider-danger,.contractor-danger,.driver-danger,.admin-danger) {
+  border: 1px solid rgb(182 78 69 / 0.22) !important;
+  background: var(--bunya-danger-bg) !important;
+  color: var(--bunya-danger) !important;
+}
+:where(.customer-error,.provider-error,.contractor-error,.driver-error,.admin-error,.portal-error) { color: var(--bunya-danger) !important; }
+:where(.customer-success-note,.provider-success-note,.contractor-success-note,.driver-toast,.admin-toast) {
+  border: 1px solid rgb(57 120 93 / 0.2) !important;
+  background: rgb(57 120 93 / 0.1) !important;
+  color: #285f49 !important;
+}
+
+/* Semantic contrast layer shared by every light portal. */
+.customer-app {
+  --c: var(--bunya-accent) !important;
+  --d: var(--bunya-accent-hover) !important;
+  --line: var(--bunya-border) !important;
+  --glass: var(--bunya-surface) !important;
+}
+
+.provider-app {
+  --p-bg: var(--bunya-bg) !important;
+  --p-panel: var(--bunya-surface) !important;
+  --p-soft: var(--bunya-surface-muted) !important;
+  --p-line: var(--bunya-border) !important;
+  --p-text: var(--bunya-text-primary) !important;
+  --p-muted: var(--bunya-text-muted) !important;
+  --p-icon: var(--bunya-icon-secondary) !important;
+  --p-blue: var(--bunya-accent) !important;
+}
+
+.contractor-app {
+  --c: var(--bunya-accent) !important;
+  --deep: var(--bunya-accent-hover) !important;
+  --ink: var(--bunya-text-primary) !important;
+  --muted: var(--bunya-text-muted) !important;
+  --line: var(--bunya-border) !important;
+  --glass: var(--bunya-surface) !important;
+}
+
+.admin-app {
+  --a: var(--bunya-accent) !important;
+  --deep: var(--bunya-accent-hover) !important;
+  --ink: var(--bunya-text-primary) !important;
+  --muted: var(--bunya-text-muted) !important;
+  --line: var(--bunya-border) !important;
+  --glass: var(--bunya-surface) !important;
+}
+
+:where(.customer-app,.provider-app,.contractor-app,.driver-app,.admin-app,.portal-page,.contractors-page,.store-home) :where(a,button) {
+  text-underline-offset: 0.18em;
+}
+
+:where(.customer-app,.provider-app,.contractor-app,.driver-app,.admin-app,.portal-page,.contractors-page,.store-home) :where(a,button) svg {
+  color: currentColor;
+  stroke: currentColor;
+}
+
+:where(.customer-panel-heading,.provider-panel-heading,.contractor-panel-heading,.admin-panel-heading) a,
+:where(.customer-breadcrumb,.provider-breadcrumb,.contractor-breadcrumb,.admin-breadcrumb) a,
+:where(.customer-app,.provider-app,.contractor-app,.driver-app,.admin-app) td > a,
+:where(.customer-app,.provider-app,.contractor-app,.driver-app,.admin-app) :where(.provider-info-grid,.provider-mini-panel,.customer-address-layout,.admin-record-actions) a {
+  color: var(--bunya-link) !important;
+  font-weight: 850;
+  text-decoration: underline;
+  text-decoration-color: rgb(123 67 43 / 0.42);
+}
+
+:where(.customer-panel-heading,.provider-panel-heading,.contractor-panel-heading,.admin-panel-heading) a:hover,
+:where(.customer-breadcrumb,.provider-breadcrumb,.contractor-breadcrumb,.admin-breadcrumb) a:hover,
+:where(.customer-app,.provider-app,.contractor-app,.driver-app,.admin-app) td > a:hover {
+  color: var(--bunya-link-hover) !important;
+  text-decoration-color: currentColor;
+}
+
+:where(.customer-kpis>a>span,.provider-kpi>span,.provider-finance-kpis article>span,.contractor-kpis>a>span,.admin-kpi-grid>a>span,
+  .customer-empty>span,.provider-empty>span,.contractor-empty>span,.admin-empty>span,.driver-empty>span,
+  .provider-panel-title>span,.provider-form-section legend span,.provider-bank-row>span) {
+  border: 1px solid rgb(169 95 59 / 0.28) !important;
+  background: #efdcc8 !important;
+  color: var(--bunya-icon-secondary) !important;
+}
+
+:where(.customer-kpis,.provider-kpi-grid,.provider-finance-kpis,.contractor-kpis,.admin-kpi-grid) :where(small,em) {
+  color: var(--bunya-text-muted) !important;
+  opacity: 1 !important;
+}
+
+:where(.customer-kpis,.provider-kpi-grid,.provider-finance-kpis,.contractor-kpis,.admin-kpi-grid) :where(strong,b) {
+  color: var(--bunya-text-primary) !important;
+}
+
+:where(.customer-kpis>a,.provider-kpi,.contractor-kpis>a,.admin-kpi-grid>a):hover {
+  border-color: var(--bunya-border-strong) !important;
+  box-shadow: 0 18px 42px rgb(83 58 37 / 0.16) !important;
+}
+
+:where(.customer-kpis,.provider-kpi-grid,.contractor-kpis,.admin-kpi-grid) em,
+.provider-table .positive {
+  color: var(--bunya-success) !important;
+  font-weight: 850;
+}
+
+.provider-table .negative { color: var(--bunya-danger) !important; }
+
+:where(.customer-status,.provider-status,.contractor-status,.admin-status,.driver-card>header>span) {
+  border: 1px solid rgb(121 82 15 / 0.3) !important;
+  background: var(--bunya-warning-bg) !important;
+  color: var(--bunya-warning) !important;
+  opacity: 1 !important;
+}
+
+:where(.customer-status.success,.provider-status-success,.contractor-status.good,.admin-status.good,.driver-card>header>span[data-status="delivered"]) {
+  border-color: rgb(40 95 73 / 0.3) !important;
+  background: var(--bunya-success-bg) !important;
+  color: var(--bunya-success) !important;
+}
+
+:where(.customer-status.danger,.provider-status-danger,.contractor-status.bad,.admin-status.bad,.driver-card>header>span[data-status="failed_delivery"]) {
+  border-color: rgb(150 59 53 / 0.28) !important;
+  background: var(--bunya-danger-bg) !important;
+  color: var(--bunya-danger) !important;
+}
+
+:where(.customer-status.info,.provider-status-info,.contractor-status.info,.admin-status.info) {
+  border-color: rgb(49 95 120 / 0.3) !important;
+  background: var(--bunya-info-bg) !important;
+  color: var(--bunya-info) !important;
+}
+
+:where(.provider-status-warning,.contractor-status.warn,.customer-status.warning) {
+  border-color: rgb(121 82 15 / 0.3) !important;
+  background: var(--bunya-warning-bg) !important;
+  color: var(--bunya-warning) !important;
+}
+
+:where(.customer-app,.provider-app,.contractor-app,.driver-app,.admin-app,.portal-page,.contractors-page,.store-home) :where(input,select,textarea) {
+  border-color: var(--bunya-border) !important;
+}
+
+:where(.customer-app,.provider-app,.contractor-app,.driver-app,.admin-app,.portal-page,.contractors-page,.store-home) :where(input,select,textarea):hover {
+  border-color: var(--bunya-border-strong) !important;
+}
+
+:where(.customer-app,.provider-app,.contractor-app,.driver-app,.admin-app,.portal-page,.contractors-page,.store-home) :where(input,select,textarea):disabled {
+  border-color: var(--bunya-border) !important;
+  background: var(--bunya-surface-muted) !important;
+  color: var(--bunya-text-muted) !important;
+  cursor: not-allowed;
+  opacity: 1 !important;
+}
+
+:where(.customer-app,.provider-app,.contractor-app,.driver-app,.admin-app,.portal-page,.contractors-page,.store-home) :where(input[type="checkbox"],input[type="radio"]) {
+  accent-color: var(--bunya-accent-hover) !important;
+}
+
+:where(.customer-app,.provider-app,.contractor-app,.driver-app,.admin-app,.portal-page,.contractors-page,.store-home) button:disabled,
+:where(.customer-app,.provider-app,.contractor-app,.driver-app,.admin-app,.portal-page,.contractors-page,.store-home) a[aria-disabled="true"] {
+  border: 1px solid var(--bunya-border) !important;
+  background: var(--bunya-surface-muted) !important;
+  box-shadow: none !important;
+  color: var(--bunya-text-muted) !important;
+  cursor: not-allowed !important;
+  opacity: 1 !important;
+}
+
+:where(.provider-sidebar,.customer-sidebar,.contractor-sidebar,.admin-sidebar) :where(nav a>span,.provider-logout>span,.customer-logout>span,.contractor-logout>span,.admin-logout>span) {
+  color: var(--bunya-icon-primary) !important;
+  opacity: 1 !important;
+}
+
+:where(.provider-sidebar,.customer-sidebar,.contractor-sidebar,.admin-sidebar) nav a.active > span {
+  color: var(--bunya-icon-secondary) !important;
+}
+
+:where(.provider-top-actions,.customer-top-actions,.contractor-top-actions,.admin-top-actions) > a:not(.provider-account),
+:where(.customer-collapse,.provider-collapse,.contractor-collapse,.admin-collapse,.provider-mobile-menu,.provider-modal-close) {
+  border-color: var(--bunya-border) !important;
+  background: var(--bunya-surface-strong) !important;
+  color: var(--bunya-icon-primary) !important;
+}
+
+.provider-account,
+.provider-profile-logo>div,
+.provider-image-list article>div,
+.driver-brand span {
+  border-color: var(--bunya-accent-hover) !important;
+  background: linear-gradient(145deg, var(--bunya-accent), var(--bunya-accent-hover)) !important;
+  color: var(--bunya-text-on-accent) !important;
+}
+
+:where(.customer-timeline,.provider-timeline,.contractor-timeline,.admin-operation-timeline) :where(li,dl) {
+  border-color: var(--bunya-border) !important;
+}
+
+.provider-timeline::before { background: var(--bunya-border-strong) !important; }
+.provider-timeline li::before {
+  border-color: var(--bunya-surface-strong) !important;
+  background: var(--bunya-accent) !important;
+}
+
+:where(.customer-skeleton,.provider-skeleton,.contractor-skeleton) i {
+  background: linear-gradient(90deg, #eadfce, #fffaf2, #eadfce) !important;
+  background-size: 200% !important;
+}
+
+:where(.customer-error,.provider-field-error,.provider-rejection,.provider-sensitive-note,.contractor-rejection,.driver-error,.admin-error,.portal-error) {
+  color: var(--bunya-danger) !important;
+}
+
+.provider-app .provider-field-error {
+  color: var(--bunya-danger) !important;
+}
+
+.provider-app .provider-form-error {
+  color: var(--bunya-danger) !important;
+}
+
+.provider-app .provider-field small:not(.provider-field-error) {
+  color: var(--bunya-text-muted) !important;
+}
+
+.provider-app :where(.provider-calculation,.provider-check) input[type="checkbox"] {
+  accent-color: var(--bunya-accent-hover) !important;
+}
+
+:where(.customer-success-note,.provider-success-note,.contractor-success-note,.driver-toast,.admin-toast,.provider-toast) {
+  border: 1px solid rgb(40 95 73 / 0.3) !important;
+  background: var(--bunya-success-bg) !important;
+  color: var(--bunya-success) !important;
+}
+
+:where(.provider-toast-error,.customer-toast.error) {
+  border-color: rgb(150 59 53 / 0.3) !important;
+  background: var(--bunya-danger-bg) !important;
+  color: var(--bunya-danger) !important;
+}
+
+:where([role="tooltip"],.bunya-tooltip) {
+  border: 1px solid var(--bunya-border-strong) !important;
+  background: #403832 !important;
+  color: var(--bunya-text-on-accent) !important;
+  box-shadow: var(--bunya-shadow-md) !important;
+}
+
+.provider-product-visual :where(b,span),
+.provider-request-image :where(b,span) {
+  color: #fff !important;
+}
+
+:where(.customer-primary,.provider-primary,.contractor-primary,.driver-primary,.admin-primary,.portal-primary-button,.store-submit-button):hover {
+  border-color: var(--bunya-accent-hover) !important;
+  background: var(--bunya-accent-hover) !important;
+  color: var(--bunya-text-on-accent) !important;
+}
+
+:where(.customer-secondary,.provider-secondary,.contractor-secondary,.driver-secondary,.admin-secondary,.customer-ghost,.provider-ghost,.contractor-ghost,.admin-ghost):hover {
+  border-color: var(--bunya-border-strong) !important;
+  background: var(--bunya-surface-muted) !important;
+  color: var(--bunya-link-hover) !important;
+}
+
+:where(.customer-secondary,.provider-secondary,.contractor-secondary,.driver-secondary,.admin-secondary,.customer-ghost,.provider-ghost,.contractor-ghost,.admin-ghost):active {
+  background: #e8d6c2 !important;
+  color: var(--bunya-text-primary) !important;
+}
+
+:where(.provider-product-body footer>*,.provider-spec-list li,.provider-policies-grid li,.provider-notifications-list a,
+  .provider-option-grid button,.provider-binary label,.provider-file-row,.provider-bank-row) {
+  border-color: var(--bunya-border) !important;
+  background: var(--bunya-surface-muted) !important;
+  color: var(--bunya-text-primary) !important;
+}
+
+:where(.provider-profile-tags span,.provider-chip-list>span,.provider-measurements>span) {
+  border-color: rgb(49 95 120 / 0.28) !important;
+  background: var(--bunya-info-bg) !important;
+  color: var(--bunya-info) !important;
+}
+
+:where(.provider-option-grid button.selected,.provider-binary label.selected,.provider-inline-add button,.provider-measurement-editor button) {
+  border-color: var(--bunya-accent-hover) !important;
+  background: var(--bunya-accent) !important;
+  color: var(--bunya-text-on-accent) !important;
+}
+
+:where(.provider-file-row button,.provider-chip-list>span button,.provider-measurements>span button) {
+  color: var(--bunya-danger) !important;
+  font-weight: 850;
+}
+
+:where(.provider-code-note,.provider-check.warning) {
+  border-color: rgb(121 82 15 / 0.28) !important;
+  background: var(--bunya-warning-bg) !important;
+  color: var(--bunya-warning) !important;
+}
+
+:where(.provider-policy-note,.provider-calculation,.provider-vat-preview,.customer-policy-note,.contractor-privacy,.admin-decision-note,.admin-alert-note) {
+  border: 1px solid rgb(49 95 120 / 0.24) !important;
+  background: var(--bunya-info-bg) !important;
+  color: var(--bunya-info) !important;
+}
+
+:where(.provider-bank-row em) {
+  border: 1px solid rgb(40 95 73 / 0.24) !important;
+  background: var(--bunya-success-bg) !important;
+  color: var(--bunya-success) !important;
+}
+
+:where(.customer-product-art,.customer-line-item>span,.customer-contractor-card header>span,.contractor-symbol,.admin-operation-dot) {
+  border-color: rgb(169 95 59 / 0.26) !important;
+  background: #efdcc8 !important;
+  color: var(--bunya-icon-secondary) !important;
+}
+
+.provider-app .driver-portal {
+  background: transparent !important;
+  color: var(--bunya-text-primary) !important;
+}
+
+.provider-app :where(.driver-verification-card,.driver-layout>aside) {
+  border-color: var(--bunya-border) !important;
+  background: var(--bunya-surface-strong) !important;
+  box-shadow: var(--bunya-shadow-md) !important;
+  color: var(--bunya-text-primary) !important;
+}
+
+.provider-app .driver-step>span {
+  border: 1px solid rgb(169 95 59 / 0.28) !important;
+  background: #efdcc8 !important;
+  color: var(--bunya-icon-secondary) !important;
+}
+
+.provider-app .driver-portal header>a:last-child,
+.provider-app .driver-layout>aside>button {
+  border-color: var(--bunya-border) !important;
+  background: var(--bunya-surface-muted) !important;
+  color: var(--bunya-text-primary) !important;
+}
+
+.provider-app .driver-message.success {
+  background: var(--bunya-success-bg) !important;
+  color: var(--bunya-success) !important;
+}
+
+.provider-app .driver-message.error {
+  background: var(--bunya-danger-bg) !important;
+  color: var(--bunya-danger) !important;
+}
+
+:where(.customer-delivery-code button,.customer-address-layout footer a,.customer-address-layout footer button,
+  .customer-contractor-card footer a,.customer-contractor-card footer button,.project-map-row button,.project-file-row button,
+  .provider-image-list footer button,.contractor-service-card footer button,.contractor-portfolio-card footer button,
+  .contractor-editor>header button,.contractor-editor-row button,.admin-settings-grid article>button) {
+  border: 1px solid var(--bunya-border) !important;
+  background: var(--bunya-surface-muted) !important;
+  color: var(--bunya-link) !important;
+  font-weight: 850;
+}
+
+:where(.contractor-service-card footer button.danger,.contractor-portfolio-card footer button.danger) {
+  border-color: rgb(150 59 53 / 0.28) !important;
+  background: var(--bunya-danger-bg) !important;
+  color: var(--bunya-danger) !important;
+}
+
+.provider-app .driver-verification-card form>button:not(:disabled) {
+  border: 1px solid var(--bunya-accent-hover) !important;
+  background: linear-gradient(135deg, var(--bunya-accent), var(--bunya-accent-hover)) !important;
+  color: var(--bunya-text-on-accent) !important;
+}
+
+.provider-check button {
+  background: transparent !important;
+  color: var(--bunya-link) !important;
+  text-decoration: underline;
+}
+
+:where(.provider-driver-actions button.danger,.provider-driver-deliveries button) {
+  border: 1px solid rgb(150 59 53 / 0.28) !important;
+  background: var(--bunya-danger-bg) !important;
+  color: var(--bunya-danger) !important;
+}
+
+.provider-modal footer>button:not(.provider-primary):not(.provider-danger) {
+  border: 1px solid var(--bunya-border) !important;
+  background: var(--bunya-surface-muted) !important;
+  color: var(--bunya-text-primary) !important;
+}
+
+:where(.customer-app,.contractor-app,.admin-app) .bg-blue-700 {
+  background: var(--bunya-accent) !important;
+  color: var(--bunya-text-on-accent) !important;
+}
+
+:where(.customer-app,.contractor-app,.admin-app) :where(.bg-blue-50,.bg-slate-50) {
+  background: var(--bunya-surface-muted) !important;
+}
+
+:where(.customer-app,.contractor-app,.admin-app) :where(.border-blue-100,.border-blue-200,.border-slate-100,.border-slate-200) {
+  border-color: var(--bunya-border) !important;
+}
+
+:where(.portal-hint,.portal-auth-note,.file-drop span,.file-list small,.success-state>small,.directory-count span,.directory-empty span) {
+  color: var(--bunya-text-muted) !important;
+  opacity: 1 !important;
+}
+
+:where(.choice-card-active,.binary-choice label.active) {
+  border-color: var(--bunya-accent-hover) !important;
+  background: var(--bunya-accent) !important;
+  color: var(--bunya-text-on-accent) !important;
+}
+
+.map-result-short-link {
+  border-color: rgb(121 82 15 / 0.28) !important;
+  background: var(--bunya-warning-bg) !important;
+  color: var(--bunya-warning) !important;
+}
+
+.directory-actions a:first-child {
+  border-color: var(--bunya-border) !important;
+  background: var(--bunya-surface-muted) !important;
+  color: var(--bunya-link) !important;
+}
+
+:where(.portal-form-error,.directory-message[role="alert"]) {
+  border-color: rgb(150 59 53 / 0.28) !important;
+  background: var(--bunya-danger-bg) !important;
+  color: var(--bunya-danger) !important;
+}
+
+/* Storefront: the image remains most visible here. */
+.store-home { min-height: 100dvh; }
+.store-header { min-height: 64px !important; }
+.store-nav-link,
+.store-portal-link,
+.store-icon-button,
+.store-menu-button,
+.store-mobile-menu a { color: var(--bunya-text-primary) !important; }
+.store-portal-link-primary { background: var(--bunya-accent) !important; color: var(--bunya-text-on-accent) !important; }
+.store-intro {
+  display: block !important;
+  min-height: min(48rem, 72vh);
+  padding: clamp(4.5rem, 12vh, 8.5rem) 1rem clamp(2rem, 7vh, 5rem) !important;
+}
+.store-intro-copy {
+  width: min(100%, 48rem) !important;
+  margin-inline: auto !important;
+  padding: clamp(1.25rem, 3vw, 2.25rem);
+  border: 1px solid rgb(111 82 57 / 0.12);
+  border-radius: 28px;
+  background: rgb(255 253 248 / 0.64);
+  box-shadow: var(--bunya-shadow-md);
+  text-align: center;
+  -webkit-backdrop-filter: blur(10px) saturate(110%);
+  backdrop-filter: blur(10px) saturate(110%);
+}
+.store-intro-copy h1 { color: var(--bunya-brand-charcoal) !important; }
+.store-intro-copy>p { color: var(--bunya-text-secondary) !important; }
+.store-hero-logo { margin: 0 auto 1rem; }
+.store-search-section { padding-block: 0 2rem !important; }
+.store-search {
+  border-color: var(--bunya-border) !important;
+  background: rgb(255 253 248 / 0.88) !important;
+  box-shadow: var(--bunya-shadow-md) !important;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+.store-category-chip {
+  border-color: var(--bunya-border) !important;
+  background: rgb(255 253 248 / 0.74) !important;
+  color: var(--bunya-text-primary) !important;
+}
+.store-category-chip-active,
+.store-category-chip[aria-pressed="true"] {
+  border-color: rgb(185 113 73 / 0.35) !important;
+  background: linear-gradient(135deg, #ead4b8, #d7b081) !important;
+  color: #513625 !important;
+}
+.store-home-section { padding-block: clamp(2rem, 5vw, 4rem) !important; }
+.store-section-heading,
+.store-result-count,
+.store-text-link,
+.store-card-name,
+.store-card-meta { color: var(--bunya-text-primary) !important; }
+.store-product-card:hover,
+.store-latest-card:hover { border-color: var(--bunya-border-active) !important; box-shadow: var(--bunya-shadow-lg) !important; }
+.store-close-button { background: #f0e2cf !important; color: var(--bunya-text-primary) !important; }
+.store-soft-pill,
+.store-region-row { border-color: var(--bunya-border) !important; background: var(--bunya-bg-soft) !important; color: var(--bunya-text-primary) !important; }
+
+.portal-page,
+.contractors-page,
+.offline-page { min-height: 100dvh; }
+.portal-brand small { color: var(--bunya-text-secondary) !important; }
+.portal-orb { opacity: 0.18 !important; filter: sepia(1) saturate(0.55) !important; }
+.portal-route-guard { background: rgb(255 250 242 / 0.88) !important; color: var(--bunya-brand-copper-strong) !important; }
+.pwa-install-card {
+  border-color: var(--bunya-border-active) !important;
+  background: var(--glass-highlight), var(--bunya-surface-strong) !important;
+  box-shadow: var(--bunya-shadow-lg) !important;
+  color: var(--bunya-text-primary) !important;
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+}
+.pwa-install-card small { color: var(--bunya-text-secondary) !important; }
+.pwa-install-card>button,
+.offline-page a { background: var(--bunya-accent) !important; color: var(--bunya-text-on-accent) !important; }
+.offline-page section { border-color: var(--bunya-border) !important; background: var(--bunya-surface-strong) !important; color: var(--bunya-text-primary) !important; }
+
+/* High-contrast storefront chrome: preserves the former dark layout quality in a warm light system. */
+.store-home .store-header,
+.store-home .store-header-compact {
+  min-height: 0 !important;
+  border-bottom: 1px solid rgb(111 82 57 / 0.14) !important;
+  background: rgb(255 252 246 / 0.95) !important;
+  box-shadow: 0 10px 32px rgb(83 58 37 / 0.09) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(125%);
+  backdrop-filter: blur(18px) saturate(125%);
+}
+
+.store-home .store-header-compact {
+  background: rgb(255 252 246 / 0.985) !important;
+  box-shadow: 0 13px 38px rgb(83 58 37 / 0.13) !important;
+}
+
+.store-home .store-header-layout {
+  width: min(100%, 90rem);
+  min-height: 3.85rem;
+  margin-inline: auto;
+  padding: 0.32rem clamp(0.75rem, 2.2vw, 1.8rem);
+  gap: clamp(0.35rem, 0.9vw, 0.7rem);
+}
+
+.store-home .store-header-compact .store-header-layout {
+  min-height: 3.55rem;
+  padding-block: 0.22rem;
+}
+
+.store-home .store-nav-link,
+.store-home .store-portal-link,
+.store-home .store-icon-button,
+.store-home .store-menu-button {
+  min-height: 2.35rem;
+  border: 1px solid transparent;
+  border-radius: 0.68rem;
+  background: transparent;
+  color: #403832 !important;
+  font-weight: 900;
+}
+
+.store-home .store-nav-link:hover,
+.store-home .store-portal-link:hover,
+.store-home .store-icon-button:hover {
+  border-color: rgb(185 113 73 / 0.16) !important;
+  background: rgb(185 113 73 / 0.07) !important;
+  color: #7b432b !important;
+}
+
+.store-home .store-nav-contractor,
+.store-home .store-contractor-search {
+  border: 1px solid rgb(185 113 73 / 0.3) !important;
+  background: rgb(255 253 248 / 0.82) !important;
+  color: #70442f !important;
+  box-shadow: 0 7px 18px rgb(83 58 37 / 0.07);
+}
+
+.store-home .store-portal-link-primary {
+  border-color: var(--bunya-accent-hover) !important;
+  background: linear-gradient(135deg, var(--bunya-accent), var(--bunya-accent-hover)) !important;
+  color: var(--bunya-text-on-accent) !important;
+  box-shadow: 0 9px 22px rgb(143 81 50 / 0.2);
+}
+
+.store-home .store-header-quote {
+  border-color: rgb(111 82 57 / 0.14) !important;
+  background: #f6ead9 !important;
+  color: #68442f !important;
+}
+
+.store-home .store-count {
+  background: var(--bunya-accent) !important;
+  color: var(--bunya-text-on-accent) !important;
+}
+
+.store-home .store-menu-button {
+  border-color: rgb(111 82 57 / 0.16);
+  background: #f7ecdc;
+}
+
+.store-home .store-mobile-menu {
+  background: rgb(255 252 246 / 0.98);
+}
+
+.store-home .store-mobile-menu a {
+  border: 1px solid rgb(111 82 57 / 0.13);
+  background: #fffdf9;
+  color: #403832 !important;
+}
+
+.store-home .store-intro {
+  position: relative;
+  display: flex !important;
+  min-height: clamp(30rem, 38vw, 35rem);
+  align-items: center;
+  justify-content: flex-start;
+  overflow: hidden;
+  padding: clamp(2rem, 4vw, 3rem) clamp(1rem, 5vw, 5rem) !important;
+  border-bottom: 1px solid rgb(111 82 57 / 0.12);
+  background: transparent;
+}
+
+.store-home .store-intro::after {
+  display: none;
+}
+
+.store-home .store-intro-copy {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 32rem) !important;
+  max-width: 32rem !important;
+  margin: 0 max(0px, calc((100vw - 90rem) / 2)) 0 auto !important;
+  padding: clamp(1.1rem, 1.8vw, 1.55rem) !important;
+  border: 1px solid rgb(111 82 57 / 0.16) !important;
+  border-radius: 1.55rem !important;
+  background: linear-gradient(145deg, rgb(255 254 251 / 0.97), rgb(249 239 225 / 0.93)) !important;
+  box-shadow: 0 26px 70px rgb(83 58 37 / 0.16) !important;
+  text-align: right !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+.store-home .store-hero-logo {
+  width: clamp(9rem, 11vw, 10.5rem);
+  margin: 0 0 0.7rem auto;
+}
+
+.bunya-hero-3d {
+  position: absolute;
+  top: 50%;
+  left: clamp(1.25rem, 5vw, 5rem);
+  z-index: 1;
+  width: min(38vw, 34rem);
+  height: min(28vw, 22rem);
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition: opacity 320ms ease;
+}
+
+.bunya-hero-3d[data-loaded="true"] { opacity: 1; }
+.bunya-hero-3d[data-failed="true"] { display: none; }
+
+.bunya-hero-3d-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 22px 25px rgb(83 58 37 / 0.2));
+}
+
+.store-home .store-intro-copy h1 {
+  max-width: 12ch;
+  margin: 0;
+  color: #2f2b28 !important;
+  font-size: clamp(2.15rem, 3.7vw, 3.55rem) !important;
+  line-height: 1.12 !important;
+  letter-spacing: -0.045em;
+  text-shadow: none !important;
+}
+
+.store-home .store-intro-copy > p {
+  margin-top: 0.75rem;
+  color: #6d6056 !important;
+  font-size: clamp(1rem, 1.6vw, 1.18rem) !important;
+  font-weight: 800;
+  text-shadow: none !important;
+}
+
+.store-home .store-intro-actions {
+  justify-content: flex-start;
+  margin-top: 1rem;
+}
+
+.store-home .store-hero-primary,
+.store-home .store-contractor-search {
+  min-height: 3rem;
+  border-radius: 0.78rem;
+  padding-inline: 1.15rem;
+}
+
+.store-home .store-hero-primary {
+  border-color: var(--bunya-accent-hover) !important;
+  background: linear-gradient(135deg, var(--bunya-accent), var(--bunya-accent-hover)) !important;
+  box-shadow: 0 13px 30px rgb(143 81 50 / 0.24) !important;
+  color: var(--bunya-text-on-accent) !important;
+}
+
+.store-home .store-hero-primary:hover,
+.store-home .store-hero-primary:focus-visible {
+  border-color: #814328 !important;
+  box-shadow: 0 17px 38px rgb(143 81 50 / 0.3) !important;
+}
+
+.store-home .store-search-section {
+  position: relative;
+  z-index: 2;
+  margin-top: -1.8rem;
+  padding-bottom: 1.4rem !important;
+}
+
+.store-home .store-search {
+  border: 1px solid rgb(111 82 57 / 0.18) !important;
+  border-radius: 0.95rem !important;
+  background: #fffdf9 !important;
+  box-shadow: 0 18px 46px rgb(83 58 37 / 0.16) !important;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.store-home .store-search input {
+  min-height: 3.65rem;
+  background: transparent !important;
+  color: #302b27 !important;
+  font-size: 0.95rem;
+}
+
+.store-home .store-search input::placeholder { color: var(--bunya-text-muted) !important; }
+.store-home .store-search:focus-within {
+  border-color: rgb(185 113 73 / 0.62) !important;
+  box-shadow: 0 0 0 3px rgb(185 113 73 / 0.12), 0 20px 48px rgb(83 58 37 / 0.15) !important;
+}
+.store-home .store-search-clear {
+  border-color: rgb(111 82 57 / 0.14);
+  background: #f5e7d4;
+  color: #70442f;
+}
+
+.store-home .store-home-section {
+  width: min(calc(100% - 28px), 78rem) !important;
+  padding-block: clamp(1.8rem, 4vw, 3.25rem) !important;
+}
+
+.store-home .store-category-chip {
+  border: 1px solid rgb(111 82 57 / 0.16) !important;
+  background: #fffdf9 !important;
+  color: #403832 !important;
+  box-shadow: 0 7px 19px rgb(83 58 37 / 0.06);
+}
+
+.store-home .store-category-chip:hover {
+  border-color: rgb(185 113 73 / 0.36) !important;
+  background: #f9eddd !important;
+}
+
+.store-home .store-category-chip-active,
+.store-home .store-category-chip[aria-pressed="true"] {
+  border-color: rgb(169 95 59 / 0.42) !important;
+  background: linear-gradient(135deg, #e8cba8, #d7ad7c) !important;
+  color: #4e3122 !important;
+  box-shadow: 0 10px 24px rgb(143 81 50 / 0.13);
+}
+
+.store-home .store-latest-card,
+.store-home .store-product-card {
+  border: 1px solid rgb(111 82 57 / 0.14) !important;
+  border-radius: 1.05rem !important;
+  background: linear-gradient(150deg, #fffefa, #f8eee1) !important;
+  box-shadow: 0 15px 40px rgb(83 58 37 / 0.1) !important;
+  color: #302b27 !important;
+}
+
+.store-home .store-latest-card:hover,
+.store-home .store-latest-card:focus-visible,
+.store-home .store-product-card:hover,
+.store-home .store-product-card:focus-visible {
+  border-color: rgb(185 113 73 / 0.4) !important;
+  box-shadow: 0 24px 58px rgb(83 58 37 / 0.17) !important;
+}
+
+.store-home .store-card-name { color: #302b27 !important; }
+.store-home .store-card-meta { color: #76685d !important; }
+.store-home .store-card-meta i { background: #b97149; }
+.store-home .store-result-count {
+  border: 1px solid rgb(111 82 57 / 0.12);
+  background: #f4e7d5;
+  color: #69594d !important;
+}
+.store-home .store-text-link { color: #8f5132 !important; }
+
+.store-home .store-detail-panel,
+.store-home .store-quote-panel,
+.store-home .store-info-block,
+.store-home .store-detail-visual,
+.store-home .store-thumb {
+  color: #302b27 !important;
+}
+
+.store-home .pwa-install-card {
+  border-color: rgb(111 82 57 / 0.16) !important;
+  background: #fffdf9 !important;
+  box-shadow: 0 18px 46px rgb(83 58 37 / 0.12) !important;
+}
+
+/* Portal depth and readability: light surfaces are deliberately more opaque than the storefront. */
+:where(.customer-request-card,.customer-order-card,.customer-project-request-card,.customer-contractor-card,.customer-delivery-card,
+  .provider-request-card,.provider-quote-card,.provider-order-card,.provider-product-card,.provider-driver-card,
+  .contractor-opportunity-card,.contractor-proposal-card,.contractor-project-card,.contractor-portfolio-card,.contractor-service-card,.contractor-document-card,
+  .admin-record-card,.driver-card,.customer-kpis>a,.provider-kpi-grid>a,.contractor-kpis>a,.admin-kpi-grid>a) {
+  border-color: rgb(111 82 57 / 0.14) !important;
+  background: linear-gradient(145deg, #fffefa, #f7ecde) !important;
+  box-shadow: 0 14px 38px rgb(83 58 37 / 0.1) !important;
+  color: var(--bunya-text-primary) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+:where(.customer-kpis,.provider-kpi-grid,.contractor-kpis,.admin-kpi-grid) > * {
+  border-color: rgb(111 82 57 / 0.14) !important;
+  background: linear-gradient(145deg, #fffefa, #f4e6d4) !important;
+  box-shadow: var(--bunya-shadow-sm) !important;
+  color: var(--bunya-text-primary) !important;
+}
+
+:where(.project-choice-grid label.selected,.customer-sidebar nav a.active,.provider-sidebar nav a.active,.contractor-sidebar nav a.active,.admin-sidebar nav a.active) {
+  border-color: rgb(185 113 73 / 0.3) !important;
+  background: linear-gradient(135deg, rgb(232 203 168 / 0.75), rgb(215 173 124 / 0.38)) !important;
+  color: #5c3826 !important;
+}
+
+:where(.customer-top-actions .customer-quick,.provider-primary,.contractor-primary,.admin-top-actions .admin-quick) {
+  background: linear-gradient(135deg, var(--bunya-accent), var(--bunya-accent-hover)) !important;
+  color: var(--bunya-text-on-accent) !important;
+}
+
+:where(.customer-logout,.provider-logout,.contractor-logout,.admin-logout) {
+  color: #765f50 !important;
+}
+
+* { scrollbar-color: rgb(185 113 73 / 0.28) transparent; }
+
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  :where(.store-header,.directory-header,.customer-topbar,.provider-topbar,.contractor-topbar,.driver-top,.admin-topbar,.customer-sidebar,.provider-sidebar,.contractor-sidebar,.admin-sidebar,.portal-card,.customer-panel,.provider-panel,.contractor-panel,.driver-card,.admin-panel) {
+    background: #fffaf2 !important;
+  }
+}
+
+@media (max-width: 820px) {
+  body::before { background-position: 46% center; }
+  :root { --glass-blur: 11px; --bunya-shadow-md: 0 14px 40px rgb(83 58 37 / 0.1); }
+  :where(.customer-sidebar,.provider-sidebar,.contractor-sidebar,.admin-sidebar) { background: rgb(255 250 242 / 0.97) !important; }
+  .store-intro { min-height: auto; padding-top: 4rem !important; }
+  .store-home .store-intro {
+    min-height: clamp(25rem, 56vw, 28rem);
+    justify-content: flex-start;
+    padding-block: 2rem !important;
+    background: transparent;
+  }
+  .store-home .store-intro-copy {
+    width: min(50vw, 24rem) !important;
+    margin: 0 0 0 auto !important;
+    text-align: right !important;
+  }
+  .store-home .store-hero-logo { margin: 0 0 0.65rem auto; }
+  .store-home .store-intro-copy h1 { max-width: 12ch; font-size: clamp(1.85rem, 5vw, 2.6rem) !important; }
+  .store-home .store-intro-actions { justify-content: flex-start; flex-wrap: wrap; }
+  .bunya-hero-3d {
+    display: block;
+    left: 0.75rem;
+    width: 38vw;
+    height: 28vw;
+  }
+}
+
+@media (max-width: 560px) {
+  :root { --glass-blur: 8px; }
+  body::after { background: linear-gradient(180deg, rgb(255 250 242 / 0.58), rgb(255 250 242 / 0.42), rgb(246 231 211 / 0.55)); }
+  :where(.customer-content,.provider-content,.contractor-content,.driver-content,.admin-content) { padding-inline: max(12px, env(safe-area-inset-left)) !important; }
+  .store-intro-copy { border-radius: 22px; padding: 1.15rem; }
+  .store-intro-actions { align-items: stretch; flex-direction: column; }
+  .store-home .store-header-layout { min-height: 3.55rem; padding-inline: 0.65rem; }
+  .store-home .store-brand .bunya-logo { width: 6rem; height: 2.8rem; }
+  .store-home .store-intro {
+    min-height: 0;
+    padding: 9.5rem 0.75rem 2rem !important;
+    background: transparent;
+  }
+  .store-home .store-intro-copy { width: min(100%, 31rem) !important; margin-inline: auto !important; padding: 1rem !important; text-align: center !important; }
+  .store-home .store-hero-logo { margin-inline: auto; }
+  .store-home .store-intro-copy h1 { font-size: clamp(2rem, 10vw, 2.75rem) !important; }
+  .store-home .store-intro-actions { justify-content: center; }
+  .store-home .store-search-section { margin-top: -1.2rem; }
+  .bunya-hero-3d {
+    top: 0.35rem;
+    left: 50%;
+    width: min(82vw, 22rem);
+    height: 8.75rem;
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+  .bunya-hero-3d { transition: none; }
+}

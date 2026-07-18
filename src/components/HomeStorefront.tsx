@@ -3,10 +3,19 @@
 import type { FormEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import type { Product, ProductCategory, QuoteRequestItem } from "@/lib/bunya-types";
+import { BunyaLogo } from "./brand/BunyaLogo";
 import {PwaInstallPrompt} from "./PwaInstallPrompt";
+import { BunyaHomeMotion } from "./home/BunyaHomeMotion";
+import { BunyaLogoIntro } from "./home/BunyaLogoIntro";
 import { Icon, LatestProductCard, ProductArtwork, ProductCard, StoreHeader } from "./home/HomeStorefrontUi";
+
+const BunyaHero3D = dynamic(() => import("./home/BunyaHero3D"), {
+  ssr: false,
+  loading: () => <div className="bunya-hero-3d" aria-hidden="true" />,
+});
 
 type HomeStorefrontProps = {
   categories: ProductCategory[];
@@ -135,29 +144,6 @@ export function HomeStorefront({ categories, products }: HomeStorefrontProps) {
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  useEffect(() => {
-    const root = storefrontRef.current;
-    if (!root) return;
-
-    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const elements = Array.from(root.querySelectorAll<HTMLElement>("[data-store-reveal]"));
-    if (reduceMotion || !("IntersectionObserver" in window)) {
-      elements.forEach((element) => element.classList.add("store-revealed"));
-      return;
-    }
-
-    root.classList.add("store-motion-ready");
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (!entry.isIntersecting) return;
-        entry.target.classList.add("store-revealed");
-        observer.unobserve(entry.target);
-      });
-    }, { rootMargin: "0px 0px -8%", threshold: 0.08 });
-    elements.forEach((element) => observer.observe(element));
-    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
@@ -330,18 +316,22 @@ export function HomeStorefront({ categories, products }: HomeStorefrontProps) {
   };
 
   return (
-    <main className="store-home min-h-screen overflow-hidden text-white" ref={storefrontRef}>
+    <main className="store-home min-h-screen overflow-hidden" ref={storefrontRef}>
+      <BunyaLogoIntro />
+      <BunyaHomeMotion detailOpen={Boolean(selectedProduct)} filterKey={`${activeCategory}:${query}`} scope={storefrontRef} />
       <StoreHeader compact={headerCompact} menuOpen={mobileMenuOpen} onMenuToggle={() => setMobileMenuOpen((current) => !current)} onNavigate={() => setMobileMenuOpen(false)} quoteCount={quoteItems.length} />
 
       <section className="store-intro px-4" data-store-reveal>
         <div className="store-intro-copy mx-auto">
-          <h1>مواد البناء في مكان واحد</h1>
-          <p>اطلبها بسهولة</p>
+          <BunyaLogo className="store-hero-logo" priority sizes="(max-width: 700px) 224px, 216px" />
+          <h1 data-hero-motion>احتياجات البناء في مكان واحد</h1>
+          <p data-hero-motion>كل ما يحتاجه مشروعك بسهولة</p>
           <div className="store-intro-actions">
-            <a className="store-hero-primary" href="#products"><Icon name="grid" />تصفح المنتجات</a>
-            <Link className="store-contractor-search" href="/contractors"><Icon name="search" />ابحث عن مقاول</Link>
+            <a className="store-hero-primary" data-hero-motion href="#products"><Icon name="grid" />تصفح المنتجات</a>
+            <Link className="store-contractor-search" data-hero-motion href="/contractors"><Icon name="search" />ابحث عن مقاول</Link>
           </div>
         </div>
+        <BunyaHero3D />
       </section>
 
       <section className="store-search-section px-4" data-store-reveal>
@@ -352,10 +342,10 @@ export function HomeStorefront({ categories, products }: HomeStorefrontProps) {
         </div>
       </section>
 
-      <section id="categories" className="store-home-section px-4" data-store-reveal>
+      <section id="categories" className="store-home-section px-4" data-gsap-section>
         <div className="mx-auto max-w-7xl">
           <div className="store-category-heading">
-            <div><h2 className="text-xl font-black">التصنيفات</h2><span className="text-sm font-bold text-sky-100/65">فلترة محلية فورية</span></div>
+            <div><h2 className="text-xl font-black">التصنيفات</h2><span className="text-sm font-bold text-[#2a2a2a]">فلترة محلية فورية</span></div>
           </div>
           <div className="store-category-row" role="list" aria-label="تصنيفات المنتجات">
             {(["الكل", ...categories] as const).map((category) => {
@@ -376,7 +366,7 @@ export function HomeStorefront({ categories, products }: HomeStorefrontProps) {
         </div>
       </section>
 
-      <section id="latest" className="store-home-section px-4" data-store-reveal>
+      <section id="latest" className="store-home-section px-4" data-gsap-section>
         <div className="mx-auto max-w-7xl">
           <div className="store-section-heading">
             <div>
@@ -408,7 +398,7 @@ export function HomeStorefront({ categories, products }: HomeStorefrontProps) {
           ) : (
             <div className="store-empty rounded-lg p-8 text-center">
               <h3 className="text-xl font-black">لا توجد منتجات مطابقة</h3>
-              <p className="mt-2 font-semibold text-sky-50/70">جرّب تصنيفا آخر أو امسح نص البحث.</p>
+              <p className="mt-2 font-semibold text-[#2a2a2a]">جرّب تصنيفا آخر أو امسح نص البحث.</p>
               {query ? <button className="store-empty-clear" onClick={() => updateFilters(() => setQuery(""))} type="button">مسح البحث</button> : null}
             </div>
           )}
@@ -513,7 +503,7 @@ export function HomeStorefront({ categories, products }: HomeStorefrontProps) {
                   <Icon name="quote" />
                 </span>
                 <div>
-                  <p className="text-xs font-black text-cyan-100/70">طلب عرض سعر</p>
+                  <p className="text-xs font-black text-[#2a2a2a]">طلب عرض سعر</p>
                   <h3 className="text-lg font-black">{selectedProduct.name}</h3>
                 </div>
               </div>

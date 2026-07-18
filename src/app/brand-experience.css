@@ -1,0 +1,45 @@
+.bunya-logo {
+  display: inline-flex;
+  align-items: center;
+  width: clamp(8.5rem, 13vw, 11.5rem);
+  max-width: 100%;
+  line-height: 1;
+}
+
+.bunya-logo-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+.bunya-logo-mark-only { width: 3rem; }
+.store-brand .bunya-logo { width: clamp(6.8rem, 8vw, 7.8rem); height: 3.15rem; }
+.store-brand .bunya-logo-image { width: 100%; height: 100%; object-fit: contain; }
+.store-hero-logo { width: clamp(11rem, 22vw, 17rem); }
+.portal-brand .bunya-logo { width: clamp(11rem, 24vw, 16rem); margin-inline: auto; }
+.provider-sidebar-brand > .bunya-logo { width: 9rem; }
+
+/* Legacy role headers receive the approved color logo without duplicating asset paths in components. */
+.customer-brand > span:first-child,
+.contractor-brand > span:first-child,
+.admin-brand > span:first-child,
+.driver-logo > span:first-child,
+.driver-brand > span:first-child,
+.directory-brand > span:first-child,
+.pwa-install-card > div > span:first-child,
+.pwa-install-backdrop section > span {
+  overflow: hidden;
+  background-color: transparent !important;
+  background-image: url("/brand/bunya-mark-color1.png") !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  background-size: contain !important;
+  color: transparent !important;
+  font-size: 0 !important;
+}
+
+@media (max-width: 700px) {
+  .store-brand .bunya-logo { width: 7rem; }
+  .store-hero-logo { width: clamp(10rem, 46vw, 14rem); }
+}

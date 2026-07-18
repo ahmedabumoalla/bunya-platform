@@ -5,6 +5,7 @@ import { useState } from "react";
 import Link from "next/link";
 import type { UploadedDocumentMetadata } from "@/lib/bunya-types";
 import { createLocalId, normalizeValue } from "@/lib/bunya-local";
+import { BunyaLogo } from "@/components/brand/BunyaLogo";
 
 export function PortalShell({ children }: { children: ReactNode }) {
   return (
@@ -13,8 +14,7 @@ export function PortalShell({ children }: { children: ReactNode }) {
       <div className="portal-orb portal-orb-two" />
       <div className="portal-container">
         <Link className="portal-brand" href="/" aria-label="العودة إلى بُنية">
-          <span>ب</span>
-          <strong>بُنية</strong>
+          <BunyaLogo priority />
           <small>منصة توريد مواد البناء</small>
         </Link>
         {children}

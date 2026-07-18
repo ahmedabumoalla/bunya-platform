@@ -11,14 +11,19 @@
   --bunya-surface-soft: rgb(9 31 55 / 0.48);
   --bunya-border: rgb(186 230 253 / 0.18);
   --bunya-border-active: rgb(103 232 249 / 0.34);
-  --bunya-text-primary: #f7fbff;
-  --bunya-text-secondary: #aac1d9;
-  --bunya-accent: #2d8cff;
-  --bunya-accent-soft: rgb(45 140 255 / 0.16);
+  --bunya-text-primary: #111111;
+  --bunya-text-secondary: #2a2a2a;
+  --bunya-text-muted: #4a4a4a;
+  --bunya-icon-primary: #111111;
+  --bunya-icon-secondary: #5a4638;
+  --bunya-link: #6f321e;
+  --bunya-focus: #a84f28;
+  --bunya-accent: #a84f28;
+  --bunya-accent-soft: rgb(168 79 40 / 0.16);
   --bunya-success: #6ee7b7;
   --bunya-warning: #fde68a;
   --bunya-danger: #fda4af;
-  --bunya-info: #67e8f9;
+  --bunya-info: #2a2a2a;
   --bunya-blur-sm: 8px;
   --bunya-blur-md: 16px;
   --bunya-blur-lg: 22px;
@@ -26,10 +31,6 @@
   --bunya-navy-900: #041426;
   --bunya-navy-850: #071b32;
   --bunya-navy-800: #0a2440;
-  --bunya-blue-600: #1479e6;
-  --bunya-blue-500: #2d8cff;
-  --bunya-cyan-400: #67e8f9;
-  --bunya-cyan-300: #a5f3fc;
   --bunya-ink: #f7fbff;
   --bunya-muted: #aac1d9;
   --bunya-faint: #7895b3;
@@ -167,7 +168,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 :where(.customer-page-header,.provider-page-header,.contractor-page-header,.admin-page-header) > div:first-child > p {
   margin: 0 !important;
-  color: var(--bunya-cyan-400) !important;
+  color: var(--bunya-icon-secondary) !important;
   font-size: 11px !important;
   font-weight: 900;
   letter-spacing: 0.04em;
@@ -237,7 +238,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 :where(.project-tags span,.customer-contractor-card em,.customer-address-layout article em) {
   background: rgb(45 140 255 / .14) !important;
-  color: var(--bunya-cyan-300) !important;
+  color: var(--bunya-icon-secondary) !important;
 }
 :where(.customer-top-actions a,.contractor-top-actions a,.admin-top-actions > a) {
   border-color: var(--bunya-line) !important;
@@ -414,7 +415,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .driver-top { min-height: 72px !important; padding: 10px clamp(14px, 4vw, 42px) !important; }
 .driver-card { padding: clamp(15px, 2vw, 21px) !important; }
 .driver-card dl div { border: 1px solid rgb(255 255 255 / 0.08) !important; border-radius: 11px; background: var(--bunya-inset) !important; }
-.driver-map { border: 1px solid rgb(103 232 249 / 0.2); background: rgb(20 121 230 / 0.14) !important; color: var(--bunya-cyan-300) !important; }
+.driver-map { border: 1px solid rgb(103 232 249 / 0.2); background: rgb(20 121 230 / 0.14) !important; color: var(--bunya-icon-secondary) !important; }
 
 /* Motion is short, spatially stable and optional */
 @media (prefers-reduced-motion: no-preference) {
