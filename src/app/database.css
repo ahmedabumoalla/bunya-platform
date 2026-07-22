@@ -1,0 +1,64 @@
+.database-page {
+  display: grid;
+  gap: 1.25rem;
+  width: min(100%, 92rem);
+  margin-inline: auto;
+  padding: clamp(1rem, 2.5vw, 2rem);
+  color: var(--bunya-text-primary);
+}
+
+.database-page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: clamp(1.2rem, 3vw, 2rem);
+  border: 1px solid var(--bunya-border);
+  border-radius: 1.4rem;
+  background: linear-gradient(145deg, rgb(255 254 251 / .96), rgb(246 232 214 / .9));
+  box-shadow: var(--bunya-shadow-md);
+}
+
+.database-page-header p { color: var(--bunya-accent); font-size: .72rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.database-page-header h1 { margin-top: .35rem; font-size: clamp(1.65rem, 3vw, 2.55rem); }
+.database-page-header span { display: block; max-width: 55rem; margin-top: .5rem; color: var(--bunya-text-secondary); line-height: 1.75; }
+.database-page-header aside { display: grid; min-width: 12rem; gap: .25rem; padding: .8rem 1rem; border: 1px solid var(--bunya-border); border-radius: 1rem; background: rgb(255 255 255 / .62); }
+.database-page-header aside small { color: var(--bunya-text-muted); }
+
+.database-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: .85rem; }
+.database-metrics article { display: grid; gap: .35rem; padding: 1rem; border: 1px solid var(--bunya-border); border-radius: 1rem; background: var(--bunya-surface); box-shadow: var(--bunya-shadow-sm); }
+.database-metrics span { color: var(--bunya-text-secondary); font-weight: 800; }
+.database-metrics strong { color: var(--bunya-accent-hover); font-size: 1.75rem; }
+.database-metrics small { color: var(--bunya-text-muted); }
+
+.database-panel,
+.database-state { border: 1px solid var(--bunya-border); border-radius: 1.2rem; background: var(--bunya-surface-strong); box-shadow: var(--bunya-shadow-sm); }
+.database-panel { overflow: hidden; }
+.database-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.15rem; border-bottom: 1px solid var(--bunya-border); }
+.database-panel-heading p { margin-top: .2rem; color: var(--bunya-text-muted); font-size: .78rem; }
+.database-panel-heading > span { border-radius: 999px; background: var(--bunya-success-bg); color: var(--bunya-success); padding: .35rem .65rem; font-size: .7rem; font-weight: 900; }
+.database-table-wrap { overflow-x: auto; }
+.database-table-wrap table { width: 100%; min-width: 48rem; border-collapse: collapse; }
+.database-table-wrap th,
+.database-table-wrap td { padding: .85rem 1rem; border-bottom: 1px solid var(--bunya-border); text-align: right; vertical-align: top; }
+.database-table-wrap th { background: var(--bunya-surface-muted); color: var(--bunya-text-secondary); font-size: .75rem; }
+.database-table-wrap td { max-width: 24rem; color: var(--bunya-text-primary); font-size: .8rem; overflow-wrap: anywhere; }
+.database-table-wrap a { color: var(--bunya-accent-hover); font-weight: 900; }
+
+.database-detail dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: .8rem; padding: 1rem; }
+.database-detail dl div { min-width: 0; padding: .8rem; border: 1px solid var(--bunya-border); border-radius: .8rem; background: var(--bunya-surface-muted); }
+.database-detail dt { color: var(--bunya-text-muted); font-size: .72rem; font-weight: 800; }
+.database-detail dd { margin-top: .35rem; color: var(--bunya-text-primary); font-weight: 750; overflow-wrap: anywhere; }
+
+.database-state { display: grid; min-height: 18rem; place-items: center; align-content: center; gap: .5rem; padding: 2rem; text-align: center; }
+.database-state > span { display: grid; width: 3rem; height: 3rem; place-items: center; border-radius: 999px; background: var(--bunya-surface-muted); color: var(--bunya-accent); font-size: 1.35rem; font-weight: 900; }
+.database-state p { max-width: 40rem; color: var(--bunya-text-secondary); line-height: 1.7; }
+.database-error { border-color: rgb(180 35 24 / .25); }
+.database-error > span { background: var(--bunya-danger-bg); color: var(--bunya-danger); }
+.database-spinner { border: 3px solid var(--bunya-border) !important; border-top-color: var(--bunya-accent) !important; animation: database-spin .8s linear infinite; }
+@keyframes database-spin { to { transform: rotate(1turn); } }
+
+@media (max-width: 720px) {
+  .database-page-header { align-items: stretch; flex-direction: column; }
+  .database-page-header aside { min-width: 0; }
+}
