@@ -1,4 +1,4 @@
-import type { SubscriptionPlan } from "@/lib/bunya-types";
+﻿import type { SubscriptionPlan } from "@/lib/bunya-types";
 
 type SubscriptionCardProps = {
   plan: SubscriptionPlan;
@@ -11,12 +11,12 @@ export function SubscriptionCard({ plan, compact = false }: SubscriptionCardProp
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-sm font-black text-[#b76734]">
-            {plan.role === "merchant" ? "للتجار" : "للمقاولين"}
+            {plan.role === "provider" ? "ظ„ظ„ظ…ط²ظˆط¯ظٹظ†" : "ظ„ظ„ظ…ظ‚ط§ظˆظ„ظٹظ†"}
           </p>
           <h3 className="mt-2 text-2xl font-black">{plan.name}</h3>
         </div>
         <p className="rounded-lg bg-[#214536] px-4 py-3 text-sm font-black text-white">
-          {plan.priceMonthly.toLocaleString("ar-SA")} ريال شهريا
+          {plan.priceMonthly.toLocaleString("ar-SA")} ط±ظٹط§ظ„ ط´ظ‡ط±ظٹط§
         </p>
       </div>
       <p className="mt-4 leading-7 text-[#766b5d]">{plan.description}</p>
@@ -35,3 +35,4 @@ export function SubscriptionCard({ plan, compact = false }: SubscriptionCardProp
     </article>
   );
 }
+
