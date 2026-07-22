@@ -3,7 +3,7 @@ import type { SubscriptionPlan } from "./bunya-types";
 export const subscriptionPlans: SubscriptionPlan[] = [
   {
     id: "merchant-monthly",
-    role: "merchant",
+    role: "provider",
     name: "اشتراك التاجر",
     priceMonthly: 99,
     description: "لوحة تاجر لاستقبال طلبات عروض السعر المجهولة وإدارة المنتجات والعروض المرسلة.",
