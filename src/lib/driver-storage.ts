@@ -1,51 +1,30 @@
 "use client";
-import type {DeliveryConfirmationRecord,DriverAdminAction,DriverDeliveryAssignment,DriverDeliveryStatus,DriverSession,LocalRoleSession,ProviderDriver,PwaInstallState} from "./driver-types";
-import {createPasswordProof,normalizeValue} from "./bunya-local";
+import type {DeliveryConfirmationRecord,DriverAdminAction,DriverDeliveryAssignment,DriverDeliveryStatus,ProviderDriver,PwaInstallState} from "./driver-types";
+import {normalizeValue} from "./bunya-local";
 import {createProviderId,readProviderCollection,readProviderProfile,writeProviderCollection} from "./provider-storage";
 import type {DeliveryAssignment,FinancialTransaction,ProviderOrder} from "./provider-types";
 
-export const driverStorageKeys={drivers:"bunya-provider-drivers",sessions:"bunya-driver-sessions",passwordChange:"bunya-driver-password-change",assignments:"bunya-provider-delivery-assignments",confirmations:"bunya-delivery-confirmations",adminActions:"bunya-admin-driver-actions",installState:"bunya-pwa-install-state",lastRoleRoute:"bunya-pwa-last-role-route",roleSession:"bunya-local-session"} as const;
+export const driverStorageKeys={drivers:"bunya-provider-drivers",assignments:"bunya-provider-delivery-assignments",confirmations:"bunya-delivery-confirmations",adminActions:"bunya-admin-driver-actions",installState:"bunya-pwa-install-state",lastRoleRoute:"bunya-pwa-last-role-route"} as const;
 
 export function readDrivers(){return read<ProviderDriver[]>(driverStorageKeys.drivers,[])}
 export function writeDrivers(value:ProviderDriver[]){write(driverStorageKeys.drivers,value);emit("drivers")}
-export function readDriverSessions(){return read<DriverSession[]>(driverStorageKeys.sessions,[])}
-export function writeDriverSessions(value:DriverSession[]){write(driverStorageKeys.sessions,value);emit("sessions")}
 export function readDriverAssignments(){return read<DriverDeliveryAssignment[]>(driverStorageKeys.assignments,[])}
 export function writeDriverAssignments(value:DriverDeliveryAssignment[]){write(driverStorageKeys.assignments,value);emit("assignments")}
 export function readDeliveryConfirmations(){return read<DeliveryConfirmationRecord[]>(driverStorageKeys.confirmations,[])}
 export function readDriverAdminActions(){return read<DriverAdminAction[]>(driverStorageKeys.adminActions,[])}
 export function readPwaInstallState(){return read<PwaInstallState>(driverStorageKeys.installState,{installed:false})}
 export function writePwaInstallState(value:PwaInstallState){write(driverStorageKeys.installState,value)}
-export function createRoleSession(input:Omit<LocalRoleSession,"loginAt"|"expiresAt">,durationMs=12*60*60*1000):LocalRoleSession{const loginAt=new Date();return{...input,loginAt:loginAt.toISOString(),expiresAt:new Date(loginAt.getTime()+durationMs).toISOString()}}
-export function writeRoleSession(session:LocalRoleSession){write(driverStorageKeys.roleSession,session)}
-
-export async function createProviderDriver(input:Omit<ProviderDriver,"id"|"providerId"|"providerName"|"passwordProof"|"mustChangePassword"|"failedCodeAttempts"|"violations"|"createdAt"|"updatedAt"> & {password:string}){
+export async function createProviderDriver(input:Omit<ProviderDriver,"id"|"providerId"|"providerName"|"mustChangePassword"|"failedCodeAttempts"|"violations"|"createdAt"|"updatedAt"> & {password:string}){
   const drivers=readDrivers();
   const duplicate=drivers.find(item=>[item.email,item.mobile,item.username].some(value=>[input.email,input.mobile,input.username].some(candidate=>normalizeValue(value)===normalizeValue(candidate))));
   if(duplicate)return {ok:false as const,message:"البريد أو الجوال أو اسم المستخدم مستخدم لحساب سائق آخر."};
   const profile=readProviderProfile();const now=new Date().toISOString();
-  const driver:ProviderDriver={...input,id:createProviderId("driver"),providerId:profile.id,providerName:profile.companyName,email:normalizeValue(input.email),username:input.username.trim(),mobile:input.mobile.trim(),passwordProof:await createPasswordProof(input.password),mustChangePassword:true,status:input.status==="suspended"?"suspended":"must_change_password",failedCodeAttempts:0,violations:0,createdAt:now,updatedAt:now};
+  const {password,...safeInput}=input;void password;
+  const driver:ProviderDriver={...safeInput,id:createProviderId("driver"),providerId:profile.id,providerName:profile.companyName,email:normalizeValue(input.email),username:input.username.trim(),mobile:input.mobile.trim(),mustChangePassword:true,status:input.status==="suspended"?"suspended":"must_change_password",failedCodeAttempts:0,violations:0,createdAt:now,updatedAt:now};
   writeDrivers([driver,...drivers]);return {ok:true as const,driver};
 }
-
-export async function authenticateDriver(identifier:string,password:string){
-  const proof=await createPasswordProof(password);const normalized=normalizeValue(identifier);
-  const driver=readDrivers().find(item=>[item.email,item.mobile,item.username].some(value=>normalizeValue(value)===normalized));
-  if(!driver)return {ok:false as const,code:"not_found" as const,message:"الحساب غير موجود في التخزين المحلي."};
-  if(driver.passwordProof!==proof)return {ok:false as const,code:"invalid_password" as const,message:"كلمة المرور غير صحيحة."};
-  if(driver.status==="suspended")return {ok:false as const,code:"suspended" as const,message:"حساب السائق موقوف. تواصل مع المزود."};
-  const now=new Date().toISOString();const session:DriverSession={id:createProviderId("driver-session"),driverId:driver.id,providerId:driver.providerId,createdAt:now,lastActiveAt:now};
-  writeDriverSessions([session,...readDriverSessions()]);
-  writeDrivers(readDrivers().map(item=>item.id===driver.id?{...item,lastActiveAt:now,updatedAt:now}:item));
-  writeRoleSession(createRoleSession({role:"driver",userId:driver.id,displayName:driver.fullName,username:driver.username,email:driver.email,phone:driver.mobile,status:driver.status}));
-  return {ok:true as const,driver};
-}
-
-type LegacyRoleSession=Partial<LocalRoleSession>&{createdAt?:string;customerId?:string;providerId?:string;contractorId?:string;driverId?:string};
-export function currentRoleSession(){const value=read<LegacyRoleSession|null>(driverStorageKeys.roleSession,null);if(!value?.role||!value.userId)return null;const loginAt=value.loginAt??value.createdAt??new Date().toISOString();const session:LocalRoleSession={role:value.role,userId:value.userId,displayName:value.displayName??"مستخدم بُنية",username:value.username??"",email:value.email??"",phone:value.phone??"",status:value.status??"active",loginAt,expiresAt:value.expiresAt};if(session.expiresAt&&new Date(session.expiresAt).getTime()<=Date.now()){localStorage.removeItem(driverStorageKeys.roleSession);return null}return session}
-export function endDriverSessions(driverId:string,reason:string,actorId="provider-local"){const now=new Date().toISOString();writeDriverSessions(readDriverSessions().map(item=>item.driverId===driverId&&!item.revokedAt?{...item,revokedAt:now}:item));recordDriverAdminAction(driverId,"إنهاء الجلسات",reason,actorId)}
-export async function resetDriverPassword(driverId:string,password:string,reason:string){const proof=await createPasswordProof(password);const now=new Date().toISOString();writeDrivers(readDrivers().map(item=>item.id===driverId?{...item,passwordProof:proof,mustChangePassword:true,status:"must_change_password",updatedAt:now}:item));endDriverSessions(driverId,reason);write(driverStorageKeys.passwordChange,{driverId,resetAt:now,reason})}
-export async function changeDriverPassword(driverId:string,currentPassword:string,newPassword:string){const driver=readDrivers().find(item=>item.id===driverId);if(!driver||driver.passwordProof!==await createPasswordProof(currentPassword))return {ok:false as const,message:"كلمة المرور الحالية غير صحيحة."};const now=new Date().toISOString();const passwordProof=await createPasswordProof(newPassword);writeDrivers(readDrivers().map(item=>item.id===driverId?{...item,passwordProof,mustChangePassword:false,status:"active",updatedAt:now}:item));write(driverStorageKeys.passwordChange,{driverId,completedAt:now});return {ok:true as const}}
+export function endDriverSessions(driverId:string,reason:string,actorId="provider-local"){recordDriverAdminAction(driverId,"طلب إنهاء جلسات Supabase",reason,actorId)}
+export async function resetDriverPassword(driverId:string,password:string,reason:string){void password;recordDriverAdminAction(driverId,"طلب إعادة تعيين كلمة مرور Supabase",reason,"provider-local");return{ok:false as const,message:"إعادة تعيين كلمة مرور السائق تتطلب خدمة خادمية مخوّلة، ولم تُخزن كلمة المرور محليًا."}}
 
 export function setDriverStatus(driverId:string,status:ProviderDriver["status"],reason:string,actorId="provider-local"){const now=new Date().toISOString();writeDrivers(readDrivers().map(item=>item.id===driverId?{...item,status,mustChangePassword:status==="must_change_password",updatedAt:now}:item));if(status==="suspended")endDriverSessions(driverId,reason,actorId);recordDriverAdminAction(driverId,status==="suspended"?"إيقاف الحساب":"تفعيل الحساب",reason,actorId)}
 export function recordDriverAdminAction(driverId:string,action:string,reason:string,adminId:string){const value:DriverAdminAction={id:createProviderId("driver-action"),driverId,action,reason,adminId,createdAt:new Date().toISOString()};write(driverStorageKeys.adminActions,[value,...readDriverAdminActions()])}

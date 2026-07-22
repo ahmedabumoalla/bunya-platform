@@ -1,15 +1,6 @@
 export type UserRole = "customer" | "contractor" | "merchant" | "driver" | "admin";
 
-export type ProductCategory =
-  | "الأسمنت"
-  | "الحديد"
-  | "البلك والطوب"
-  | "العزل"
-  | "السباكة"
-  | "الكهرباء"
-  | "الأخشاب"
-  | "الدهانات"
-  | "الأدوات والمعدات";
+export type ProductCategory = string;
 
 export type ProductImage = {
   id: string;
@@ -155,8 +146,8 @@ export type ContractorProfile = {
 };
 
 export type SubscriptionPlan = {
-  id: "merchant-monthly" | "contractor-visibility";
-  role: "merchant" | "contractor";
+  id: string;
+  role: "provider" | "contractor";
   name: string;
   priceMonthly: number;
   description: string;
@@ -191,7 +182,6 @@ export type CustomerRegistration = {
   mobile: string;
   email: string;
   username: string;
-  passwordProof: string;
   createdAt: string;
 };
 

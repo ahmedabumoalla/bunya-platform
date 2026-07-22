@@ -1,9 +1,13 @@
 import type { ReactNode } from "react";
 import { ProviderShell } from "@/components/provider/ProviderShell";
-import {RoleGuard} from "@/components/RoleGuard";
+import {AuthIdentityProvider} from "@/components/auth/AuthIdentityProvider";
+import {RoleDatabasePortal} from "@/components/database/RoleDatabasePortal";
+import {requirePortalRole} from "@/lib/auth/server";
 import "./provider.css";
 import "./drivers.css";
 
-export default function MerchantLayout({ children }: { children: ReactNode }) {
-  return <RoleGuard role="provider"><ProviderShell>{children}</ProviderShell></RoleGuard>;
+export default async function MerchantLayout({ children }: { children: ReactNode }) {
+  const identity=await requirePortalRole("provider");
+  void children;
+  return <AuthIdentityProvider identity={identity}><ProviderShell><RoleDatabasePortal role="provider"/></ProviderShell></AuthIdentityProvider>;
 }

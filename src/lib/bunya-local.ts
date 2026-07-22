@@ -9,7 +9,6 @@ export const localStorageKeys = {
   customers: "bunya-customer-registrations",
   providers: "bunya-provider-applications",
   contractors: "bunya-contractor-applications",
-  resetRequests: "bunya-password-reset-requests",
 } as const;
 
 export function createLocalId(prefix: string) {
@@ -32,12 +31,6 @@ export function readLocalCollection<T>(key: string): T[] {
 export function appendLocalRecord<T>(key: string, record: T) {
   const records = readLocalCollection<T>(key);
   window.localStorage.setItem(key, JSON.stringify([record, ...records]));
-}
-
-export async function createPasswordProof(password: string) {
-  const bytes = new TextEncoder().encode(`bunya-local-mock:${password}`);
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 export function validatePassword(password: string) {

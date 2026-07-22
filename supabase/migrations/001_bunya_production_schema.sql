@@ -4,9 +4,13 @@
 
 begin;
 
+create schema if not exists extensions;
+revoke create on schema public from public;
 create extension if not exists pgcrypto with schema extensions;
+create extension if not exists citext with schema extensions;
+create extension if not exists pg_trgm with schema extensions;
 
-create type public.user_role as enum ('customer', 'contractor', 'merchant', 'driver', 'admin');
+create type public.user_role as enum ('customer', 'provider', 'contractor', 'driver', 'admin');
 create type public.application_status as enum ('pending', 'approved', 'rejected', 'needs_changes');
 create type public.provider_account_status as enum ('pending', 'approved', 'suspended');
 create type public.product_availability_status as enum ('available', 'limited', 'on_request', 'unavailable');
@@ -14,11 +18,6 @@ create type public.product_image_tone as enum ('cement', 'steel', 'blocks', 'ins
 create type public.quote_requester_role as enum ('customer', 'contractor');
 create type public.quote_request_status as enum (
   'draft',
-  'new',
-  'viewed',
-  'quoted',
-  'expired',
-  'unavailable',
   'submitted',
   'sourcing',
   'verifying',
@@ -26,17 +25,9 @@ create type public.quote_request_status as enum (
   'customer_review',
   'accepted',
   'rejected',
-  'collecting_quotes',
-  'final_offer_ready',
-  'paid',
-  'preparing',
-  'out_for_delivery',
-  'delivered',
+  'expired',
   'cancelled'
 );
-create type public.merchant_quote_status as enum ('draft', 'sent', 'qualified', 'selected', 'rejected');
-create type public.final_offer_status as enum ('ready', 'accepted', 'paid');
-create type public.delivery_status as enum ('assigned', 'arrived', 'picked_up', 'out_for_delivery', 'delivered');
 create type public.subscription_status as enum ('pending', 'active', 'past_due', 'cancelled', 'expired');
 create type public.product_review_status as enum ('draft', 'pending_review', 'approved', 'rejected', 'needs_changes', 'inactive');
 create type public.product_offer_type as enum ('sale', 'rental');
@@ -87,11 +78,81 @@ create unique index profiles_mobile_unique_idx on public.profiles (mobile) where
 create unique index profiles_email_unique_idx on public.profiles (lower(email)) where email is not null;
 create index profiles_role_idx on public.profiles (role);
 
+-- A profile may hold more than one platform role. profiles.role is only the
+-- cached primary role used by legacy UI adapters; authorization uses user_roles.
+create table public.user_roles (
+  id uuid primary key default gen_random_uuid(),
+  profile_id uuid not null references public.profiles (id) on delete cascade,
+  role public.user_role not null,
+  is_primary boolean not null default false,
+  granted_by uuid references public.profiles (id) on delete set null,
+  granted_at timestamptz not null default now(),
+  revoked_at timestamptz,
+  constraint user_roles_revoke_after_grant check (revoked_at is null or revoked_at >= granted_at)
+);
+create unique index user_roles_active_unique_idx on public.user_roles (profile_id, role) where revoked_at is null;
+create unique index user_roles_one_primary_idx on public.user_roles (profile_id) where is_primary and revoked_at is null;
+create index user_roles_role_active_idx on public.user_roles (role, profile_id) where revoked_at is null;
+
 create table public.customer_profiles (
   profile_id uuid primary key references public.profiles (id) on delete cascade,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+create table public.regions (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique check (code ~ '^[A-Z0-9_-]+$'),
+  name_ar text not null,
+  name_en text,
+  is_active boolean not null default true,
+  sort_order integer not null default 0 check (sort_order >= 0),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint regions_name_ar_not_blank check (btrim(name_ar) <> '')
+);
+
+create table public.cities (
+  id uuid primary key default gen_random_uuid(),
+  region_id uuid not null references public.regions (id) on delete restrict,
+  code text not null unique check (code ~ '^[A-Z0-9_-]+$'),
+  name_ar text not null,
+  name_en text,
+  is_active boolean not null default true,
+  latitude numeric(9,6),
+  longitude numeric(9,6),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint cities_coordinates_pair check ((latitude is null) = (longitude is null)),
+  constraint cities_latitude_range check (latitude is null or latitude between -90 and 90),
+  constraint cities_longitude_range check (longitude is null or longitude between -180 and 180),
+  constraint cities_name_ar_not_blank check (btrim(name_ar) <> '')
+);
+create index cities_region_active_idx on public.cities (region_id, is_active, name_ar);
+
+-- Registry for every Storage object. Signed URLs are never persisted.
+create table public.files (
+  id uuid primary key default gen_random_uuid(),
+  owner_profile_id uuid references public.profiles (id) on delete restrict,
+  bucket_id text not null,
+  object_path text not null,
+  purpose text not null,
+  original_name text not null,
+  mime_type text not null,
+  size_bytes bigint not null check (size_bytes > 0 and size_bytes <= 52428800),
+  checksum_sha256 text check (checksum_sha256 is null or checksum_sha256 ~ '^[a-f0-9]{64}$'),
+  scan_status text not null default 'pending' check (scan_status in ('pending','clean','quarantined','rejected')),
+  metadata jsonb not null default '{}'::jsonb,
+  uploaded_at timestamptz,
+  deleted_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (bucket_id, object_path),
+  constraint files_path_not_blank check (btrim(object_path) <> ''),
+  constraint files_original_name_not_blank check (btrim(original_name) <> '')
+);
+create index files_owner_purpose_idx on public.files (owner_profile_id, purpose, created_at desc) where deleted_at is null;
+create index files_scan_queue_idx on public.files (scan_status, created_at) where deleted_at is null and scan_status <> 'clean';
 
 create table public.product_categories (
   id uuid primary key default gen_random_uuid(),
@@ -107,10 +168,24 @@ create table public.product_categories (
 
 create unique index product_categories_name_unique_idx on public.product_categories (lower(name));
 
+create table public.product_brands (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  slug text not null unique check (slug ~ '^[a-z0-9-]+$'),
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint product_brands_name_not_blank check (btrim(name) <> '')
+);
+create unique index product_brands_name_unique_idx on public.product_brands (lower(name));
+
 create table public.products (
   id uuid primary key default gen_random_uuid(),
   external_key text unique,
   category_id uuid not null references public.product_categories (id) on delete restrict,
+  brand_id uuid references public.product_brands (id) on delete restrict,
+  slug text not null unique check (slug ~ '^[a-z0-9-]+$'),
+  sku text unique,
   name text not null,
   base_unit text not null,
   short_description text not null,
@@ -133,6 +208,21 @@ create table public.products (
 
 create index products_category_published_idx on public.products (category_id, is_published);
 create index products_name_search_idx on public.products using gin (to_tsvector('simple', name || ' ' || description));
+create index products_name_trgm_idx on public.products using gin (name extensions.gin_trgm_ops);
+
+create table public.product_variants (
+  id uuid primary key default gen_random_uuid(),
+  product_id uuid not null references public.products (id) on delete cascade,
+  sku text not null unique,
+  name text not null,
+  attributes jsonb not null default '{}'::jsonb,
+  is_active boolean not null default true,
+  sort_order integer not null default 0 check (sort_order >= 0),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint product_variants_name_not_blank check (btrim(name) <> '')
+);
+create index product_variants_product_active_idx on public.product_variants (product_id, is_active, sort_order);
 
 create table public.product_images (
   id uuid primary key default gen_random_uuid(),
@@ -142,6 +232,7 @@ create table public.product_images (
   alt_text text not null,
   tone public.product_image_tone not null,
   image_url text,
+  file_id uuid references public.files (id) on delete restrict,
   sort_order integer not null default 0 check (sort_order >= 0),
   created_at timestamptz not null default now(),
   unique (product_id, external_key),
@@ -262,6 +353,21 @@ create table public.provider_application_categories (
   )
 );
 
+create table public.provider_application_documents (
+  id uuid primary key default gen_random_uuid(),
+  application_id uuid not null references public.provider_applications (id) on delete cascade,
+  file_id uuid not null references public.files (id) on delete restrict,
+  document_type text not null,
+  status text not null default 'pending_review' check (status in ('pending_review','approved','rejected','expired')),
+  rejection_reason text,
+  reviewed_by uuid references public.profiles (id) on delete set null,
+  reviewed_at timestamptz,
+  created_at timestamptz not null default now(),
+  unique (application_id, document_type, file_id),
+  constraint provider_application_document_review check ((status <> 'rejected') or btrim(coalesce(rejection_reason,'')) <> '')
+);
+create index provider_application_documents_application_idx on public.provider_application_documents (application_id, status);
+
 create unique index provider_application_categories_standard_unique_idx on public.provider_application_categories (application_id, category_id) where category_id is not null;
 create unique index provider_application_categories_custom_unique_idx on public.provider_application_categories (application_id, lower(custom_category)) where custom_category is not null;
 
@@ -350,10 +456,10 @@ create table public.contractor_profiles (
   application_id uuid unique references public.contractor_applications (id) on delete set null,
   display_name text not null,
   commercial_name text not null,
-  city text not null,
-  badge text not null,
-  years_experience smallint not null check (years_experience >= 0 and years_experience <= 100),
-  summary text not null,
+  city text,
+  badge text,
+  years_experience smallint check (years_experience is null or years_experience between 0 and 100),
+  summary text,
   phone text not null,
   email text not null,
   subscription_active boolean not null default false,
@@ -371,7 +477,14 @@ create table public.contractor_profiles (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint contractor_profiles_approved_source check (approval_status <> 'approved' or application_id is not null),
-  constraint contractor_profiles_coordinates_pair check ((latitude is null) = (longitude is null))
+  constraint contractor_profiles_coordinates_pair check ((latitude is null) = (longitude is null)),
+  constraint contractor_profiles_directory_ready check (
+    not directory_visible or (
+      approval_status = 'approved' and subscription_active and
+      btrim(coalesce(city,'')) <> '' and btrim(coalesce(badge,'')) <> '' and
+      years_experience is not null and btrim(coalesce(summary,'')) <> ''
+    )
+  )
 );
 
 create index contractor_profiles_public_directory_idx on public.contractor_profiles (approval_status, subscription_active, city);
@@ -766,7 +879,6 @@ create table public.quote_requests (
   quote_deadline timestamptz not null,
   payment_status text not null default 'pending',
   delivery_promise text,
-  handshake_code_hash text,
   notes text,
   status public.quote_request_status not null default 'draft',
   created_at timestamptz not null default now(),
@@ -776,8 +888,7 @@ create table public.quote_requests (
   constraint quote_requests_latitude_range check (latitude is null or latitude between -90 and 90),
   constraint quote_requests_longitude_range check (longitude is null or longitude between -180 and 180),
   constraint quote_requests_coordinates_pair check ((latitude is null) = (longitude is null)),
-  constraint quote_requests_deadline_after_creation check (quote_deadline > created_at),
-  constraint quote_requests_handshake_not_plain check (handshake_code_hash is null or length(handshake_code_hash) >= 32)
+  constraint quote_requests_deadline_after_creation check (quote_deadline > created_at)
 );
 
 create index quote_requests_requester_created_idx on public.quote_requests (requester_id, created_at desc);
@@ -801,68 +912,9 @@ create table public.quote_request_items (
 create index quote_request_items_request_idx on public.quote_request_items (request_id);
 create index quote_request_items_product_idx on public.quote_request_items (product_id);
 
-create table public.merchant_quotes (
-  id uuid primary key default gen_random_uuid(),
-  request_id uuid not null references public.quote_requests (id) on delete cascade,
-  merchant_profile_id uuid not null references public.profiles (id) on delete restrict,
-  price numeric(14, 2) not null check (price >= 0),
-  delivery_duration text not null,
-  notes text,
-  eligible boolean not null default false,
-  status public.merchant_quote_status not null default 'draft',
-  received_at timestamptz,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  unique (request_id, merchant_profile_id)
-);
-
-create index merchant_quotes_request_status_price_idx on public.merchant_quotes (request_id, status, price);
-create index merchant_quotes_merchant_created_idx on public.merchant_quotes (merchant_profile_id, created_at desc);
-
-create table public.final_offers (
-  id uuid primary key default gen_random_uuid(),
-  request_id uuid not null unique references public.quote_requests (id) on delete cascade,
-  selected_merchant_quote_id uuid not null unique references public.merchant_quotes (id) on delete restrict,
-  platform_name text not null default 'بُنية',
-  total_price numeric(14, 2) not null check (total_price >= 0),
-  delivery_duration text not null,
-  payment_status text not null default 'pending',
-  offer_status public.final_offer_status not null default 'ready',
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-
-create table public.order_events (
-  id uuid primary key default gen_random_uuid(),
-  request_id uuid not null references public.quote_requests (id) on delete cascade,
-  title text not null,
-  description text not null,
-  status public.quote_request_status not null,
-  occurred_at timestamptz not null default now(),
-  created_by uuid references public.profiles (id) on delete set null
-);
-
-create index order_events_request_time_idx on public.order_events (request_id, occurred_at);
-
-create table public.deliveries (
-  id uuid primary key default gen_random_uuid(),
-  request_id uuid not null unique references public.quote_requests (id) on delete cascade,
-  driver_profile_id uuid references public.profiles (id) on delete set null,
-  destination text not null,
-  map_label text,
-  estimated_arrival_at timestamptz,
-  status public.delivery_status not null default 'assigned',
-  delivered_at timestamptz,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  constraint deliveries_delivered_consistency check ((status = 'delivered') = (delivered_at is not null))
-);
-
-create index deliveries_driver_status_idx on public.deliveries (driver_profile_id, status);
-
 create table public.subscription_plans (
   id text primary key,
-  role public.user_role not null check (role in ('merchant', 'contractor')),
+  role public.user_role not null check (role in ('provider', 'contractor')),
   name text not null,
   price_monthly numeric(10, 2) not null check (price_monthly >= 0),
   description text not null,
@@ -1086,8 +1138,7 @@ create table public.provider_quote_status_history (
 create table public.orders (
   id uuid primary key default gen_random_uuid(),
   order_code text not null unique,
-  provider_quote_id uuid not null unique references public.provider_quotes (id) on delete restrict,
-  provider_id uuid not null references public.providers (id) on delete restrict,
+  customer_quote_id uuid not null unique,
   customer_profile_id uuid not null references public.profiles (id) on delete restrict,
   subtotal numeric(14,2) not null check (subtotal >= 0),
   vat_amount numeric(14,2) not null default 0 check (vat_amount >= 0),
@@ -1108,7 +1159,7 @@ create table public.orders (
   constraint orders_total_math check (total = subtotal + vat_amount + delivery_fee - discount_amount),
   constraint orders_coordinates_pair check ((latitude is null) = (longitude is null))
 );
-create index orders_provider_status_idx on public.orders (provider_id, status, created_at desc);
+create index orders_status_created_idx on public.orders (status, created_at desc);
 create index orders_customer_created_idx on public.orders (customer_profile_id, created_at desc);
 
 create table public.order_items (
@@ -1132,41 +1183,6 @@ create table public.order_status_history (
   changed_at timestamptz not null default now()
 );
 create index order_status_history_order_time_idx on public.order_status_history (order_id, changed_at);
-
-create table public.delivery_assignments (
-  id uuid primary key default gen_random_uuid(),
-  delivery_code text not null unique,
-  order_id uuid not null unique references public.orders (id) on delete cascade,
-  driver_profile_id uuid not null references public.profiles (id) on delete restrict,
-  assigned_by uuid references public.profiles (id) on delete set null,
-  status public.delivery_status not null default 'assigned',
-  assigned_at timestamptz not null default now(),
-  arrived_at timestamptz,
-  delivered_at timestamptz,
-  customer_confirmed boolean not null default false,
-  updated_at timestamptz not null default now()
-);
-create index delivery_assignments_driver_status_idx on public.delivery_assignments (driver_profile_id, status);
-
-create table public.delivery_verification_codes (
-  delivery_assignment_id uuid primary key references public.delivery_assignments (id) on delete cascade,
-  code_hash text not null,
-  expires_at timestamptz not null,
-  max_attempts smallint not null default 5 check (max_attempts between 1 and 10),
-  attempts smallint not null default 0 check (attempts >= 0),
-  verified_at timestamptz,
-  created_at timestamptz not null default now(),
-  constraint delivery_codes_hash_only check (length(code_hash) >= 32),
-  constraint delivery_codes_attempt_limit check (attempts <= max_attempts)
-);
-create table public.delivery_verification_attempts (
-  id uuid primary key default gen_random_uuid(),
-  delivery_assignment_id uuid not null references public.delivery_assignments (id) on delete cascade,
-  driver_profile_id uuid not null references public.profiles (id) on delete restrict,
-  succeeded boolean not null,
-  attempted_at timestamptz not null default now()
-);
-create index delivery_attempts_assignment_time_idx on public.delivery_verification_attempts (delivery_assignment_id, attempted_at desc);
 
 create table public.financial_transactions (
   id uuid primary key default gen_random_uuid(),
@@ -1217,14 +1233,37 @@ create index settlements_provider_status_idx on public.settlement_requests (prov
 create table public.notifications (
   id uuid primary key default gen_random_uuid(),
   profile_id uuid not null references public.profiles (id) on delete cascade,
+  actor_profile_id uuid references public.profiles (id) on delete set null,
   type text not null,
   title text not null,
   message text not null,
   action_url text,
+  entity_type text,
+  entity_id uuid,
+  metadata jsonb not null default '{}'::jsonb,
   read_at timestamptz,
+  expires_at timestamptz,
   created_at timestamptz not null default now()
 );
 create index notifications_profile_unread_idx on public.notifications (profile_id, created_at desc) where read_at is null;
+create index notifications_entity_idx on public.notifications (entity_type, entity_id) where entity_id is not null;
+
+create table public.notification_deliveries (
+  id uuid primary key default gen_random_uuid(),
+  notification_id uuid not null references public.notifications (id) on delete cascade,
+  channel text not null check (channel in ('in_app','email','sms','push')),
+  destination_masked text,
+  status text not null default 'pending' check (status in ('pending','processing','delivered','failed','cancelled')),
+  provider_reference text,
+  attempt_count integer not null default 0 check (attempt_count >= 0),
+  last_attempt_at timestamptz,
+  delivered_at timestamptz,
+  failure_reason text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (notification_id, channel)
+);
+create index notification_deliveries_queue_idx on public.notification_deliveries (status, last_attempt_at) where status in ('pending','failed');
 
 create table public.platform_policies (
   id uuid primary key default gen_random_uuid(),
@@ -1263,7 +1302,26 @@ create table public.support_ticket_attachments (
   file_name text not null,
   mime_type text not null,
   file_size_bytes bigint not null check (file_size_bytes between 1 and 5242880),
+  file_id uuid references public.files (id) on delete restrict,
   created_at timestamptz not null default now()
+);
+
+create table public.support_messages (
+  id uuid primary key default gen_random_uuid(),
+  ticket_id uuid not null references public.support_tickets (id) on delete cascade,
+  author_profile_id uuid not null references public.profiles (id) on delete restrict,
+  body text not null check (btrim(body) <> ''),
+  is_internal boolean not null default false,
+  created_at timestamptz not null default now(),
+  edited_at timestamptz
+);
+create index support_messages_ticket_time_idx on public.support_messages (ticket_id, created_at);
+
+create table public.support_message_attachments (
+  message_id uuid not null references public.support_messages (id) on delete cascade,
+  file_id uuid not null references public.files (id) on delete restrict,
+  created_at timestamptz not null default now(),
+  primary key (message_id, file_id)
 );
 
 create table public.audit_logs (
@@ -1310,22 +1368,18 @@ create unique index customer_addresses_one_default_idx on public.customer_addres
 create index customer_addresses_customer_created_idx on public.customer_addresses (customer_profile_id, created_at desc);
 
 alter table public.quote_requests
-  add column awarded_quote_id uuid references public.provider_quotes (id) on delete restrict,
   add column delivery_mode text not null default 'delivery',
   add column project_name text,
   add column recipient_name text,
   add column recipient_mobile text,
   add column customer_address_id uuid references public.customer_addresses (id) on delete set null,
-  add constraint quote_requests_delivery_mode_allowed check (delivery_mode in ('delivery', 'pickup')),
-  add constraint quote_requests_award_consistency check (status <> 'final_offer_ready' or awarded_quote_id is not null);
-create index quote_requests_awarded_quote_idx on public.quote_requests (awarded_quote_id) where awarded_quote_id is not null;
+  add constraint quote_requests_delivery_mode_allowed check (delivery_mode in ('delivery', 'pickup'));
 
 create table public.invoices (
   id uuid primary key default gen_random_uuid(),
   invoice_code text not null unique,
   order_id uuid not null unique references public.orders (id) on delete restrict,
   customer_profile_id uuid not null references public.profiles (id) on delete restrict,
-  provider_id uuid not null references public.providers (id) on delete restrict,
   subtotal numeric(14,2) not null check (subtotal >= 0),
   vat_amount numeric(14,2) not null default 0 check (vat_amount >= 0),
   delivery_fee numeric(14,2) not null default 0 check (delivery_fee >= 0),
@@ -1339,7 +1393,21 @@ create table public.invoices (
   constraint invoices_paid_consistency check ((status = 'paid' and paid_at is not null) or status <> 'paid')
 );
 create index invoices_customer_time_idx on public.invoices (customer_profile_id, issued_at desc);
-create index invoices_provider_time_idx on public.invoices (provider_id, issued_at desc);
+
+create table public.invoice_items (
+  id uuid primary key default gen_random_uuid(),
+  invoice_id uuid not null references public.invoices (id) on delete restrict,
+  order_item_id uuid references public.order_items (id) on delete restrict,
+  description text not null check (btrim(description) <> ''),
+  quantity numeric(14,3) not null check (quantity > 0),
+  unit_price numeric(14,2) not null check (unit_price >= 0),
+  vat_rate numeric(5,2) not null default 15 check (vat_rate between 0 and 100),
+  vat_amount numeric(14,2) not null default 0 check (vat_amount >= 0),
+  line_total numeric(14,2) not null check (line_total >= 0),
+  created_at timestamptz not null default now(),
+  constraint invoice_items_total_math check (line_total = round(quantity * unit_price + vat_amount, 2))
+);
+create index invoice_items_invoice_idx on public.invoice_items (invoice_id);
 
 -- Future gateway records contain references and state only, never card numbers, CVV or secrets.
 create table public.payment_records (
@@ -1356,6 +1424,36 @@ create table public.payment_records (
 );
 create index payment_records_invoice_time_idx on public.payment_records (invoice_id, created_at desc);
 create index payment_records_customer_time_idx on public.payment_records (customer_profile_id, created_at desc);
+
+create table public.outbox_events (
+  id uuid primary key default gen_random_uuid(),
+  aggregate_type text not null,
+  aggregate_id uuid not null,
+  event_type text not null,
+  payload jsonb not null default '{}'::jsonb,
+  status text not null default 'pending' check (status in ('pending','processing','processed','failed','dead_letter')),
+  attempts integer not null default 0 check (attempts >= 0),
+  available_at timestamptz not null default now(),
+  processed_at timestamptz,
+  last_error text,
+  created_at timestamptz not null default now()
+);
+create index outbox_events_queue_idx on public.outbox_events (status, available_at, created_at) where status in ('pending','failed');
+
+create table public.idempotency_keys (
+  id uuid primary key default gen_random_uuid(),
+  profile_id uuid not null references public.profiles (id) on delete restrict,
+  scope text not null,
+  key text not null,
+  request_hash text not null check (request_hash ~ '^[a-f0-9]{64}$'),
+  response_snapshot jsonb,
+  status text not null default 'processing' check (status in ('processing','completed','failed')),
+  expires_at timestamptz not null,
+  created_at timestamptz not null default now(),
+  unique (profile_id, scope, key),
+  constraint idempotency_expiry_after_creation check (expires_at > created_at)
+);
+create index idempotency_keys_expiry_idx on public.idempotency_keys (expires_at);
 
 create table public.saved_contractors (
   customer_profile_id uuid not null references public.profiles (id) on delete cascade,
@@ -1389,24 +1487,73 @@ begin
 end;
 $$;
 
-create or replace function public.current_user_role()
-returns public.user_role
-language sql
-stable
+create or replace function public.protect_file_registry_fields()
+returns trigger
+language plpgsql
 security definer
 set search_path = public, pg_temp
 as $$
-  select role from public.profiles where id = auth.uid();
+begin
+  if not public.admin_has_permission('profiles.manage') and coalesce(auth.jwt() ->> 'role', '') <> 'service_role' and (
+    new.owner_profile_id is distinct from old.owner_profile_id or
+    new.bucket_id is distinct from old.bucket_id or
+    new.object_path is distinct from old.object_path or
+    new.purpose is distinct from old.purpose or
+    new.original_name is distinct from old.original_name or
+    new.mime_type is distinct from old.mime_type or
+    new.size_bytes is distinct from old.size_bytes or
+    new.checksum_sha256 is distinct from old.checksum_sha256 or
+    new.scan_status is distinct from old.scan_status or
+    new.metadata is distinct from old.metadata or
+    new.uploaded_at is distinct from old.uploaded_at or
+    new.created_at is distinct from old.created_at
+  ) then
+    raise exception 'Only a trusted backend may change file registry metadata';
+  end if;
+  if not public.admin_has_permission('profiles.manage')
+     and coalesce(auth.jwt() ->> 'role', '') <> 'service_role'
+     and old.deleted_at is not null
+     and new.deleted_at is distinct from old.deleted_at then
+    raise exception 'A soft-deleted file registry row cannot be restored by its owner';
+  end if;
+  return new;
+end;
 $$;
 
-create or replace function public.is_admin()
+create or replace function public.has_role(requested_role public.user_role)
 returns boolean
 language sql
 stable
 security definer
 set search_path = public, pg_temp
 as $$
-  select coalesce(public.current_user_role() = 'admin', false);
+  select exists (
+    select 1 from public.user_roles ur
+    join public.profiles p on p.id = ur.profile_id
+    where ur.profile_id = auth.uid()
+      and ur.role = requested_role
+      and ur.revoked_at is null
+      and p.is_active
+  );
+$$;
+
+create or replace function public.is_admin()
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  return exists (
+    select 1
+    from public.user_roles ur
+    join public.profiles p on p.id = ur.profile_id and p.is_active
+    join public.admin_users au on au.profile_id = ur.profile_id and au.is_active
+    join public.admin_roles ar on ar.id = au.role_id and ar.role_key = 'super_admin'
+    where ur.profile_id = auth.uid() and ur.role = 'admin' and ur.revoked_at is null
+  );
+end;
 $$;
 
 create or replace function public.handle_new_auth_user()
@@ -1415,28 +1562,35 @@ language plpgsql
 security definer
 set search_path = public, auth, pg_temp
 as $$
-declare
-  requested_role public.user_role := 'customer';
 begin
-  if new.raw_user_meta_data ->> 'role' in ('customer', 'contractor', 'merchant', 'driver') then
-    requested_role := (new.raw_user_meta_data ->> 'role')::public.user_role;
-  end if;
-
   insert into public.profiles (id, role, username, full_name, mobile, email)
   values (
     new.id,
-    requested_role,
+    'customer',
     nullif(btrim(new.raw_user_meta_data ->> 'username'), ''),
     nullif(btrim(new.raw_user_meta_data ->> 'full_name'), ''),
     nullif(btrim(new.raw_user_meta_data ->> 'mobile'), ''),
     new.email
   );
 
-  if requested_role = 'customer' then
-    insert into public.customer_profiles (profile_id) values (new.id);
-  end if;
-
   return new;
+end;
+$$;
+
+create or replace function public.initialize_customer_account()
+returns void
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if auth.uid() is null or not exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_active) then
+    raise exception 'Authentication required';
+  end if;
+  insert into public.customer_profiles (profile_id) values (auth.uid()) on conflict do nothing;
+  insert into public.user_roles (profile_id, role, is_primary)
+  values (auth.uid(), 'customer', not exists (select 1 from public.user_roles ur where ur.profile_id = auth.uid() and ur.revoked_at is null))
+  on conflict do nothing;
 end;
 $$;
 
@@ -1465,8 +1619,29 @@ set search_path = public, pg_temp
 as $$
 begin
   if (new.role is distinct from old.role or new.is_active is distinct from old.is_active)
-     and not public.is_admin() then
+     and coalesce(auth.jwt() ->> 'role', '') <> 'service_role'
+     and not public.admin_has_permission('profiles.manage') then
     raise exception 'Only an administrator can change profile role or active status';
+  end if;
+  return new;
+end;
+$$;
+
+create or replace function public.protect_contractor_privileged_fields()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if (
+    new.approval_status is distinct from old.approval_status or
+    new.subscription_active is distinct from old.subscription_active or
+    new.average_rating is distinct from old.average_rating or
+    new.projects_count is distinct from old.projects_count or
+    new.directory_visible is distinct from old.directory_visible
+  ) and not public.admin_has_permission('reviews.manage') and coalesce(auth.jwt() ->> 'role', '') <> 'service_role' then
+    raise exception 'Privileged contractor fields require an authorized command';
   end if;
   return new;
 end;
@@ -1509,20 +1684,157 @@ begin
 end;
 $$;
 
-create or replace function public.validate_final_offer_selection()
+create or replace function public.validate_quote_request_transition()
 returns trigger
 language plpgsql
 set search_path = public, pg_temp
 as $$
 begin
+  if old.status = new.status then return new; end if;
+  if not (
+    (old.status = 'draft' and new.status in ('submitted','cancelled')) or
+    (old.status = 'submitted' and new.status in ('sourcing','rejected','cancelled')) or
+    (old.status = 'sourcing' and new.status in ('verifying','expired','cancelled')) or
+    (old.status = 'verifying' and new.status in ('quote_ready','rejected','expired','cancelled')) or
+    (old.status = 'quote_ready' and new.status in ('customer_review','accepted','rejected','expired','cancelled')) or
+    (old.status = 'customer_review' and new.status in ('accepted','rejected','expired','cancelled'))
+  ) then raise exception 'Invalid quote request status transition: % -> %', old.status, new.status; end if;
+  return new;
+end;
+$$;
+
+create or replace function public.validate_provider_quote_transition()
+returns trigger
+language plpgsql
+set search_path = public, pg_temp
+as $$
+begin
+  if old.status = new.status then return new; end if;
+  if not (
+    (old.status = 'draft' and new.status in ('pending_customer','expired')) or
+    (old.status = 'pending_customer' and new.status in ('approved','rejected','expired','modified')) or
+    (old.status = 'modified' and new.status in ('pending_customer','expired'))
+  ) then raise exception 'Invalid provider quote status transition: % -> %', old.status, new.status; end if;
+  return new;
+end;
+$$;
+
+create or replace function public.protect_provider_quote_identity()
+returns trigger
+language plpgsql
+set search_path = public, pg_temp
+as $$
+begin
+  if coalesce(auth.jwt() ->> 'role', '') <> 'service_role'
+     and not public.admin_has_permission('sourcing.manage')
+     and (
+       new.id is distinct from old.id
+       or new.quote_code is distinct from old.quote_code
+       or new.request_id is distinct from old.request_id
+       or new.provider_id is distinct from old.provider_id
+       or new.created_at is distinct from old.created_at
+     ) then
+    raise exception 'Provider quote identity is immutable';
+  end if;
+  return new;
+end;
+$$;
+
+create or replace function public.validate_provider_quote_item_request()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
   if not exists (
-    select 1 from public.merchant_quotes q
-    where q.id = new.selected_merchant_quote_id
-      and q.request_id = new.request_id
-      and q.eligible = true
-      and q.status = 'selected'
+    select 1
+    from public.provider_quotes q
+    join public.quote_request_items i on i.id = new.request_item_id
+    where q.id = new.provider_quote_id and i.request_id = q.request_id
   ) then
-    raise exception 'Final offer must reference the selected eligible quote for the same request';
+    raise exception 'Provider quote item must belong to the quoted request';
+  end if;
+  return new;
+end;
+$$;
+
+create or replace function public.validate_order_transition()
+returns trigger
+language plpgsql
+set search_path = public, pg_temp
+as $$
+begin
+  if old.status = new.status then return new; end if;
+  if not (
+    (old.status = 'confirmed' and new.status in ('preparing','cancelled')) or
+    (old.status = 'preparing' and new.status in ('ready_for_pickup','cancelled')) or
+    (old.status = 'ready_for_pickup' and new.status in ('assigned_driver','cancelled')) or
+    (old.status = 'assigned_driver' and new.status in ('out_for_delivery','cancelled')) or
+    (old.status = 'out_for_delivery' and new.status in ('delivered','cancelled')) or
+    (old.status = 'delivered' and new.status = 'completed')
+  ) then raise exception 'Invalid order status transition: % -> %', old.status, new.status; end if;
+  if new.status = 'completed' and new.completed_at is null then new.completed_at := now(); end if;
+  return new;
+end;
+$$;
+
+create or replace function public.protect_financial_row()
+returns trigger
+language plpgsql
+set search_path = public, pg_temp
+as $$
+begin
+  raise exception 'Financial records are append-only and cannot be deleted';
+end;
+$$;
+
+create or replace function public.audit_sensitive_row()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_entity_id text;
+  v_row jsonb;
+begin
+  v_row := case when tg_op = 'DELETE' then to_jsonb(old) else to_jsonb(new) end;
+  v_entity_id := coalesce(
+    v_row ->> 'id',
+    v_row ->> 'setting_key',
+    v_row ->> 'assignment_id',
+    v_row ->> 'profile_id',
+    'unknown'
+  );
+  insert into public.audit_logs (actor_profile_id, entity_table, entity_id, action, old_data, new_data)
+  values (
+    auth.uid(), tg_table_name, v_entity_id, lower(tg_op),
+    case when tg_op in ('UPDATE','DELETE') then to_jsonb(old) end,
+    case when tg_op in ('INSERT','UPDATE') then to_jsonb(new) end
+  );
+  if tg_op = 'DELETE' then return old; end if;
+  return new;
+end;
+$$;
+
+create or replace function public.protect_notification_payload()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if coalesce(auth.jwt() ->> 'role', '') = 'service_role'
+     or public.admin_has_permission('operations.manage')
+     or public.admin_has_permission('projects.manage') then
+    if tg_op = 'DELETE' then return old; end if;
+    return new;
+  end if;
+
+  if tg_op <> 'UPDATE'
+     or (to_jsonb(new) - 'read_at') is distinct from (to_jsonb(old) - 'read_at') then
+    raise exception 'Notification recipients may only change read_at';
   end if;
   return new;
 end;
@@ -1542,6 +1854,25 @@ as $$
     select 1 from public.providers p
     where p.id = target_provider_id and p.owner_profile_id = auth.uid()
   );
+$$;
+
+create or replace function public.safe_storage_folder_uuid(object_name text)
+returns uuid
+language plpgsql
+stable
+set search_path = public, storage, pg_temp
+as $$
+declare
+  v_folder text;
+begin
+  v_folder := (storage.foldername(object_name))[1];
+  if v_folder is null or v_folder !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' then
+    return null;
+  end if;
+  return v_folder::uuid;
+exception when invalid_text_representation then
+  return null;
+end;
 $$;
 
 create or replace function public.log_product_review_status()
@@ -1590,68 +1921,24 @@ begin
 end;
 $$;
 
-create or replace function public.customer_quote_eligibility(target_request_id uuid)
-returns table (
-  provider_quote_id uuid,
-  eligible boolean,
-  total numeric,
-  reasons text[]
-)
-language sql
-stable
-security definer
-set search_path = public, pg_temp
-as $$
-  select
-    q.id,
-    (
-      p.status = 'approved'
-      and q.status in ('pending_customer', 'modified')
-      and q.valid_until >= current_date
-      and not exists (
-        select 1
-        from public.provider_quote_items qi
-        join public.quote_request_items ri on ri.id = qi.request_item_id
-        join public.products product on product.id = ri.product_id
-        where qi.provider_quote_id = q.id
-          and (product.review_status <> 'approved' or product.availability_status = 'unavailable')
-      )
-    ) as eligible,
-    q.total,
-    array_remove(array[
-      case when p.status <> 'approved' then 'provider_not_approved' end,
-      case when q.status not in ('pending_customer', 'modified') then 'quote_not_open' end,
-      case when q.valid_until < current_date then 'quote_expired' end,
-      case when exists (
-        select 1
-        from public.provider_quote_items qi
-        join public.quote_request_items ri on ri.id = qi.request_item_id
-        join public.products product on product.id = ri.product_id
-        where qi.provider_quote_id = q.id
-          and (product.review_status <> 'approved' or product.availability_status = 'unavailable')
-      ) then 'product_unavailable' end
-    ], null)::text[] as reasons
-  from public.provider_quotes q
-  join public.providers p on p.id = q.provider_id
-  join public.quote_requests r on r.id = q.request_id
-  where q.request_id = target_request_id and r.requester_id = auth.uid();
-$$;
-revoke all on function public.customer_quote_eligibility(uuid) from public;
-grant execute on function public.customer_quote_eligibility(uuid) to authenticated;
-
 create trigger profiles_set_updated_at before update on public.profiles for each row execute function public.set_updated_at();
 create trigger profiles_protect_privileged_fields before update on public.profiles for each row execute function public.protect_profile_privileged_fields();
 create trigger customer_profiles_set_updated_at before update on public.customer_profiles for each row execute function public.set_updated_at();
+create trigger regions_set_updated_at before update on public.regions for each row execute function public.set_updated_at();
+create trigger cities_set_updated_at before update on public.cities for each row execute function public.set_updated_at();
+create trigger files_set_updated_at before update on public.files for each row execute function public.set_updated_at();
+create trigger files_protect_registry_fields before update on public.files for each row execute function public.protect_file_registry_fields();
 create trigger product_categories_set_updated_at before update on public.product_categories for each row execute function public.set_updated_at();
+create trigger product_brands_set_updated_at before update on public.product_brands for each row execute function public.set_updated_at();
 create trigger products_set_updated_at before update on public.products for each row execute function public.set_updated_at();
+create trigger product_variants_set_updated_at before update on public.product_variants for each row execute function public.set_updated_at();
 create trigger product_warranties_set_updated_at before update on public.product_warranties for each row execute function public.set_updated_at();
 create trigger provider_applications_set_updated_at before update on public.provider_applications for each row execute function public.set_updated_at();
 create trigger contractor_applications_set_updated_at before update on public.contractor_applications for each row execute function public.set_updated_at();
 create trigger contractor_profiles_set_updated_at before update on public.contractor_profiles for each row execute function public.set_updated_at();
+create trigger contractor_profiles_protect_privileged before update on public.contractor_profiles for each row execute function public.protect_contractor_privileged_fields();
 create trigger quote_requests_set_updated_at before update on public.quote_requests for each row execute function public.set_updated_at();
-create trigger merchant_quotes_set_updated_at before update on public.merchant_quotes for each row execute function public.set_updated_at();
-create trigger final_offers_set_updated_at before update on public.final_offers for each row execute function public.set_updated_at();
-create trigger deliveries_set_updated_at before update on public.deliveries for each row execute function public.set_updated_at();
+create trigger quote_requests_validate_transition before update of status on public.quote_requests for each row execute function public.validate_quote_request_transition();
 create trigger subscription_plans_set_updated_at before update on public.subscription_plans for each row execute function public.set_updated_at();
 create trigger subscriptions_set_updated_at before update on public.subscriptions for each row execute function public.set_updated_at();
 create trigger providers_set_updated_at before update on public.providers for each row execute function public.set_updated_at();
@@ -1659,10 +1946,14 @@ create trigger provider_settings_set_updated_at before update on public.provider
 create trigger provider_profiles_set_updated_at before update on public.provider_profiles for each row execute function public.set_updated_at();
 create trigger product_delivery_configs_set_updated_at before update on public.product_delivery_configs for each row execute function public.set_updated_at();
 create trigger provider_quotes_set_updated_at before update on public.provider_quotes for each row execute function public.set_updated_at();
+create trigger provider_quotes_protect_identity before update on public.provider_quotes for each row execute function public.protect_provider_quote_identity();
+create trigger provider_quotes_validate_transition before update of status on public.provider_quotes for each row execute function public.validate_provider_quote_transition();
+create trigger provider_quote_items_validate_request before insert or update of provider_quote_id, request_item_id on public.provider_quote_items for each row execute function public.validate_provider_quote_item_request();
 create trigger orders_set_updated_at before update on public.orders for each row execute function public.set_updated_at();
-create trigger delivery_assignments_set_updated_at before update on public.delivery_assignments for each row execute function public.set_updated_at();
+create trigger orders_validate_transition before update of status on public.orders for each row execute function public.validate_order_transition();
 create trigger provider_bank_accounts_set_updated_at before update on public.provider_bank_accounts for each row execute function public.set_updated_at();
 create trigger settlement_requests_set_updated_at before update on public.settlement_requests for each row execute function public.set_updated_at();
+create trigger notification_deliveries_set_updated_at before update on public.notification_deliveries for each row execute function public.set_updated_at();
 create trigger platform_policies_set_updated_at before update on public.platform_policies for each row execute function public.set_updated_at();
 create trigger support_tickets_set_updated_at before update on public.support_tickets for each row execute function public.set_updated_at();
 create trigger customer_addresses_set_updated_at before update on public.customer_addresses for each row execute function public.set_updated_at();
@@ -1673,14 +1964,34 @@ create trigger orders_log_status after update of status on public.orders for eac
 create trigger settlements_validate_bank before insert or update of bank_account_id, provider_id on public.settlement_requests for each row execute function public.validate_settlement_bank_ownership();
 create trigger product_measurements_validate_unit before insert or update on public.product_measurements for each row execute function public.validate_product_measurement_unit();
 create trigger quote_request_items_validate_references before insert or update on public.quote_request_items for each row execute function public.validate_quote_item_references();
-create trigger final_offers_validate_selection before insert or update on public.final_offers for each row execute function public.validate_final_offer_selection();
 create trigger contractor_documents_enforce_limit before insert on public.contractor_documents for each row execute function public.enforce_contractor_document_limit();
+create trigger financial_transactions_no_delete before delete on public.financial_transactions for each row execute function public.protect_financial_row();
+create trigger contractor_financial_transactions_no_delete before delete on public.contractor_financial_transactions for each row execute function public.protect_financial_row();
+create trigger invoices_no_delete before delete on public.invoices for each row execute function public.protect_financial_row();
+create trigger invoice_items_no_delete before delete on public.invoice_items for each row execute function public.protect_financial_row();
+create trigger payment_records_no_delete before delete on public.payment_records for each row execute function public.protect_financial_row();
+create trigger settlement_requests_no_delete before delete on public.settlement_requests for each row execute function public.protect_financial_row();
+create trigger contractor_settlement_requests_no_delete before delete on public.contractor_settlement_requests for each row execute function public.protect_financial_row();
+create trigger quote_requests_audit after insert or update or delete on public.quote_requests for each row execute function public.audit_sensitive_row();
+create trigger provider_quotes_audit after insert or update or delete on public.provider_quotes for each row execute function public.audit_sensitive_row();
+create trigger orders_audit after insert or update or delete on public.orders for each row execute function public.audit_sensitive_row();
+create trigger settlements_audit after insert or update on public.settlement_requests for each row execute function public.audit_sensitive_row();
+create trigger contractor_settlements_audit after insert or update on public.contractor_settlement_requests for each row execute function public.audit_sensitive_row();
+create trigger payments_audit after insert or update on public.payment_records for each row execute function public.audit_sensitive_row();
+create trigger notifications_protect_payload before insert or update or delete on public.notifications for each row execute function public.protect_notification_payload();
+create trigger contractor_notifications_protect_payload before insert or update or delete on public.contractor_notifications for each row execute function public.protect_notification_payload();
 create trigger on_auth_user_created after insert on auth.users for each row execute function public.handle_new_auth_user();
 
 alter table public.profiles enable row level security;
+alter table public.user_roles enable row level security;
 alter table public.customer_profiles enable row level security;
+alter table public.regions enable row level security;
+alter table public.cities enable row level security;
+alter table public.files enable row level security;
 alter table public.product_categories enable row level security;
+alter table public.product_brands enable row level security;
 alter table public.products enable row level security;
+alter table public.product_variants enable row level security;
 alter table public.product_images enable row level security;
 alter table public.product_units enable row level security;
 alter table public.product_measurements enable row level security;
@@ -1689,6 +2000,7 @@ alter table public.product_warranties enable row level security;
 alter table public.product_availability_regions enable row level security;
 alter table public.provider_applications enable row level security;
 alter table public.provider_application_categories enable row level security;
+alter table public.provider_application_documents enable row level security;
 alter table public.provider_delivery_regions enable row level security;
 alter table public.contractor_applications enable row level security;
 alter table public.contractor_work_regions enable row level security;
@@ -1700,10 +2012,6 @@ alter table public.contractor_profile_regions enable row level security;
 alter table public.contractor_portfolio_items enable row level security;
 alter table public.quote_requests enable row level security;
 alter table public.quote_request_items enable row level security;
-alter table public.merchant_quotes enable row level security;
-alter table public.final_offers enable row level security;
-alter table public.order_events enable row level security;
-alter table public.deliveries enable row level security;
 alter table public.subscription_plans enable row level security;
 alter table public.subscriptions enable row level security;
 alter table public.providers enable row level security;
@@ -1720,31 +2028,48 @@ alter table public.provider_quote_status_history enable row level security;
 alter table public.orders enable row level security;
 alter table public.order_items enable row level security;
 alter table public.order_status_history enable row level security;
-alter table public.delivery_assignments enable row level security;
-alter table public.delivery_verification_codes enable row level security;
-alter table public.delivery_verification_attempts enable row level security;
 alter table public.financial_transactions enable row level security;
 alter table public.provider_bank_accounts enable row level security;
 alter table public.settlement_requests enable row level security;
 alter table public.notifications enable row level security;
+alter table public.notification_deliveries enable row level security;
 alter table public.platform_policies enable row level security;
 alter table public.support_tickets enable row level security;
 alter table public.support_ticket_attachments enable row level security;
+alter table public.support_messages enable row level security;
+alter table public.support_message_attachments enable row level security;
 alter table public.audit_logs enable row level security;
 alter table public.customer_addresses enable row level security;
 alter table public.invoices enable row level security;
+alter table public.invoice_items enable row level security;
 alter table public.payment_records enable row level security;
+alter table public.outbox_events enable row level security;
+alter table public.idempotency_keys enable row level security;
 alter table public.saved_contractors enable row level security;
 alter table public.customer_notifications enable row level security;
 
 create policy profiles_select_own_or_admin on public.profiles for select to authenticated using (id = auth.uid() or public.is_admin());
 create policy profiles_update_own_or_admin on public.profiles for update to authenticated using (id = auth.uid() or public.is_admin()) with check (id = auth.uid() or public.is_admin());
+create policy user_roles_own_read on public.user_roles for select to authenticated using (profile_id = auth.uid() or public.is_admin());
+create policy user_roles_admin_manage on public.user_roles for all to authenticated using (public.is_admin()) with check (public.is_admin());
 create policy customer_profiles_own_or_admin on public.customer_profiles for all to authenticated using (profile_id = auth.uid() or public.is_admin()) with check (profile_id = auth.uid() or public.is_admin());
+
+create policy regions_public_read on public.regions for select to anon, authenticated using (is_active or public.is_admin());
+create policy regions_admin_manage on public.regions for all to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy cities_public_read on public.cities for select to anon, authenticated using (is_active or public.is_admin());
+create policy cities_admin_manage on public.cities for all to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy files_owner_read on public.files for select to authenticated using (owner_profile_id = auth.uid() or public.is_admin());
+create policy files_owner_register on public.files for insert to authenticated with check (owner_profile_id = auth.uid() and scan_status = 'pending' and deleted_at is null);
+create policy files_owner_soft_delete on public.files for update to authenticated using (owner_profile_id = auth.uid() or public.is_admin()) with check (owner_profile_id = auth.uid() or public.is_admin());
 
 create policy categories_public_read on public.product_categories for select to anon, authenticated using (is_active or public.is_admin());
 create policy categories_admin_manage on public.product_categories for all to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy brands_public_read on public.product_brands for select to anon, authenticated using (is_active or public.is_admin());
+create policy brands_admin_manage on public.product_brands for all to authenticated using (public.is_admin()) with check (public.is_admin());
 create policy products_public_read on public.products for select to anon, authenticated using (is_published or public.is_admin());
 create policy products_admin_manage on public.products for all to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy product_variants_public_read on public.product_variants for select to anon, authenticated using ((is_active and exists (select 1 from public.products p where p.id = product_id and p.is_published)) or public.is_admin());
+create policy product_variants_provider_manage on public.product_variants for all to authenticated using (exists (select 1 from public.products p where p.id = product_id and p.provider_id is not null and public.is_provider_member(p.provider_id)) or public.is_admin()) with check (exists (select 1 from public.products p where p.id = product_id and p.provider_id is not null and public.is_provider_member(p.provider_id)) or public.is_admin());
 
 create policy product_images_public_read on public.product_images for select to anon, authenticated using (exists (select 1 from public.products p where p.id = product_id and (p.is_published or public.is_admin())));
 create policy product_images_admin_manage on public.product_images for all to authenticated using (public.is_admin()) with check (public.is_admin());
@@ -1783,6 +2108,9 @@ create policy provider_applications_admin_review on public.provider_applications
 create policy provider_categories_select_own_or_admin on public.provider_application_categories for select to authenticated using (exists (select 1 from public.provider_applications a where a.id = application_id and (a.applicant_profile_id = auth.uid() or public.is_admin())));
 create policy provider_categories_insert_own on public.provider_application_categories for insert to authenticated with check (exists (select 1 from public.provider_applications a where a.id = application_id and a.applicant_profile_id = auth.uid() and a.status in ('pending', 'needs_changes')));
 create policy provider_categories_admin_manage on public.provider_application_categories for all to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy provider_application_documents_owner_read on public.provider_application_documents for select to authenticated using (public.is_admin() or exists (select 1 from public.provider_applications a where a.id = application_id and a.applicant_profile_id = auth.uid()));
+create policy provider_application_documents_owner_insert on public.provider_application_documents for insert to authenticated with check (exists (select 1 from public.provider_applications a where a.id = application_id and a.applicant_profile_id = auth.uid() and a.status in ('pending','needs_changes')) and exists (select 1 from public.files f where f.id = file_id and f.owner_profile_id = auth.uid() and f.bucket_id = 'provider-application-documents' and f.deleted_at is null));
+create policy provider_application_documents_admin_manage on public.provider_application_documents for all to authenticated using (public.is_admin()) with check (public.is_admin());
 create policy provider_regions_select_own_or_admin on public.provider_delivery_regions for select to authenticated using (exists (select 1 from public.provider_applications a where a.id = application_id and (a.applicant_profile_id = auth.uid() or public.is_admin())));
 create policy provider_regions_insert_own on public.provider_delivery_regions for insert to authenticated with check (exists (select 1 from public.provider_applications a where a.id = application_id and a.applicant_profile_id = auth.uid() and a.delivery_available and a.status in ('pending', 'needs_changes')));
 create policy provider_regions_admin_manage on public.provider_delivery_regions for all to authenticated using (public.is_admin()) with check (public.is_admin());
@@ -1800,7 +2128,7 @@ create policy contractor_documents_select_own_or_admin on public.contractor_docu
 create policy contractor_documents_insert_own on public.contractor_documents for insert to authenticated with check (exists (select 1 from public.contractor_applications a where a.id = application_id and a.applicant_profile_id = auth.uid() and a.status in ('pending', 'needs_changes')));
 create policy contractor_documents_delete_own_or_admin on public.contractor_documents for delete to authenticated using (public.is_admin() or exists (select 1 from public.contractor_applications a where a.id = application_id and a.applicant_profile_id = auth.uid() and a.status in ('pending', 'needs_changes')));
 
-create policy contractor_profiles_public_read on public.contractor_profiles for select to anon, authenticated using ((approval_status = 'approved' and subscription_active) or public.is_admin() or profile_id = auth.uid());
+create policy contractor_profiles_public_read on public.contractor_profiles for select to anon, authenticated using ((approval_status = 'approved' and subscription_active and directory_visible) or public.is_admin() or profile_id = auth.uid());
 create policy contractor_profiles_admin_manage on public.contractor_profiles for all to authenticated using (public.is_admin()) with check (public.is_admin());
 create policy contractor_profile_specialties_public_read on public.contractor_profile_specialties for select to anon, authenticated using (exists (select 1 from public.contractor_profiles p where p.id = profile_id and ((p.approval_status = 'approved' and p.subscription_active) or p.profile_id = auth.uid() or public.is_admin())));
 create policy contractor_profile_specialties_admin_manage on public.contractor_profile_specialties for all to authenticated using (public.is_admin()) with check (public.is_admin());
@@ -1810,23 +2138,12 @@ create policy contractor_portfolio_public_read on public.contractor_portfolio_it
 create policy contractor_portfolio_admin_manage on public.contractor_portfolio_items for all to authenticated using (public.is_admin()) with check (public.is_admin());
 
 create policy quote_requests_own_or_admin_select on public.quote_requests for select to authenticated using (requester_id = auth.uid() or public.is_admin());
-create policy quote_requests_own_insert on public.quote_requests for insert to authenticated with check (requester_id = auth.uid() and status = 'draft' and payment_status = 'pending' and handshake_code_hash is null and ((requester_role = 'customer' and public.current_user_role() = 'customer') or (requester_role = 'contractor' and public.current_user_role() = 'contractor')));
-create policy quote_requests_own_draft_update on public.quote_requests for update to authenticated using ((requester_id = auth.uid() and status = 'draft') or public.is_admin()) with check (public.is_admin() or (requester_id = auth.uid() and status = 'draft' and payment_status = 'pending' and handshake_code_hash is null));
+create policy quote_requests_own_insert on public.quote_requests for insert to authenticated with check (requester_id = auth.uid() and status = 'draft' and payment_status = 'pending' and public.has_role(requester_role::text::public.user_role));
+create policy quote_requests_own_draft_update on public.quote_requests for update to authenticated using ((requester_id = auth.uid() and status = 'draft') or public.is_admin()) with check (public.is_admin() or (requester_id = auth.uid() and status = 'draft' and payment_status = 'pending'));
 create policy quote_items_own_or_admin_select on public.quote_request_items for select to authenticated using (exists (select 1 from public.quote_requests r where r.id = request_id and (r.requester_id = auth.uid() or public.is_admin())));
 create policy quote_items_own_draft_insert on public.quote_request_items for insert to authenticated with check (exists (select 1 from public.quote_requests r where r.id = request_id and r.requester_id = auth.uid() and r.status = 'draft'));
 create policy quote_items_own_draft_update on public.quote_request_items for update to authenticated using (exists (select 1 from public.quote_requests r where r.id = request_id and r.requester_id = auth.uid() and r.status = 'draft')) with check (exists (select 1 from public.quote_requests r where r.id = request_id and r.requester_id = auth.uid() and r.status = 'draft'));
 create policy quote_items_own_draft_delete on public.quote_request_items for delete to authenticated using (exists (select 1 from public.quote_requests r where r.id = request_id and r.requester_id = auth.uid() and r.status = 'draft'));
-
-create policy merchant_quotes_own_or_admin_select on public.merchant_quotes for select to authenticated using (merchant_profile_id = auth.uid() or public.is_admin());
-create policy merchant_quotes_own_insert on public.merchant_quotes for insert to authenticated with check (merchant_profile_id = auth.uid() and public.current_user_role() = 'merchant' and status in ('draft', 'sent') and eligible = false);
-create policy merchant_quotes_own_update on public.merchant_quotes for update to authenticated using ((merchant_profile_id = auth.uid() and status in ('draft', 'sent')) or public.is_admin()) with check (public.is_admin() or (merchant_profile_id = auth.uid() and status in ('draft', 'sent') and eligible = false));
-create policy final_offers_requester_or_admin_select on public.final_offers for select to authenticated using (public.is_admin() or exists (select 1 from public.quote_requests r where r.id = request_id and r.requester_id = auth.uid()));
-create policy final_offers_admin_manage on public.final_offers for all to authenticated using (public.is_admin()) with check (public.is_admin());
-create policy order_events_requester_driver_admin_select on public.order_events for select to authenticated using (public.is_admin() or exists (select 1 from public.quote_requests r where r.id = request_id and r.requester_id = auth.uid()) or exists (select 1 from public.deliveries d where d.request_id = request_id and d.driver_profile_id = auth.uid()));
-create policy order_events_admin_manage on public.order_events for all to authenticated using (public.is_admin()) with check (public.is_admin());
-create policy deliveries_participants_select on public.deliveries for select to authenticated using (public.is_admin() or driver_profile_id = auth.uid() or exists (select 1 from public.quote_requests r where r.id = request_id and r.requester_id = auth.uid()));
-create policy deliveries_driver_update on public.deliveries for update to authenticated using (driver_profile_id = auth.uid() or public.is_admin()) with check (driver_profile_id = auth.uid() or public.is_admin());
-create policy deliveries_admin_manage on public.deliveries for all to authenticated using (public.is_admin()) with check (public.is_admin());
 
 create policy subscription_plans_public_read on public.subscription_plans for select to anon, authenticated using (is_active or public.is_admin());
 create policy subscription_plans_admin_manage on public.subscription_plans for all to authenticated using (public.is_admin()) with check (public.is_admin());
@@ -1863,66 +2180,41 @@ create policy product_review_history_provider_read on public.product_review_hist
   using (exists (select 1 from public.products p where p.id = product_id and (public.is_provider_member(p.provider_id) or public.is_admin())));
 create policy product_review_history_admin_insert on public.product_review_history for insert to authenticated with check (public.is_admin());
 
-create policy provider_quotes_provider_or_customer_select on public.provider_quotes for select to authenticated
-  using (public.is_provider_member(provider_id) or public.is_admin() or exists (
-    select 1 from public.quote_requests r where r.id = request_id and r.requester_id = auth.uid()
-  ));
+create policy provider_quotes_provider_or_admin_select on public.provider_quotes for select to authenticated
+  using (public.is_provider_member(provider_id) or public.is_admin());
 create policy provider_quotes_provider_insert on public.provider_quotes for insert to authenticated
   with check (public.is_provider_member(provider_id) and status in ('draft','pending_customer'));
 create policy provider_quotes_provider_update on public.provider_quotes for update to authenticated
   using ((public.is_provider_member(provider_id) and status in ('draft','pending_customer','modified')) or public.is_admin())
   with check (public.is_provider_member(provider_id) or public.is_admin());
-create policy provider_quote_items_participant_read on public.provider_quote_items for select to authenticated
-  using (exists (select 1 from public.provider_quotes q where q.id = provider_quote_id and (
-    public.is_provider_member(q.provider_id) or public.is_admin() or exists (
-      select 1 from public.quote_requests r where r.id = q.request_id and r.requester_id = auth.uid()
-    )
-  )));
+create policy provider_quote_items_provider_or_admin_read on public.provider_quote_items for select to authenticated
+  using (exists (select 1 from public.provider_quotes q where q.id = provider_quote_id and
+    (public.is_provider_member(q.provider_id) or public.is_admin())));
 create policy provider_quote_items_provider_manage on public.provider_quote_items for all to authenticated
   using (exists (select 1 from public.provider_quotes q where q.id = provider_quote_id and public.is_provider_member(q.provider_id)))
   with check (exists (select 1 from public.provider_quotes q where q.id = provider_quote_id and public.is_provider_member(q.provider_id)));
-create policy provider_quote_attachments_participant_read on public.provider_quote_attachments for select to authenticated
-  using (exists (select 1 from public.provider_quotes q where q.id = provider_quote_id and (
-    public.is_provider_member(q.provider_id) or public.is_admin() or exists (
-      select 1 from public.quote_requests r where r.id = q.request_id and r.requester_id = auth.uid()
-    )
-  )));
+create policy provider_quote_attachments_provider_or_admin_read on public.provider_quote_attachments for select to authenticated
+  using (exists (select 1 from public.provider_quotes q where q.id = provider_quote_id and
+    (public.is_provider_member(q.provider_id) or public.is_admin())));
 create policy provider_quote_attachments_provider_manage on public.provider_quote_attachments for all to authenticated
   using (exists (select 1 from public.provider_quotes q where q.id = provider_quote_id and public.is_provider_member(q.provider_id)))
   with check (exists (select 1 from public.provider_quotes q where q.id = provider_quote_id and public.is_provider_member(q.provider_id)));
-create policy provider_quote_history_participant_read on public.provider_quote_status_history for select to authenticated
-  using (exists (select 1 from public.provider_quotes q where q.id = provider_quote_id and (
-    public.is_provider_member(q.provider_id) or public.is_admin() or exists (
-      select 1 from public.quote_requests r where r.id = q.request_id and r.requester_id = auth.uid()
-    )
-  )));
+create policy provider_quote_history_provider_or_admin_read on public.provider_quote_status_history for select to authenticated
+  using (exists (select 1 from public.provider_quotes q where q.id = provider_quote_id and
+    (public.is_provider_member(q.provider_id) or public.is_admin())));
 
 create policy orders_participant_select on public.orders for select to authenticated
-  using (customer_profile_id = auth.uid() or public.is_provider_member(provider_id) or public.is_admin());
-create policy orders_provider_progress on public.orders for update to authenticated
-  using (public.is_provider_member(provider_id) or public.is_admin())
-  with check (public.is_provider_member(provider_id) or public.is_admin());
-create policy orders_admin_insert on public.orders for insert to authenticated with check (public.is_admin());
+  using (customer_profile_id = auth.uid() or public.is_admin());
+create policy orders_admin_manage on public.orders for all to authenticated using (public.is_admin()) with check (public.is_admin());
 create policy order_items_participant_read on public.order_items for select to authenticated
   using (exists (select 1 from public.orders o where o.id = order_id and (
-    o.customer_profile_id = auth.uid() or public.is_provider_member(o.provider_id) or public.is_admin()
+    o.customer_profile_id = auth.uid() or public.is_admin()
   )));
 create policy order_items_admin_manage on public.order_items for all to authenticated using (public.is_admin()) with check (public.is_admin());
 create policy order_history_participant_read on public.order_status_history for select to authenticated
   using (exists (select 1 from public.orders o where o.id = order_id and (
-    o.customer_profile_id = auth.uid() or public.is_provider_member(o.provider_id) or public.is_admin()
+    o.customer_profile_id = auth.uid() or public.is_admin()
   )));
-
-create policy delivery_assignments_participant_read on public.delivery_assignments for select to authenticated
-  using (driver_profile_id = auth.uid() or public.is_admin() or exists (
-    select 1 from public.orders o where o.id = order_id and (o.customer_profile_id = auth.uid() or public.is_provider_member(o.provider_id))
-  ));
-create policy delivery_assignments_provider_manage on public.delivery_assignments for all to authenticated
-  using (public.is_admin() or exists (select 1 from public.orders o where o.id = order_id and public.is_provider_member(o.provider_id)))
-  with check (public.is_admin() or exists (select 1 from public.orders o where o.id = order_id and public.is_provider_member(o.provider_id)));
--- No direct SELECT policy exists on delivery_verification_codes: code hashes are reachable only through a guarded RPC.
-create policy delivery_attempts_driver_read on public.delivery_verification_attempts for select to authenticated
-  using (driver_profile_id = auth.uid() or public.is_admin());
 
 create policy financial_transactions_provider_read on public.financial_transactions for select to authenticated
   using (public.is_provider_member(provider_id) or public.is_admin());
@@ -1940,6 +2232,7 @@ create policy notifications_own_read on public.notifications for select to authe
 create policy notifications_own_mark_read on public.notifications for update to authenticated
   using (profile_id = auth.uid() or public.is_admin()) with check (profile_id = auth.uid() or public.is_admin());
 create policy notifications_admin_insert on public.notifications for insert to authenticated with check (public.is_admin());
+create policy notification_deliveries_owner_read on public.notification_deliveries for select to authenticated using (public.is_admin() or exists (select 1 from public.notifications n where n.id = notification_id and n.profile_id = auth.uid()));
 create policy platform_policies_public_read on public.platform_policies for select to anon, authenticated using (is_published or public.is_admin());
 create policy platform_policies_admin_manage on public.platform_policies for all to authenticated using (public.is_admin()) with check (public.is_admin());
 create policy support_tickets_own_or_admin_read on public.support_tickets for select to authenticated
@@ -1953,14 +2246,21 @@ create policy support_attachments_participant_read on public.support_ticket_atta
   )));
 create policy support_attachments_owner_insert on public.support_ticket_attachments for insert to authenticated
   with check (exists (select 1 from public.support_tickets t where t.id = ticket_id and t.opened_by = auth.uid()));
+create policy support_messages_participant_read on public.support_messages for select to authenticated using (public.is_admin() or (not is_internal and exists (select 1 from public.support_tickets t where t.id = ticket_id and (t.opened_by = auth.uid() or (t.provider_id is not null and public.is_provider_member(t.provider_id))))));
+create policy support_messages_participant_insert on public.support_messages for insert to authenticated with check (author_profile_id = auth.uid() and not is_internal and exists (select 1 from public.support_tickets t where t.id = ticket_id and (t.opened_by = auth.uid() or (t.provider_id is not null and public.is_provider_member(t.provider_id)))));
+create policy support_messages_admin_manage on public.support_messages for all to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy support_message_attachments_participant_read on public.support_message_attachments for select to authenticated using (public.is_admin() or exists (select 1 from public.support_messages m join public.support_tickets t on t.id = m.ticket_id where m.id = message_id and not m.is_internal and (t.opened_by = auth.uid() or (t.provider_id is not null and public.is_provider_member(t.provider_id)))));
+create policy support_message_attachments_owner_insert on public.support_message_attachments for insert to authenticated with check (exists (select 1 from public.support_messages m where m.id = message_id and m.author_profile_id = auth.uid() and not m.is_internal));
 create policy audit_logs_admin_read on public.audit_logs for select to authenticated using (public.is_admin());
 create policy customer_addresses_own_manage on public.customer_addresses for all to authenticated
   using (customer_profile_id = auth.uid() or public.is_admin())
   with check (customer_profile_id = auth.uid() or public.is_admin());
 create policy invoices_customer_provider_read on public.invoices for select to authenticated
-  using (customer_profile_id = auth.uid() or public.is_provider_member(provider_id) or public.is_admin());
+  using (customer_profile_id = auth.uid() or public.is_admin());
 create policy invoices_admin_manage on public.invoices for all to authenticated
   using (public.is_admin()) with check (public.is_admin());
+create policy invoice_items_customer_read on public.invoice_items for select to authenticated using (public.is_admin() or exists (select 1 from public.invoices i where i.id = invoice_id and i.customer_profile_id = auth.uid()));
+create policy invoice_items_admin_manage on public.invoice_items for all to authenticated using (public.is_admin()) with check (public.is_admin());
 create policy payment_records_customer_read on public.payment_records for select to authenticated
   using (customer_profile_id = auth.uid() or public.is_admin());
 create policy payment_records_admin_manage on public.payment_records for all to authenticated
@@ -1976,73 +2276,6 @@ create policy customer_notifications_own_update on public.customer_notifications
 create policy customer_notifications_admin_insert on public.customer_notifications for insert to authenticated
   with check (public.is_admin());
 
-create or replace function public.verify_delivery_code(p_assignment_id uuid, p_plain_code text)
-returns boolean
-language plpgsql
-security definer
-set search_path = public, extensions, pg_temp
-as $$
-declare
-  verification public.delivery_verification_codes%rowtype;
-  assignment public.delivery_assignments%rowtype;
-  is_valid boolean := false;
-begin
-  select * into assignment from public.delivery_assignments where id = p_assignment_id for update;
-  if assignment.driver_profile_id <> auth.uid() and not public.is_admin() then
-    raise exception 'Not authorized';
-  end if;
-  select * into verification from public.delivery_verification_codes where delivery_assignment_id = p_assignment_id for update;
-  if verification.verified_at is not null or verification.expires_at <= now() or verification.attempts >= verification.max_attempts then
-    return false;
-  end if;
-  is_valid := verification.code_hash = encode(extensions.digest('bunya-delivery:' || p_plain_code, 'sha256'), 'hex');
-  update public.delivery_verification_codes
-    set attempts = attempts + 1, verified_at = case when is_valid then now() else verified_at end
-    where delivery_assignment_id = p_assignment_id;
-  insert into public.delivery_verification_attempts (delivery_assignment_id, driver_profile_id, succeeded)
-    values (p_assignment_id, auth.uid(), is_valid);
-  if is_valid then
-    update public.delivery_assignments set status = 'delivered', delivered_at = now(), customer_confirmed = true
-      where id = p_assignment_id;
-  end if;
-  return is_valid;
-end;
-$$;
-revoke all on function public.verify_delivery_code(uuid, text) from public;
-grant execute on function public.verify_delivery_code(uuid, text) to authenticated;
-
--- Merchants must never read the base quote_requests table. This RPC exposes only the
--- anonymized operational fields currently shown in the merchant UI.
-create or replace function public.get_anonymous_quote_requests()
-returns table (
-  request_id uuid,
-  request_code text,
-  city text,
-  quote_deadline timestamptz,
-  item_count bigint
-)
-language plpgsql
-stable
-security definer
-set search_path = public, pg_temp
-as $$
-begin
-  if public.current_user_role() <> 'merchant' and not public.is_admin() then
-    raise exception 'Not authorized';
-  end if;
-
-  return query
-  select r.id, r.request_code, r.city, r.quote_deadline, count(i.id)
-  from public.quote_requests r
-  join public.quote_request_items i on i.request_id = r.id
-  where r.status = 'collecting_quotes' and r.quote_deadline > now()
-  group by r.id, r.request_code, r.city, r.quote_deadline;
-end;
-$$;
-
-revoke all on function public.get_anonymous_quote_requests() from public;
-grant execute on function public.get_anonymous_quote_requests() to authenticated;
-
 insert into public.product_categories (name, slug, sort_order)
 values
   ('الأسمنت', 'cement', 10),
@@ -2053,17 +2286,18 @@ values
   ('الكهرباء', 'electrical', 60),
   ('الأخشاب', 'wood', 70),
   ('الدهانات', 'paint', 80),
-  ('الأدوات والمعدات', 'tools-equipment', 90);
+  ('الأدوات والمعدات', 'tools-equipment', 90)
+on conflict (slug) do update set name = excluded.name, sort_order = excluded.sort_order;
 
 insert into public.subscription_plans (id, role, name, price_monthly, description, benefits)
 values
   (
-    'merchant-monthly',
-    'merchant',
-    'اشتراك التاجر',
+    'provider-monthly',
+    'provider',
+    'اشتراك المزود',
     99,
-    'استقبال طلبات عروض السعر المجهولة وإدارة المنتجات والعروض.',
-    array['استقبال RFQ مجهولة', 'إدارة المنتجات', 'إرسال العروض', 'متابعة الطلبات المدفوعة']
+    'استقبال طلبات التسعير المستهدفة وإدارة المنتجات والعروض.',
+    array['استقبال طلبات مستهدفة', 'إدارة المنتجات', 'إرسال العروض', 'متابعة أوامر التوريد']
   ),
   (
     'contractor-visibility',
@@ -2072,7 +2306,8 @@ values
     49,
     'ظهور ملف المقاول المعتمد في دليل البحث.',
     array['الظهور في البحث', 'عرض التخصصات', 'عرض مناطق العمل', 'عرض نماذج الأعمال']
-  );
+  )
+on conflict (id) do update set role=excluded.role,name=excluded.name,price_monthly=excluded.price_monthly,description=excluded.description,benefits=excluded.benefits;
 
 -- Private future bucket for contractor evidence documents.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
@@ -2082,7 +2317,8 @@ values (
   false,
   5242880,
   array['application/pdf', 'image/jpeg', 'image/png', 'image/webp']
-);
+)
+on conflict (id) do update set public=excluded.public,file_size_limit=excluded.file_size_limit,allowed_mime_types=excluded.allowed_mime_types;
 
 create policy contractor_documents_storage_insert_own
 on storage.objects for insert to authenticated
@@ -2105,73 +2341,96 @@ using (
   and ((storage.foldername(name))[1] = auth.uid()::text or public.is_admin())
 );
 
+create policy provider_application_documents_insert_own
+on storage.objects for insert to authenticated
+with check (bucket_id = 'provider-application-documents' and (storage.foldername(name))[1] = auth.uid()::text);
+create policy provider_application_documents_select_own_or_admin
+on storage.objects for select to authenticated
+using (bucket_id = 'provider-application-documents' and ((storage.foldername(name))[1] = auth.uid()::text or public.is_admin()));
+create policy provider_application_documents_delete_draft
+on storage.objects for delete to authenticated
+using (bucket_id = 'provider-application-documents' and ((storage.foldername(name))[1] = auth.uid()::text or public.is_admin()));
+
 -- Private future buckets for provider assets. Paths start with provider UUID.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values
   ('provider-product-images', 'provider-product-images', false, 5242880, array['image/jpeg', 'image/png', 'image/webp']),
-  ('provider-quote-attachments', 'provider-quote-attachments', false, 5242880, array['application/pdf', 'image/jpeg', 'image/png', 'image/webp']),
-  ('provider-support-attachments', 'provider-support-attachments', false, 5242880, array['application/pdf', 'image/jpeg', 'image/png', 'image/webp']);
+  ('provider-logos', 'provider-logos', false, 5242880, array['image/jpeg', 'image/png', 'image/webp']),
+  ('product-documents', 'product-documents', false, 10485760, array['application/pdf', 'image/jpeg', 'image/png', 'image/webp']),
+  ('provider-quote-attachments', 'provider-quote-attachments', false, 10485760, array['application/pdf', 'image/jpeg', 'image/png', 'image/webp']),
+  ('provider-support-attachments', 'provider-support-attachments', false, 10485760, array['application/pdf', 'image/jpeg', 'image/png', 'image/webp']),
+  ('delivery-proofs', 'delivery-proofs', false, 10485760, array['application/pdf', 'image/jpeg', 'image/png', 'image/webp'])
+on conflict (id) do update set public=excluded.public,file_size_limit=excluded.file_size_limit,allowed_mime_types=excluded.allowed_mime_types;
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values
   ('customer-avatars', 'customer-avatars', false, 5242880, array['image/jpeg', 'image/png', 'image/webp']),
-  ('customer-support-attachments', 'customer-support-attachments', false, 5242880, array['application/pdf', 'image/jpeg', 'image/png', 'image/webp']);
+  ('customer-support-attachments', 'customer-support-attachments', false, 10485760, array['application/pdf', 'image/jpeg', 'image/png', 'image/webp']),
+  ('payment-proofs', 'payment-proofs', false, 10485760, array['application/pdf', 'image/jpeg', 'image/png', 'image/webp']),
+  ('invoice-documents', 'invoice-documents', false, 10485760, array['application/pdf'])
+on conflict (id) do update set public=excluded.public,file_size_limit=excluded.file_size_limit,allowed_mime_types=excluded.allowed_mime_types;
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values
+  ('provider-application-documents', 'provider-application-documents', false, 10485760, array['application/pdf', 'image/jpeg', 'image/png', 'image/webp']),
+  ('settlement-proofs', 'settlement-proofs', false, 10485760, array['application/pdf', 'image/jpeg', 'image/png', 'image/webp'])
+on conflict (id) do update set public=excluded.public,file_size_limit=excluded.file_size_limit,allowed_mime_types=excluded.allowed_mime_types;
 
 create policy provider_assets_storage_insert
 on storage.objects for insert to authenticated
 with check (
-  bucket_id in ('provider-product-images', 'provider-quote-attachments', 'provider-support-attachments')
-  and public.is_provider_member(((storage.foldername(name))[1])::uuid)
+  bucket_id in ('provider-product-images', 'provider-logos', 'product-documents', 'provider-quote-attachments', 'provider-support-attachments', 'delivery-proofs')
+  and public.is_provider_member(public.safe_storage_folder_uuid(name))
 );
 create policy provider_assets_storage_select
 on storage.objects for select to authenticated
 using (
-  bucket_id in ('provider-product-images', 'provider-quote-attachments', 'provider-support-attachments')
-  and (public.is_provider_member(((storage.foldername(name))[1])::uuid) or public.is_admin())
+  bucket_id in ('provider-product-images', 'provider-logos', 'product-documents', 'provider-quote-attachments', 'provider-support-attachments', 'delivery-proofs')
+  and (public.is_provider_member(public.safe_storage_folder_uuid(name)) or public.is_admin())
 );
 create policy provider_assets_storage_update
 on storage.objects for update to authenticated
 using (
-  bucket_id in ('provider-product-images', 'provider-quote-attachments', 'provider-support-attachments')
-  and public.is_provider_member(((storage.foldername(name))[1])::uuid)
+  bucket_id in ('provider-product-images', 'provider-logos', 'product-documents', 'provider-quote-attachments', 'provider-support-attachments', 'delivery-proofs')
+  and public.is_provider_member(public.safe_storage_folder_uuid(name))
 )
 with check (
-  bucket_id in ('provider-product-images', 'provider-quote-attachments', 'provider-support-attachments')
-  and public.is_provider_member(((storage.foldername(name))[1])::uuid)
+  bucket_id in ('provider-product-images', 'provider-logos', 'product-documents', 'provider-quote-attachments', 'provider-support-attachments', 'delivery-proofs')
+  and public.is_provider_member(public.safe_storage_folder_uuid(name))
 );
 create policy provider_assets_storage_delete
 on storage.objects for delete to authenticated
 using (
-  bucket_id in ('provider-product-images', 'provider-quote-attachments', 'provider-support-attachments')
-  and (public.is_provider_member(((storage.foldername(name))[1])::uuid) or public.is_admin())
+  bucket_id in ('provider-product-images', 'provider-logos', 'product-documents', 'provider-quote-attachments', 'provider-support-attachments', 'delivery-proofs')
+  and (public.is_provider_member(public.safe_storage_folder_uuid(name)) or public.is_admin())
 );
 
 create policy customer_assets_storage_insert
 on storage.objects for insert to authenticated
 with check (
-  bucket_id in ('customer-avatars', 'customer-support-attachments')
+  bucket_id in ('customer-avatars', 'customer-support-attachments', 'payment-proofs')
   and (storage.foldername(name))[1] = auth.uid()::text
 );
 create policy customer_assets_storage_select
 on storage.objects for select to authenticated
 using (
-  bucket_id in ('customer-avatars', 'customer-support-attachments')
+  bucket_id in ('customer-avatars', 'customer-support-attachments', 'payment-proofs', 'invoice-documents')
   and ((storage.foldername(name))[1] = auth.uid()::text or public.is_admin())
 );
 create policy customer_assets_storage_update
 on storage.objects for update to authenticated
 using (
-  bucket_id in ('customer-avatars', 'customer-support-attachments')
+  bucket_id in ('customer-avatars', 'customer-support-attachments', 'payment-proofs')
   and (storage.foldername(name))[1] = auth.uid()::text
 )
 with check (
-  bucket_id in ('customer-avatars', 'customer-support-attachments')
+  bucket_id in ('customer-avatars', 'customer-support-attachments', 'payment-proofs')
   and (storage.foldername(name))[1] = auth.uid()::text
 );
 create policy customer_assets_storage_delete
 on storage.objects for delete to authenticated
 using (
-  bucket_id in ('customer-avatars', 'customer-support-attachments')
+  bucket_id in ('customer-avatars', 'customer-support-attachments', 'payment-proofs')
   and ((storage.foldername(name))[1] = auth.uid()::text or public.is_admin())
 );
 
@@ -2191,7 +2450,7 @@ create table public.provider_product_prices (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (provider_id, product_id),
-  constraint provider_product_prices_expiry_valid check (expires_at >= greatest(last_updated_at, last_confirmed_at))
+  constraint provider_product_prices_expiry_valid check (expires_at = last_confirmed_at + interval '72 hours' and last_confirmed_at >= last_updated_at)
 );
 create index provider_product_prices_product_expiry_idx on public.provider_product_prices (product_id, expires_at);
 create index provider_product_prices_provider_freshness_idx on public.provider_product_prices (provider_id, freshness_status, expires_at);
@@ -2339,6 +2598,10 @@ create table public.bunya_customer_quotes (
 );
 create index bunya_customer_quotes_request_status_idx on public.bunya_customer_quotes (customer_request_id, status);
 
+alter table public.orders
+  add constraint orders_customer_quote_fk
+  foreign key (customer_quote_id) references public.bunya_customer_quotes (id) on delete restrict;
+
 create table public.bunya_customer_quote_items (
   id uuid primary key default gen_random_uuid(),
   bunya_customer_quote_id uuid not null references public.bunya_customer_quotes (id) on delete cascade,
@@ -2404,11 +2667,6 @@ $$;
 create trigger provider_product_prices_validity before insert or update of unit_price, last_updated_at, last_confirmed_at on public.provider_product_prices for each row execute function public.refresh_provider_price_validity();
 create trigger provider_price_confirmations_validity before insert on public.provider_price_confirmations for each row execute function public.refresh_provider_price_validity();
 
-create or replace function public.provider_price_is_current(target_price_id uuid)
-returns boolean language sql stable security definer set search_path = public, pg_temp as $$
-  select exists (select 1 from public.provider_product_prices p where p.id = target_price_id and p.expires_at > now());
-$$;
-
 create or replace function public.validate_internal_pricing_response()
 returns trigger language plpgsql set search_path = public, pg_temp as $$
 begin
@@ -2421,13 +2679,116 @@ begin
   return new;
 end;
 $$;
+
+create or replace function public.initialize_provider_price_freshness()
+returns trigger
+language plpgsql
+set search_path = public, pg_temp
+as $$
+begin
+  new.last_updated_at := now();
+  new.last_confirmed_at := now();
+  new.expires_at := now() + interval '72 hours';
+  new.freshness_status := 'valid';
+  return new;
+end;
+$$;
+
+create or replace function public.validate_bunya_customer_quote_transition()
+returns trigger
+language plpgsql
+set search_path = public, pg_temp
+as $$
+begin
+  if old.status = new.status then return new; end if;
+  if not (
+    (old.status = 'preparing' and new.status in ('ready','expired')) or
+    (old.status = 'ready' and new.status in ('customer_review','accepted','rejected','expired')) or
+    (old.status = 'customer_review' and new.status in ('accepted','rejected','expired'))
+  ) then raise exception 'Invalid customer quote status transition: % -> %', old.status, new.status; end if;
+  return new;
+end;
+$$;
+
+create or replace function public.protect_internal_fulfillment_order()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if old.status is distinct from new.status and not (
+    (old.status = 'assigned' and new.status in ('preparing','cancelled')) or
+    (old.status = 'preparing' and new.status in ('ready','cancelled')) or
+    (old.status = 'ready' and new.status in ('out_for_delivery','cancelled')) or
+    (old.status = 'out_for_delivery' and new.status in ('delivered','cancelled'))
+  ) then
+    raise exception 'Invalid internal fulfillment transition: % -> %', old.status, new.status;
+  end if;
+
+  if new.status = 'delivered' and old.status is distinct from new.status and not exists (
+    select 1 from public.provider_delivery_assignments a
+    where a.fulfillment_order_id = new.id and a.status = 'delivered'
+  ) then
+    raise exception 'Fulfillment cannot complete before verified delivery';
+  end if;
+
+  if coalesce(auth.jwt() ->> 'role', '') <> 'service_role'
+     and not public.admin_has_permission('sourcing.manage')
+     and not public.admin_has_permission('deliveries.manage')
+     and (
+       new.id is distinct from old.id
+       or new.fulfillment_code is distinct from old.fulfillment_code
+       or new.bunya_customer_quote_id is distinct from old.bunya_customer_quote_id
+       or new.provider_id is distinct from old.provider_id
+       or new.delivery_region is distinct from old.delivery_region
+       or new.required_at is distinct from old.required_at
+       or new.assigned_value is distinct from old.assigned_value
+       or new.created_at is distinct from old.created_at
+     ) then
+    raise exception 'Provider may only advance fulfillment status';
+  end if;
+  return new;
+end;
+$$;
+
+create or replace function public.confirm_provider_price(p_price_id uuid, p_unit_price numeric)
+returns uuid
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_price public.provider_product_prices%rowtype;
+  v_confirmation_id uuid;
+  v_now timestamptz := now();
+begin
+  select * into v_price from public.provider_product_prices where id = p_price_id for update;
+  if not found or not public.is_provider_member(v_price.provider_id) then raise exception 'Not authorized'; end if;
+  if p_unit_price is null or p_unit_price < 0 then raise exception 'Invalid price'; end if;
+
+  insert into public.provider_price_confirmations (
+    provider_product_price_id, provider_id, confirmed_price, price_changed, confirmed_at, expires_at
+  ) values (
+    p_price_id, v_price.provider_id, p_unit_price, v_price.unit_price is distinct from p_unit_price, v_now, v_now + interval '72 hours'
+  ) returning id into v_confirmation_id;
+  return v_confirmation_id;
+end;
+$$;
 create trigger validate_internal_pricing_response before insert or update on public.provider_pricing_responses for each row execute function public.validate_internal_pricing_response();
+create trigger provider_product_prices_initialize before insert on public.provider_product_prices for each row execute function public.initialize_provider_price_freshness();
 
 create trigger provider_product_prices_updated_at before update on public.provider_product_prices for each row execute function public.set_updated_at();
 create trigger internal_sourcing_requests_updated_at before update on public.internal_sourcing_requests for each row execute function public.set_updated_at();
 create trigger provider_pricing_responses_updated_at before update on public.provider_pricing_responses for each row execute function public.set_updated_at();
 create trigger bunya_customer_quotes_updated_at before update on public.bunya_customer_quotes for each row execute function public.set_updated_at();
+create trigger bunya_customer_quotes_validate_transition before update of status on public.bunya_customer_quotes for each row execute function public.validate_bunya_customer_quote_transition();
 create trigger internal_fulfillment_orders_updated_at before update on public.internal_fulfillment_orders for each row execute function public.set_updated_at();
+create trigger internal_fulfillment_orders_protect before update on public.internal_fulfillment_orders for each row execute function public.protect_internal_fulfillment_order();
+create trigger provider_product_prices_audit after insert or update on public.provider_product_prices for each row execute function public.audit_sensitive_row();
+create trigger internal_selection_results_audit after insert or update on public.internal_selection_results for each row execute function public.audit_sensitive_row();
+create trigger bunya_customer_quotes_audit after insert or update on public.bunya_customer_quotes for each row execute function public.audit_sensitive_row();
+create trigger internal_fulfillment_orders_audit after insert or update on public.internal_fulfillment_orders for each row execute function public.audit_sensitive_row();
 
 alter table public.provider_product_prices enable row level security;
 alter table public.provider_price_confirmations enable row level security;
@@ -2446,9 +2807,7 @@ alter table public.internal_fulfillment_order_items enable row level security;
 
 create policy provider_product_prices_owner_select on public.provider_product_prices for select to authenticated using (public.is_provider_member(provider_id) or public.is_admin());
 create policy provider_product_prices_owner_insert on public.provider_product_prices for insert to authenticated with check (public.is_provider_member(provider_id));
-create policy provider_product_prices_owner_update on public.provider_product_prices for update to authenticated using (public.is_provider_member(provider_id) or public.is_admin()) with check (public.is_provider_member(provider_id) or public.is_admin());
 create policy provider_price_confirmations_owner_select on public.provider_price_confirmations for select to authenticated using (public.is_provider_member(provider_id) or public.is_admin());
-create policy provider_price_confirmations_owner_insert on public.provider_price_confirmations for insert to authenticated with check (public.is_provider_member(provider_id));
 
 create policy internal_sourcing_requests_target_or_admin_select on public.internal_sourcing_requests for select to authenticated using (public.is_admin() or exists (select 1 from public.internal_sourcing_request_items i join public.internal_sourcing_request_targets t on t.sourcing_request_item_id = i.id where i.sourcing_request_id = internal_sourcing_requests.id and public.is_provider_member(t.provider_id)));
 create policy internal_sourcing_requests_admin_all on public.internal_sourcing_requests for all to authenticated using (public.is_admin()) with check (public.is_admin());
@@ -2470,7 +2829,6 @@ create policy selected_provider_items_provider_or_admin_select on public.selecte
 create policy selected_provider_items_admin_write on public.selected_provider_items for all to authenticated using (public.is_admin()) with check (public.is_admin());
 
 create policy bunya_customer_quotes_owner_select on public.bunya_customer_quotes for select to authenticated using (public.is_admin() or exists (select 1 from public.quote_requests r where r.id = customer_request_id and r.requester_id = auth.uid()));
-create policy bunya_customer_quotes_owner_decision on public.bunya_customer_quotes for update to authenticated using (exists (select 1 from public.quote_requests r where r.id = customer_request_id and r.requester_id = auth.uid()) and status in ('ready','customer_review')) with check (status in ('accepted','rejected'));
 create policy bunya_customer_quotes_admin_all on public.bunya_customer_quotes for all to authenticated using (public.is_admin()) with check (public.is_admin());
 create policy bunya_customer_quote_items_owner_select on public.bunya_customer_quote_items for select to authenticated using (public.is_admin() or exists (select 1 from public.bunya_customer_quotes q join public.quote_requests r on r.id = q.customer_request_id where q.id = bunya_customer_quote_id and r.requester_id = auth.uid()));
 create policy bunya_customer_quote_items_admin_all on public.bunya_customer_quote_items for all to authenticated using (public.is_admin()) with check (public.is_admin());
@@ -2480,6 +2838,193 @@ create policy internal_fulfillment_provider_update on public.internal_fulfillmen
 create policy internal_fulfillment_admin_all on public.internal_fulfillment_orders for all to authenticated using (public.is_admin()) with check (public.is_admin());
 create policy internal_fulfillment_items_provider_select on public.internal_fulfillment_order_items for select to authenticated using (public.is_admin() or exists (select 1 from public.internal_fulfillment_orders f where f.id = fulfillment_order_id and public.is_provider_member(f.provider_id)));
 create policy internal_fulfillment_items_admin_all on public.internal_fulfillment_order_items for all to authenticated using (public.is_admin()) with check (public.is_admin());
+
+-- Internal sourcing decision. Providers can never execute it or inspect competitors.
+create or replace function public.select_best_provider_price(p_sourcing_item_id uuid)
+returns uuid
+language plpgsql
+security definer
+set search_path = public, extensions, pg_temp
+as $$
+declare
+  v_item public.internal_sourcing_request_items%rowtype;
+  v_response public.provider_pricing_responses%rowtype;
+  v_selection_id uuid;
+  v_subtotal numeric(14,2);
+  v_vat numeric(14,2);
+  v_delivery numeric(14,2);
+  v_selected_id uuid;
+begin
+  if not public.admin_has_permission('sourcing.manage') then
+    raise exception 'Not authorized';
+  end if;
+
+  select * into v_item
+  from public.internal_sourcing_request_items
+  where id = p_sourcing_item_id
+  for update;
+  if not found then raise exception 'Sourcing item not found'; end if;
+
+  select r.* into v_response
+  from public.provider_pricing_responses r
+  join public.provider_availability_confirmations a on a.pricing_response_id = r.id
+  join public.provider_delivery_confirmations d on d.pricing_response_id = r.id
+  where r.sourcing_request_item_id = v_item.id
+    and r.status in ('evaluating','needs_update')
+    and r.price_expires_at > now()
+    and a.available
+    and a.available_quantity >= v_item.quantity
+    and d.region_eligible
+    and now() + make_interval(hours => (d.preparation_duration_hours + d.delivery_duration_hours)::integer) <= v_item.required_at
+  order by
+    case when r.vat_inclusive
+      then round(v_item.quantity * r.unit_price, 2) + d.delivery_fee
+      else round(v_item.quantity * r.unit_price * 1.15, 2) + d.delivery_fee
+    end,
+    r.receipt_confirmed_at,
+    r.id
+  limit 1
+  for update of r;
+
+  if not found then raise exception 'No eligible current provider response'; end if;
+
+  if v_response.vat_inclusive then
+    v_subtotal := round((v_item.quantity * v_response.unit_price) / 1.15, 2);
+    v_vat := round(v_item.quantity * v_response.unit_price, 2) - v_subtotal;
+  else
+    v_subtotal := round(v_item.quantity * v_response.unit_price, 2);
+    v_vat := round(v_subtotal * 0.15, 2);
+  end if;
+  select d.delivery_fee into v_delivery from public.provider_delivery_confirmations d where d.pricing_response_id = v_response.id;
+
+  insert into public.internal_selection_results (sourcing_request_id, evaluated_by, selection_notes)
+  values (v_item.sourcing_request_id, auth.uid(), 'Minimum eligible landed cost at selection time')
+  on conflict (sourcing_request_id) do update set evaluated_by = excluded.evaluated_by
+  returning id into v_selection_id;
+
+  insert into public.selected_provider_items (
+    selection_result_id, sourcing_request_item_id, pricing_response_id, provider_id,
+    quantity, unit_price, subtotal, vat_amount, delivery_fee, selection_reason
+  ) values (
+    v_selection_id, v_item.id, v_response.id, v_response.provider_id,
+    v_item.quantity, v_response.unit_price, v_subtotal, v_vat, v_delivery,
+    'minimum_eligible_landed_cost'
+  )
+  on conflict (selection_result_id, sourcing_request_item_id) do update set
+    pricing_response_id = excluded.pricing_response_id,
+    provider_id = excluded.provider_id,
+    unit_price = excluded.unit_price,
+    subtotal = excluded.subtotal,
+    vat_amount = excluded.vat_amount,
+    delivery_fee = excluded.delivery_fee,
+    selection_reason = excluded.selection_reason
+  returning id into v_selected_id;
+
+  update public.provider_pricing_responses
+  set status = case when id = v_response.id then 'selected'::public.provider_pricing_response_status else 'not_selected'::public.provider_pricing_response_status end,
+      evaluated_at = now(),
+      evaluation_notes = case when id = v_response.id then 'Selected by landed-cost rule' else 'Another eligible response was selected' end
+  where sourcing_request_item_id = v_item.id and status in ('evaluating','needs_update','selected','not_selected');
+
+  insert into public.outbox_events (aggregate_type, aggregate_id, event_type, payload)
+  values ('sourcing_item', v_item.id, 'provider_price_selected', jsonb_build_object('selected_provider_item_id', v_selected_id));
+
+  return v_selected_id;
+end;
+$$;
+
+-- Customer acceptance is the only authenticated path that creates a customer order.
+create or replace function public.accept_customer_quote(p_quote_id uuid, p_idempotency_key text)
+returns uuid
+language plpgsql
+security definer
+set search_path = public, extensions, pg_temp
+as $$
+declare
+  v_quote public.bunya_customer_quotes%rowtype;
+  v_request public.quote_requests%rowtype;
+  v_order_id uuid;
+  v_existing jsonb;
+  v_request_hash text;
+begin
+  if auth.uid() is null then raise exception 'Authentication required'; end if;
+  if p_idempotency_key is null or length(p_idempotency_key) not between 8 and 120 then
+    raise exception 'Invalid idempotency key';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtextextended(auth.uid()::text || ':accept_quote:' || p_idempotency_key, 0));
+  v_request_hash := encode(extensions.digest(p_quote_id::text, 'sha256'), 'hex');
+
+  select response_snapshot into v_existing
+  from public.idempotency_keys
+  where profile_id = auth.uid() and scope = 'accept_customer_quote' and key = p_idempotency_key and request_hash = v_request_hash and status = 'completed';
+  if found then return (v_existing ->> 'order_id')::uuid; end if;
+
+  insert into public.idempotency_keys (profile_id, scope, key, request_hash, expires_at)
+  values (auth.uid(), 'accept_customer_quote', p_idempotency_key, v_request_hash, now() + interval '24 hours')
+  on conflict (profile_id, scope, key) do nothing;
+
+  if exists (select 1 from public.idempotency_keys where profile_id = auth.uid() and scope = 'accept_customer_quote' and key = p_idempotency_key and request_hash <> v_request_hash) then
+    raise exception 'Idempotency key was used for another request';
+  end if;
+
+  select q.* into v_quote from public.bunya_customer_quotes q where q.id = p_quote_id for update;
+  if not found then raise exception 'Quote not found'; end if;
+  select r.* into v_request from public.quote_requests r where r.id = v_quote.customer_request_id for update;
+  if v_request.requester_id <> auth.uid() then raise exception 'Not authorized'; end if;
+  if v_quote.status not in ('ready','customer_review') or v_quote.valid_until <= now() then raise exception 'Quote is not acceptable'; end if;
+  if not exists (select 1 from public.bunya_customer_quote_items i where i.bunya_customer_quote_id = v_quote.id) or
+     exists (
+       select 1 from (
+         select round(sum(i.subtotal),2) subtotal, round(sum(i.vat_amount),2) vat_amount,
+                round(sum(i.delivery_fee),2) delivery_fee, round(sum(i.line_total),2) total
+         from public.bunya_customer_quote_items i where i.bunya_customer_quote_id = v_quote.id
+       ) s where s.subtotal <> v_quote.subtotal or s.vat_amount <> v_quote.vat_amount or s.delivery_fee <> v_quote.delivery_fee or s.total <> v_quote.total
+     ) then raise exception 'Quote totals do not match quote items'; end if;
+
+  insert into public.orders (
+    order_code, customer_quote_id, customer_profile_id, subtotal, vat_amount,
+    delivery_fee, discount_amount, total, payment_status, status,
+    desired_receipt_at, google_maps_url, latitude, longitude, notes
+  ) values (
+    'ORD-' || to_char(clock_timestamp(), 'YYYYMMDD') || '-' || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8)),
+    v_quote.id, auth.uid(), v_quote.subtotal, v_quote.vat_amount,
+    v_quote.delivery_fee, 0, v_quote.total, 'pending', 'confirmed',
+    v_request.desired_receipt_at, v_request.google_maps_url, v_request.latitude, v_request.longitude, v_request.notes
+  ) returning id into v_order_id;
+
+  insert into public.order_items (order_id, product_id, product_name_snapshot, quantity, unit_name_snapshot, measurement_snapshot, unit_price, line_total)
+  select v_order_id, i.product_id, i.product_name_snapshot, i.quantity, i.unit_snapshot, i.measurement_snapshot, i.unit_price, i.line_total
+  from public.bunya_customer_quote_items i where i.bunya_customer_quote_id = v_quote.id;
+
+  update public.bunya_customer_quotes set status = 'accepted', customer_decided_at = now() where id = v_quote.id;
+  update public.quote_requests set status = 'accepted' where id = v_request.id;
+  insert into public.order_status_history (order_id, from_status, to_status, label, changed_by)
+  values (v_order_id, null, 'confirmed', 'Customer accepted unified Bunya quote', auth.uid());
+  insert into public.outbox_events (aggregate_type, aggregate_id, event_type, payload)
+  values ('order', v_order_id, 'order_created', jsonb_build_object('customer_quote_id', v_quote.id));
+
+  update public.idempotency_keys set status = 'completed', response_snapshot = jsonb_build_object('order_id', v_order_id)
+  where profile_id = auth.uid() and scope = 'accept_customer_quote' and key = p_idempotency_key;
+  return v_order_id;
+end;
+$$;
+
+create or replace function public.reject_customer_quote(p_quote_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  update public.bunya_customer_quotes q
+  set status = 'rejected', customer_decided_at = now()
+  where q.id = p_quote_id
+    and q.status in ('ready','customer_review')
+    and exists (select 1 from public.quote_requests r where r.id = q.customer_request_id and r.requester_id = auth.uid());
+  if not found then raise exception 'Quote is not rejectable'; end if;
+end;
+$$;
 
 -- Contractor workspace ownership, workflows, RLS and future private storage.
 create or replace function public.is_contractor_owner(target_contractor_id uuid)
@@ -2502,6 +3047,95 @@ begin
 end;
 $$;
 
+create or replace function public.protect_contractor_project_fields()
+returns trigger
+language plpgsql
+set search_path = public, pg_temp
+as $$
+begin
+  if coalesce(auth.jwt() ->> 'role', '') = 'service_role'
+     or public.admin_has_permission('projects.manage') then
+    return new;
+  end if;
+
+  if new.project_code is distinct from old.project_code
+     or new.accepted_proposal_id is distinct from old.accepted_proposal_id
+     or new.contractor_profile_id is distinct from old.contractor_profile_id
+     or new.customer_profile_id is distinct from old.customer_profile_id
+     or new.name is distinct from old.name
+     or new.customer_label is distinct from old.customer_label
+     or new.project_value is distinct from old.project_value
+     or new.start_at is distinct from old.start_at
+     or new.expected_end_at is distinct from old.expected_end_at
+     or new.payment_status is distinct from old.payment_status
+     or new.next_payment_label is distinct from old.next_payment_label
+     or new.scope is distinct from old.scope
+     or new.google_maps_url is distinct from old.google_maps_url
+     or new.created_at is distinct from old.created_at then
+    raise exception 'Contractor cannot change protected project fields';
+  end if;
+  return new;
+end;
+$$;
+
+create or replace function public.protect_contractor_milestone_fields()
+returns trigger
+language plpgsql
+set search_path = public, pg_temp
+as $$
+declare
+  v_project public.contractor_projects%rowtype;
+begin
+  if coalesce(auth.jwt() ->> 'role', '') = 'service_role'
+     or public.admin_has_permission('projects.manage') then
+    if tg_op = 'DELETE' then return old; end if;
+    return new;
+  end if;
+
+  if tg_op = 'DELETE' then
+    raise exception 'Project milestones cannot be deleted by project participants';
+  end if;
+
+  select * into v_project
+  from public.contractor_projects
+  where id = new.project_id;
+  if not found then raise exception 'Project not found'; end if;
+
+  if tg_op = 'INSERT' then
+    if not public.is_contractor_owner(v_project.contractor_profile_id)
+       or new.status <> 'not_started'
+       or new.progress <> 0
+       or new.approved_at is not null then
+      raise exception 'Invalid participant milestone creation';
+    end if;
+    return new;
+  end if;
+
+  if v_project.customer_profile_id = auth.uid() then
+    if old.status <> 'awaiting_customer_approval'
+       or new.status <> 'approved'
+       or (to_jsonb(new) - array['status','approved_at','updated_at'])
+          is distinct from (to_jsonb(old) - array['status','approved_at','updated_at']) then
+      raise exception 'Customer may only approve an awaiting milestone';
+    end if;
+  else
+    if not public.is_contractor_owner(v_project.contractor_profile_id)
+       or new.project_id is distinct from old.project_id
+       or new.name is distinct from old.name
+       or new.description is distinct from old.description
+       or new.start_at is distinct from old.start_at
+       or new.expected_end_at is distinct from old.expected_end_at
+       or new.value_percentage is distinct from old.value_percentage
+       or new.sort_order is distinct from old.sort_order
+       or new.approved_at is distinct from old.approved_at
+       or (new.status = 'approved' and old.status <> 'approved') then
+      raise exception 'Contractor cannot change protected or customer-controlled milestone fields';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
 create or replace function public.prevent_early_contractor_project_completion()
 returns trigger language plpgsql set search_path = public, pg_temp as $$
 begin
@@ -2518,8 +3152,13 @@ create trigger contractor_opportunities_updated_at before update on public.contr
 create trigger contractor_proposals_updated_at before update on public.contractor_proposals for each row execute function public.set_updated_at();
 create trigger contractor_projects_updated_at before update on public.contractor_projects for each row execute function public.set_updated_at();
 create trigger contractor_milestones_updated_at before update on public.contractor_project_milestones for each row execute function public.set_updated_at();
+create trigger contractor_projects_protect_fields before update on public.contractor_projects for each row execute function public.protect_contractor_project_fields();
+create trigger contractor_milestones_protect_fields before insert or update or delete on public.contractor_project_milestones for each row execute function public.protect_contractor_milestone_fields();
 create trigger contractor_milestones_validate before insert or update on public.contractor_project_milestones for each row execute function public.validate_contractor_milestone_transition();
 create trigger contractor_projects_validate_completion before update of status on public.contractor_projects for each row execute function public.prevent_early_contractor_project_completion();
+create trigger project_requests_domain_audit after insert or update or delete on public.project_requests for each row execute function public.audit_sensitive_row();
+create trigger contractor_proposals_audit after insert or update on public.contractor_proposals for each row execute function public.audit_sensitive_row();
+create trigger contractor_projects_audit after insert or update on public.contractor_projects for each row execute function public.audit_sensitive_row();
 create trigger contractor_review_replies_updated_at before update on public.contractor_review_replies for each row execute function public.set_updated_at();
 create trigger contractor_bank_accounts_updated_at before update on public.contractor_bank_accounts for each row execute function public.set_updated_at();
 create trigger contractor_settlements_updated_at before update on public.contractor_settlement_requests for each row execute function public.set_updated_at();
@@ -2558,7 +3197,6 @@ create policy contractor_availability_public_select on public.contractor_availab
 create policy contractor_availability_owner_all on public.contractor_availability for all to authenticated using (public.is_contractor_owner(contractor_profile_id) or public.is_admin()) with check (public.is_contractor_owner(contractor_profile_id) or public.is_admin());
 
 create policy project_requests_customer_all on public.project_requests for all to authenticated using (customer_profile_id = auth.uid() or public.is_admin()) with check (customer_profile_id = auth.uid() or public.is_admin());
-create policy project_requests_matched_contractor_select on public.project_requests for select to authenticated using (exists (select 1 from public.contractor_opportunities o where o.project_request_id = project_requests.id and public.is_contractor_owner(o.contractor_profile_id)));
 create policy project_request_specialties_participant_select on public.project_request_specialties for select to authenticated using (exists (select 1 from public.project_requests r where r.id = project_request_id and (r.customer_profile_id = auth.uid() or public.is_admin() or exists (select 1 from public.contractor_opportunities o where o.project_request_id = r.id and public.is_contractor_owner(o.contractor_profile_id)))));
 create policy project_request_specialties_customer_all on public.project_request_specialties for all to authenticated using (exists (select 1 from public.project_requests r where r.id = project_request_id and (r.customer_profile_id = auth.uid() or public.is_admin()))) with check (exists (select 1 from public.project_requests r where r.id = project_request_id and (r.customer_profile_id = auth.uid() or public.is_admin())));
 
@@ -2611,12 +3249,13 @@ create policy contractor_support_attachments_owner_all on public.contractor_supp
 
 insert into storage.buckets (id,name,public,file_size_limit,allowed_mime_types) values
   ('contractor-portfolio','contractor-portfolio',false,10485760,array['image/jpeg','image/png','image/webp','application/pdf']),
-  ('contractor-project-documents','contractor-project-documents',false,10485760,array['image/jpeg','image/png','image/webp','application/pdf']),
-  ('contractor-support-attachments','contractor-support-attachments',false,5242880,array['image/jpeg','image/png','image/webp','application/pdf']);
-create policy contractor_workspace_storage_insert on storage.objects for insert to authenticated with check (bucket_id in ('contractor-portfolio','contractor-project-documents','contractor-support-attachments') and public.is_contractor_owner(((storage.foldername(name))[1])::uuid));
-create policy contractor_workspace_storage_select on storage.objects for select to authenticated using (bucket_id in ('contractor-portfolio','contractor-project-documents','contractor-support-attachments') and (public.is_contractor_owner(((storage.foldername(name))[1])::uuid) or public.is_admin()));
-create policy contractor_workspace_storage_update on storage.objects for update to authenticated using (bucket_id in ('contractor-portfolio','contractor-project-documents','contractor-support-attachments') and public.is_contractor_owner(((storage.foldername(name))[1])::uuid)) with check (bucket_id in ('contractor-portfolio','contractor-project-documents','contractor-support-attachments') and public.is_contractor_owner(((storage.foldername(name))[1])::uuid));
-create policy contractor_workspace_storage_delete on storage.objects for delete to authenticated using (bucket_id in ('contractor-portfolio','contractor-project-documents','contractor-support-attachments') and (public.is_contractor_owner(((storage.foldername(name))[1])::uuid) or public.is_admin()));
+  ('contractor-project-documents','contractor-project-documents',false,52428800,array['application/pdf','application/zip','application/x-zip-compressed','application/acad','application/dwg','image/vnd.dwg','image/vnd.dxf','image/jpeg','image/png','image/webp']),
+  ('contractor-support-attachments','contractor-support-attachments',false,10485760,array['image/jpeg','image/png','image/webp','application/pdf'])
+on conflict (id) do update set public=excluded.public,file_size_limit=excluded.file_size_limit,allowed_mime_types=excluded.allowed_mime_types;
+create policy contractor_workspace_storage_insert on storage.objects for insert to authenticated with check (bucket_id in ('contractor-portfolio','contractor-project-documents','contractor-support-attachments') and public.is_contractor_owner(public.safe_storage_folder_uuid(name)));
+create policy contractor_workspace_storage_select on storage.objects for select to authenticated using (bucket_id in ('contractor-portfolio','contractor-project-documents','contractor-support-attachments') and (public.is_contractor_owner(public.safe_storage_folder_uuid(name)) or public.is_admin()));
+create policy contractor_workspace_storage_update on storage.objects for update to authenticated using (bucket_id in ('contractor-portfolio','contractor-project-documents','contractor-support-attachments') and public.is_contractor_owner(public.safe_storage_folder_uuid(name))) with check (bucket_id in ('contractor-portfolio','contractor-project-documents','contractor-support-attachments') and public.is_contractor_owner(public.safe_storage_folder_uuid(name)));
+create policy contractor_workspace_storage_delete on storage.objects for delete to authenticated using (bucket_id in ('contractor-portfolio','contractor-project-documents','contractor-support-attachments') and (public.is_contractor_owner(public.safe_storage_folder_uuid(name)) or public.is_admin()));
 
 -- Project contracting request cycle (file 017). project_requests remains the canonical table;
 -- customer_project_requests and project_proposals are compatibility views, not duplicate stores.
@@ -2796,12 +3435,50 @@ create or replace view public.customer_project_requests with (security_invoker =
 create or replace view public.customer_project_request_specialties with (security_invoker = true) as select project_request_id, specialty_name from public.project_request_specialties;
 create or replace view public.project_proposals with (security_invoker = true) as select * from public.contractor_proposals;
 create or replace view public.project_proposal_stages with (security_invoker = true) as select * from public.contractor_proposal_stages;
-create or replace view public.contractor_published_project_opportunities as
-select r.id as project_request_id,r.request_code,r.title,r.project_type,r.description,r.scope,r.city,r.region,r.quantity_label,r.estimated_budget_min,r.estimated_budget_max,r.budget_negotiable,r.expected_start_at,r.estimated_duration,r.duration_value,r.duration_unit,r.proposal_deadline_at,r.google_maps_url,r.latitude,r.longitude,r.terms,r.technical_details,r.published_at
-from public.project_requests r
-where r.lifecycle_status in ('published','receiving_proposals') and r.is_open and r.proposal_deadline_at > now();
-revoke all on public.contractor_published_project_opportunities from anon;
-grant select on public.contractor_published_project_opportunities to authenticated;
+create or replace function public.get_contractor_opportunities()
+returns table (
+  opportunity_id uuid,
+  project_request_id uuid,
+  request_code text,
+  title text,
+  project_type text,
+  description text,
+  scope text,
+  city text,
+  region text,
+  quantity_label text,
+  estimated_budget_min numeric,
+  estimated_budget_max numeric,
+  budget_negotiable boolean,
+  expected_start_at date,
+  estimated_duration text,
+  duration_value numeric,
+  duration_unit text,
+  proposal_deadline_at timestamptz,
+  terms text[],
+  published_at timestamptz
+)
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+  select o.id, r.id, r.request_code, r.title, r.project_type, r.description, r.scope,
+         r.city, r.region, r.quantity_label, r.estimated_budget_min, r.estimated_budget_max,
+         r.budget_negotiable, r.expected_start_at, r.estimated_duration, r.duration_value,
+         r.duration_unit, r.proposal_deadline_at, r.terms, r.published_at
+  from public.contractor_opportunities o
+  join public.contractor_profiles c on c.id = o.contractor_profile_id
+  join public.project_requests r on r.id = o.project_request_id
+  where c.profile_id = auth.uid()
+    and c.approval_status = 'approved'
+    and c.subscription_active
+    and o.status in ('new','viewed')
+    and o.expires_at > now()
+    and r.lifecycle_status in ('published','receiving_proposals')
+    and r.is_open
+    and r.proposal_deadline_at > now();
+$$;
 
 create or replace function public.snapshot_project_request_version()
 returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
@@ -2826,6 +3503,8 @@ end;
 $$;
 create trigger contractor_project_comments_validate before insert or update on public.contractor_project_comments for each row execute function public.validate_project_comment_customer_visibility();
 create trigger contractor_project_comments_updated_at before update on public.contractor_project_comments for each row execute function public.set_updated_at();
+create trigger contractor_project_comments_audit after insert or update on public.contractor_project_comments for each row execute function public.audit_sensitive_row();
+create trigger project_notifications_protect_payload before insert or update or delete on public.project_notifications for each row execute function public.protect_notification_payload();
 
 alter table public.customer_project_request_attachments enable row level security;
 alter table public.customer_project_request_versions enable row level security;
@@ -2869,8 +3548,8 @@ create policy project_request_storage_owner_insert on storage.objects for insert
 create policy project_request_storage_owner_select on storage.objects for select to authenticated using (bucket_id = 'project-request-attachments' and (auth.uid()::text = (storage.foldername(name))[1] or public.is_admin()));
 create policy project_request_storage_owner_delete on storage.objects for delete to authenticated using (bucket_id = 'project-request-attachments' and (auth.uid()::text = (storage.foldername(name))[1] or public.is_admin()));
 
-comment on view public.contractor_published_project_opportunities is 'Privacy-safe contractor projection; deliberately excludes customer profile, label, mobile, email, username and contact data.';
-comment on table public.project_requests is 'Canonical contracting project request. Do not expose customer_profile_id or customer_label to contractors; use contractor_published_project_opportunities.';
+comment on function public.get_contractor_opportunities() is 'Privacy-safe contractor projection; excludes customer identity, contact data, maps URL and exact coordinates.';
+comment on table public.project_requests is 'Canonical contracting project request. Do not expose customer_profile_id, customer_label or exact location to contractors; use get_contractor_opportunities().';
 
 -- TODO(contractor-project-service): create opportunities, accepted-project records and initial
 -- financial transactions in idempotent privileged transactions after the backend is connected.
@@ -2906,19 +3585,11 @@ create table public.provider_driver_accounts (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
--- Future session metadata only. Supabase Auth remains authoritative; no password or token is stored.
-create table public.provider_driver_sessions (
-  id uuid primary key default gen_random_uuid(),
-  driver_id uuid not null references public.provider_drivers(id) on delete cascade,
-  auth_session_id text,
-  last_active_at timestamptz not null default now(),
-  revoked_at timestamptz,
-  created_at timestamptz not null default now()
-);
 create table public.provider_delivery_assignments (
   id uuid primary key default gen_random_uuid(),
   provider_id uuid not null references public.providers(id) on delete restrict,
-  order_id uuid not null unique references public.orders(id) on delete cascade,
+  order_id uuid not null references public.orders(id) on delete restrict,
+  fulfillment_order_id uuid not null unique references public.internal_fulfillment_orders(id) on delete restrict,
   assigned_driver_id uuid references public.provider_drivers(id) on delete restrict,
   status public.provider_delivery_status not null default 'assigned',
   pickup_at timestamptz,
@@ -2928,7 +3599,8 @@ create table public.provider_delivery_assignments (
   assigned_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint provider_assignment_delivery_time check (delivered_at is null or delivered_at >= created_at)
+  constraint provider_assignment_delivery_time check (delivered_at is null or delivered_at >= created_at),
+  unique (order_id, provider_id)
 );
 create table public.provider_delivery_updates (
   id uuid primary key default gen_random_uuid(),
@@ -2939,6 +3611,21 @@ create table public.provider_delivery_updates (
   actor_user_id uuid references public.profiles(id) on delete set null,
   note text,
   created_at timestamptz not null default now()
+);
+
+-- Plain delivery codes are never stored. A trusted backend issues the code and
+-- persists only a per-code random salt and SHA-256 digest.
+create table public.delivery_confirmation_codes (
+  assignment_id uuid primary key references public.provider_delivery_assignments(id) on delete cascade,
+  code_salt text not null check (length(code_salt) >= 32),
+  code_hash text not null check (code_hash ~ '^[a-f0-9]{64}$'),
+  expires_at timestamptz not null,
+  max_attempts smallint not null default 5 check (max_attempts between 1 and 10),
+  attempts smallint not null default 0 check (attempts between 0 and max_attempts),
+  locked_until timestamptz,
+  verified_at timestamptz,
+  created_at timestamptz not null default now(),
+  constraint delivery_confirmation_code_expiry check (expires_at > created_at)
 );
 create table public.delivery_confirmation_records (
   id uuid primary key default gen_random_uuid(),
@@ -2972,36 +3659,106 @@ create table public.admin_driver_actions (
   after_data jsonb,
   created_at timestamptz not null default now()
 );
-alter table public.delivery_assignments alter column driver_profile_id drop not null;
-alter table public.delivery_assignments add column provider_driver_id uuid references public.provider_drivers(id) on delete restrict;
-
 create index provider_drivers_provider_status_idx on public.provider_drivers(provider_id,status,created_at desc);
-create index provider_driver_sessions_driver_active_idx on public.provider_driver_sessions(driver_id,revoked_at,last_active_at desc);
 create index provider_delivery_assignments_driver_status_idx on public.provider_delivery_assignments(assigned_driver_id,status,expected_at);
 create index provider_delivery_assignments_provider_status_idx on public.provider_delivery_assignments(provider_id,status,expected_at);
+create index provider_delivery_assignments_order_idx on public.provider_delivery_assignments(order_id,status);
 create index provider_delivery_updates_assignment_time_idx on public.provider_delivery_updates(assignment_id,created_at desc);
 create index delivery_confirmation_attempts_assignment_idx on public.delivery_confirmation_attempts(assignment_id,attempted_at desc);
 create index admin_driver_actions_driver_time_idx on public.admin_driver_actions(driver_id,created_at desc);
 
 create or replace function public.current_provider_driver_id()
-returns uuid language sql stable security definer set search_path=public as $$
+returns uuid language sql stable security definer set search_path=public, pg_temp as $$
   select pda.driver_id from public.provider_driver_accounts pda where pda.auth_user_id=auth.uid()
 $$;
 create or replace function public.validate_provider_delivery_assignment()
-returns trigger language plpgsql as $$
+returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
 begin
-  if not exists(select 1 from public.orders o where o.id=new.order_id and o.provider_id=new.provider_id) then raise exception 'Delivery provider must own the order'; end if;
+  if tg_op = 'UPDATE'
+     and coalesce(auth.jwt() ->> 'role', '') <> 'service_role'
+     and not public.admin_has_permission('deliveries.manage')
+     and (
+       new.provider_id is distinct from old.provider_id
+       or new.order_id is distinct from old.order_id
+       or new.fulfillment_order_id is distinct from old.fulfillment_order_id
+       or new.expected_at is distinct from old.expected_at
+       or new.assigned_at is distinct from old.assigned_at
+       or new.created_at is distinct from old.created_at
+     ) then
+    raise exception 'Delivery assignment identity and schedule are protected';
+  end if;
+  if not exists(
+    select 1
+    from public.internal_fulfillment_orders f
+    join public.orders o on o.customer_quote_id = f.bunya_customer_quote_id
+    where f.id = new.fulfillment_order_id and f.provider_id = new.provider_id and o.id = new.order_id
+  ) then raise exception 'Delivery assignment must match the provider fulfillment and customer order'; end if;
   if new.assigned_driver_id is not null and not exists(select 1 from public.provider_drivers d where d.id=new.assigned_driver_id and d.provider_id=new.provider_id and d.status<>'suspended') then raise exception 'Driver must be active and owned by provider'; end if;
   if tg_op='UPDATE' and old.status<>'assigned' and new.assigned_driver_id is distinct from old.assigned_driver_id then raise exception 'Assignment cannot change after delivery starts'; end if;
   return new;
 end $$;
 create or replace function public.validate_provider_delivery_transition()
-returns trigger language plpgsql as $$
+returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
 begin
   if old.status<>new.status and not ((old.status='assigned' and new.status in ('picked_up','failed_delivery')) or (old.status='picked_up' and new.status in ('in_transit','failed_delivery')) or (old.status='in_transit' and new.status in ('arrived','failed_delivery')) or (old.status='arrived' and new.status in ('delivered','failed_delivery'))) then raise exception 'Invalid provider delivery transition'; end if;
+  if old.status <> new.status and new.status = 'delivered' and not exists (
+    select 1 from public.delivery_confirmation_codes c where c.assignment_id = new.id and c.verified_at is not null
+  ) then raise exception 'Delivery requires a verified customer code'; end if;
   if new.status='delivered' and new.delivered_at is null then new.delivered_at=now(); end if;
   return new;
 end $$;
+
+create or replace function public.confirm_delivery_code(p_assignment_id uuid, p_plain_code text)
+returns boolean
+language plpgsql
+security definer
+set search_path = public, extensions, pg_temp
+as $$
+declare
+  v_assignment public.provider_delivery_assignments%rowtype;
+  v_code public.delivery_confirmation_codes%rowtype;
+  v_driver_id uuid;
+  v_is_driver boolean;
+  v_is_provider boolean;
+  v_valid boolean;
+begin
+  if auth.uid() is null or p_plain_code is null or length(p_plain_code) not between 4 and 12 then return false; end if;
+  select * into v_assignment from public.provider_delivery_assignments where id = p_assignment_id for update;
+  if not found then return false; end if;
+  v_driver_id := public.current_provider_driver_id();
+  v_is_driver := v_assignment.assigned_driver_id is not null and v_assignment.assigned_driver_id = v_driver_id;
+  v_is_provider := public.is_provider_member(v_assignment.provider_id);
+  if not v_is_driver and not v_is_provider then raise exception 'Not authorized'; end if;
+  if v_assignment.status <> 'arrived' then return false; end if;
+
+  select * into v_code from public.delivery_confirmation_codes where assignment_id = p_assignment_id for update;
+  if not found or v_code.verified_at is not null or v_code.expires_at <= now() or v_code.attempts >= v_code.max_attempts or coalesce(v_code.locked_until, '-infinity'::timestamptz) > now() then return false; end if;
+  v_valid := v_code.code_hash = encode(extensions.digest(v_code.code_salt || ':' || p_plain_code, 'sha256'), 'hex');
+
+  update public.delivery_confirmation_codes
+  set attempts = attempts + 1,
+      verified_at = case when v_valid then now() else verified_at end,
+      locked_until = case when not v_valid and attempts + 1 >= max_attempts then now() + interval '15 minutes' else locked_until end
+  where assignment_id = p_assignment_id;
+
+  insert into public.delivery_confirmation_attempts (assignment_id, attempted_by_role, attempted_by_user_id, succeeded, locked_until)
+  values (p_assignment_id, case when v_is_driver then 'driver' else 'provider' end, auth.uid(), v_valid,
+    case when not v_valid and v_code.attempts + 1 >= v_code.max_attempts then now() + interval '15 minutes' end);
+
+  if v_valid then
+    update public.provider_delivery_assignments set status = 'delivered', delivered_at = now() where id = p_assignment_id;
+    insert into public.delivery_confirmation_records (assignment_id, method, confirmed_by_user_id, confirmed_by_role, assigned_driver_id, delivery_reference)
+    values (p_assignment_id, case when v_is_driver then 'driver'::public.delivery_confirmation_method else 'provider'::public.delivery_confirmation_method end,
+      auth.uid(), case when v_is_driver then 'driver' else 'provider' end, v_assignment.assigned_driver_id, v_assignment.id::text);
+    if not exists (select 1 from public.provider_delivery_assignments a where a.order_id = v_assignment.order_id and a.status <> 'delivered') then
+      update public.orders set status = 'delivered' where id = v_assignment.order_id and status = 'out_for_delivery';
+    end if;
+    insert into public.outbox_events (aggregate_type, aggregate_id, event_type, payload)
+    values ('delivery', p_assignment_id, 'delivery_confirmed', jsonb_build_object('order_id', v_assignment.order_id));
+  end if;
+  return v_valid;
+end;
+$$;
 create trigger provider_delivery_assignment_owner before insert or update on public.provider_delivery_assignments for each row execute function public.validate_provider_delivery_assignment();
 create trigger provider_delivery_assignment_transition before update on public.provider_delivery_assignments for each row execute function public.validate_provider_delivery_transition();
 create trigger provider_drivers_updated_at before update on public.provider_drivers for each row execute function public.set_updated_at();
@@ -3010,9 +3767,9 @@ create trigger provider_delivery_assignments_updated_at before update on public.
 
 alter table public.provider_drivers enable row level security;
 alter table public.provider_driver_accounts enable row level security;
-alter table public.provider_driver_sessions enable row level security;
 alter table public.provider_delivery_assignments enable row level security;
 alter table public.provider_delivery_updates enable row level security;
+alter table public.delivery_confirmation_codes enable row level security;
 alter table public.delivery_confirmation_records enable row level security;
 alter table public.delivery_confirmation_attempts enable row level security;
 alter table public.admin_driver_actions enable row level security;
@@ -3022,18 +3779,25 @@ create policy provider_drivers_admin_read on public.provider_drivers for select 
 create policy provider_drivers_admin_update on public.provider_drivers for update to authenticated using (public.is_admin()) with check (public.is_admin());
 create policy provider_driver_accounts_provider_read on public.provider_driver_accounts for select to authenticated using (exists(select 1 from public.provider_drivers d where d.id=driver_id and public.is_provider_member(d.provider_id)) or driver_id=public.current_provider_driver_id() or public.is_admin());
 create policy provider_driver_accounts_provider_manage on public.provider_driver_accounts for all to authenticated using (exists(select 1 from public.provider_drivers d where d.id=driver_id and public.is_provider_member(d.provider_id))) with check (exists(select 1 from public.provider_drivers d where d.id=driver_id and public.is_provider_member(d.provider_id)));
-create policy provider_driver_sessions_participant_read on public.provider_driver_sessions for select to authenticated using (driver_id=public.current_provider_driver_id() or exists(select 1 from public.provider_drivers d where d.id=driver_id and public.is_provider_member(d.provider_id)) or public.is_admin());
-create policy provider_assignments_provider_manage on public.provider_delivery_assignments for all to authenticated using (public.is_provider_member(provider_id)) with check (public.is_provider_member(provider_id));
+create policy provider_assignments_provider_select on public.provider_delivery_assignments for select to authenticated using (public.is_provider_member(provider_id));
+create policy provider_assignments_provider_insert on public.provider_delivery_assignments for insert to authenticated with check (public.is_provider_member(provider_id));
+create policy provider_assignments_provider_update on public.provider_delivery_assignments for update to authenticated using (public.is_provider_member(provider_id)) with check (public.is_provider_member(provider_id));
 create policy provider_assignments_driver_read on public.provider_delivery_assignments for select to authenticated using (assigned_driver_id=public.current_provider_driver_id());
 create policy provider_assignments_driver_update on public.provider_delivery_assignments for update to authenticated using (assigned_driver_id=public.current_provider_driver_id()) with check (assigned_driver_id=public.current_provider_driver_id());
-create policy provider_assignments_customer_read on public.provider_delivery_assignments for select to authenticated using (exists(select 1 from public.orders o where o.id=order_id and o.customer_profile_id=auth.uid()));
 create policy provider_assignments_admin_read on public.provider_delivery_assignments for select to authenticated using (public.is_admin());
-create policy provider_delivery_updates_participant_read on public.provider_delivery_updates for select to authenticated using (exists(select 1 from public.provider_delivery_assignments a join public.orders o on o.id=a.order_id where a.id=assignment_id and (public.is_provider_member(a.provider_id) or a.assigned_driver_id=public.current_provider_driver_id() or o.customer_profile_id=auth.uid() or public.is_admin())));
-create policy provider_delivery_updates_actor_insert on public.provider_delivery_updates for insert to authenticated with check (exists(select 1 from public.provider_delivery_assignments a where a.id=assignment_id and (public.is_provider_member(a.provider_id) or a.assigned_driver_id=public.current_provider_driver_id() or public.is_admin())));
-create policy delivery_confirmations_participant_read on public.delivery_confirmation_records for select to authenticated using (exists(select 1 from public.provider_delivery_assignments a join public.orders o on o.id=a.order_id where a.id=assignment_id and (public.is_provider_member(a.provider_id) or a.assigned_driver_id=public.current_provider_driver_id() or o.customer_profile_id=auth.uid() or public.is_admin())));
-create policy delivery_confirmations_actor_insert on public.delivery_confirmation_records for insert to authenticated with check (exists(select 1 from public.provider_delivery_assignments a where a.id=assignment_id and (public.is_provider_member(a.provider_id) or a.assigned_driver_id=public.current_provider_driver_id())));
+create policy provider_delivery_updates_participant_read on public.provider_delivery_updates for select to authenticated using (exists(select 1 from public.provider_delivery_assignments a where a.id=assignment_id and (public.is_provider_member(a.provider_id) or a.assigned_driver_id=public.current_provider_driver_id() or public.is_admin())));
+create policy provider_delivery_updates_actor_insert on public.provider_delivery_updates for insert to authenticated with check (
+  exists(
+    select 1 from public.provider_delivery_assignments a
+    where a.id=assignment_id and (
+      (public.is_provider_member(a.provider_id) and actor_role='provider' and actor_user_id=auth.uid())
+      or (a.assigned_driver_id=public.current_provider_driver_id() and actor_role='driver' and actor_user_id=auth.uid())
+      or public.is_admin()
+    )
+  )
+);
+create policy delivery_confirmations_participant_read on public.delivery_confirmation_records for select to authenticated using (exists(select 1 from public.provider_delivery_assignments a where a.id=assignment_id and (public.is_provider_member(a.provider_id) or a.assigned_driver_id=public.current_provider_driver_id() or public.is_admin())));
 create policy delivery_attempts_internal_read on public.delivery_confirmation_attempts for select to authenticated using (exists(select 1 from public.provider_delivery_assignments a where a.id=assignment_id and (public.is_provider_member(a.provider_id) or a.assigned_driver_id=public.current_provider_driver_id() or public.is_admin())));
-create policy delivery_attempts_actor_insert on public.delivery_confirmation_attempts for insert to authenticated with check (exists(select 1 from public.provider_delivery_assignments a where a.id=assignment_id and (public.is_provider_member(a.provider_id) or a.assigned_driver_id=public.current_provider_driver_id())));
 create policy admin_driver_actions_admin_all on public.admin_driver_actions for all to authenticated using (public.is_admin()) with check (public.is_admin());
 create policy admin_driver_actions_provider_read on public.admin_driver_actions for select to authenticated using (exists(select 1 from public.provider_drivers d where d.id=driver_id and public.is_provider_member(d.provider_id)));
 
@@ -3187,7 +3951,7 @@ create table public.order_admin_actions (
 );
 create table public.delivery_incidents (
   id uuid primary key default gen_random_uuid(),
-  delivery_assignment_id uuid references public.delivery_assignments(id) on delete set null,
+  delivery_assignment_id uuid references public.provider_delivery_assignments(id) on delete set null,
   admin_user_id uuid not null references public.admin_users(id) on delete restrict,
   incident_type text not null,
   severity public.admin_alert_priority not null,
@@ -3294,10 +4058,12 @@ create index platform_policy_versions_lookup_idx on public.platform_policy_versi
 create index audit_logs_admin_time_idx on public.audit_logs(admin_user_id,occurred_at desc);
 
 create or replace function public.admin_has_permission(requested_permission text)
-returns boolean language sql stable security definer set search_path = public as $$
-  select public.is_admin() and exists (
+returns boolean language sql stable security definer set search_path = public, pg_temp as $$
+  select exists (
     select 1 from public.admin_users au
     join public.admin_roles ar on ar.id = au.role_id
+    join public.user_roles ur on ur.profile_id = au.profile_id and ur.role = 'admin' and ur.revoked_at is null
+    join public.profiles p on p.id = au.profile_id and p.is_active
     where au.profile_id = auth.uid() and au.is_active
       and (ar.role_key = 'super_admin' or exists (
         select 1 from public.admin_role_permissions arp
@@ -3306,27 +4072,89 @@ returns boolean language sql stable security definer set search_path = public as
       ))
   )
 $$;
+
+insert into public.admin_roles (role_key, name_ar, description, is_system)
+values
+  ('super_admin','مدير النظام الأعلى','كامل الصلاحيات؛ يمنح يدويًا فقط',true),
+  ('operations_admin','مدير العمليات','إدارة الطلبات والتوريد والتوصيل',true),
+  ('finance_admin','مدير المالية','الفواتير والمدفوعات والتسويات',true),
+  ('support_admin','مدير الدعم','التذاكر والتواصل',true),
+  ('review_admin','مدير المراجعات','طلبات الانضمام والمنتجات والمشاريع',true),
+  ('read_only_auditor','مدقق للقراءة فقط','وصول قراءة مقيد للتدقيق',true)
+on conflict (role_key) do update set name_ar=excluded.name_ar,description=excluded.description,is_system=excluded.is_system;
+
+insert into public.admin_permissions (permission_key, name_ar, sensitivity)
+values
+  ('profiles.read','قراءة الملفات','sensitive'),
+  ('profiles.manage','إدارة الملفات والحالات','critical'),
+  ('roles.manage','إدارة الأدوار والصلاحيات','critical'),
+  ('admins.manage','إدارة المدراء','critical'),
+  ('operations.manage','إدارة العمليات','sensitive'),
+  ('decisions.create','تسجيل القرارات','sensitive'),
+  ('overrides.create','إنشاء تجاوزات','critical'),
+  ('reviews.manage','إدارة المراجعات','sensitive'),
+  ('sourcing.manage','إدارة التوريد الداخلي','sensitive'),
+  ('orders.manage','إدارة الطلبات','sensitive'),
+  ('deliveries.manage','إدارة التوصيل','sensitive'),
+  ('projects.manage','إدارة المشاريع','sensitive'),
+  ('finance.manage','إدارة المالية','critical'),
+  ('support.manage','إدارة الدعم','sensitive'),
+  ('policies.manage','إدارة السياسات','critical'),
+  ('settings.manage','إدارة الإعدادات','critical'),
+  ('audit.read','قراءة سجل التدقيق','critical')
+on conflict (permission_key) do update set name_ar=excluded.name_ar,sensitivity=excluded.sensitivity;
+
+insert into public.admin_role_permissions (role_id, permission_id)
+select r.id, p.id from public.admin_roles r cross join public.admin_permissions p where r.role_key='super_admin'
+on conflict do nothing;
+
+insert into public.admin_role_permissions (role_id, permission_id)
+select r.id, p.id
+from public.admin_roles r join public.admin_permissions p on
+  (r.role_key='operations_admin' and p.permission_key in ('profiles.read','profiles.manage','operations.manage','decisions.create','reviews.manage','sourcing.manage','orders.manage','deliveries.manage','projects.manage','support.manage')) or
+  (r.role_key='finance_admin' and p.permission_key in ('profiles.read','decisions.create','finance.manage','audit.read')) or
+  (r.role_key='support_admin' and p.permission_key in ('profiles.read','support.manage')) or
+  (r.role_key='review_admin' and p.permission_key in ('profiles.read','decisions.create','reviews.manage','sourcing.manage','projects.manage')) or
+  (r.role_key='read_only_auditor' and p.permission_key in ('profiles.read','audit.read'))
+on conflict do nothing;
+
+insert into public.platform_settings (setting_key, section, value, value_type, validation_rules, sensitivity, change_reason)
+values
+  ('commerce.vat_rate','commerce','15'::jsonb,'number','{"min":0,"max":100}'::jsonb,'sensitive','Production baseline reference value'),
+  ('pricing.confirmation_hours','pricing','72'::jsonb,'number','{"min":1,"max":720}'::jsonb,'sensitive','Confirmed by current three-day pricing rule'),
+  ('quotes.customer_validity_hours','quotes','24'::jsonb,'number','{"min":1,"max":168}'::jsonb,'sensitive','Confirmed by current customer quote rule'),
+  ('delivery.max_code_attempts','delivery','5'::jsonb,'number','{"min":1,"max":10}'::jsonb,'critical','Confirmed by current delivery rule'),
+  ('delivery.lock_minutes','delivery','15'::jsonb,'number','{"min":1,"max":1440}'::jsonb,'critical','Confirmed by current delivery rule')
+on conflict (setting_key) do update set value=excluded.value,value_type=excluded.value_type,validation_rules=excluded.validation_rules,sensitivity=excluded.sensitivity,change_reason=excluded.change_reason;
+
 create or replace function public.prevent_audit_mutation()
-returns trigger language plpgsql as $$ begin raise exception 'Audit records are immutable'; end $$;
+returns trigger language plpgsql set search_path = public, pg_temp as $$ begin raise exception 'Audit records are immutable'; end $$;
 create trigger audit_logs_immutable before update or delete on public.audit_logs for each row execute function public.prevent_audit_mutation();
 create trigger project_audit_logs_immutable before update or delete on public.project_audit_logs for each row execute function public.prevent_audit_mutation();
 create or replace function public.protect_last_super_admin()
-returns trigger language plpgsql as $$
+returns trigger language plpgsql set search_path = public, pg_temp as $$
 declare old_key public.admin_role_key; new_key public.admin_role_key;
 begin
   select role_key into old_key from public.admin_roles where id = old.role_id;
-  select role_key into new_key from public.admin_roles where id = new.role_id;
-  if old_key = 'super_admin' and (new_key <> 'super_admin' or not new.is_active) and
+  if tg_op = 'UPDATE' then
+    select role_key into new_key from public.admin_roles where id = new.role_id;
+  end if;
+  if old_key = 'super_admin'
+     and (tg_op = 'DELETE' or new_key <> 'super_admin' or not new.is_active)
+     and
      (select count(*) from public.admin_users u join public.admin_roles r on r.id=u.role_id where r.role_key='super_admin' and u.is_active) <= 1
   then raise exception 'The last active Super Admin cannot be demoted or disabled'; end if;
+  if tg_op = 'DELETE' then return old; end if;
   return new;
 end $$;
-create trigger admin_users_protect_super before update on public.admin_users for each row execute function public.protect_last_super_admin();
+create trigger admin_users_protect_super before update or delete on public.admin_users for each row execute function public.protect_last_super_admin();
 create trigger admin_roles_updated_at before update on public.admin_roles for each row execute function public.set_updated_at();
 create trigger admin_users_updated_at before update on public.admin_users for each row execute function public.set_updated_at();
 create trigger admin_alerts_updated_at before update on public.admin_alerts for each row execute function public.set_updated_at();
 create trigger delivery_incidents_updated_at before update on public.delivery_incidents for each row execute function public.set_updated_at();
 create trigger platform_settings_updated_at before update on public.platform_settings for each row execute function public.set_updated_at();
+create trigger admin_users_audit after insert or update on public.admin_users for each row execute function public.audit_sensitive_row();
+create trigger platform_settings_audit after insert or update on public.platform_settings for each row execute function public.audit_sensitive_row();
 
 alter table public.admin_roles enable row level security;
 alter table public.admin_permissions enable row level security;
@@ -3378,6 +4206,298 @@ create policy policy_versions_read on public.platform_policy_versions for select
 create policy policy_versions_manage on public.platform_policy_versions for all to authenticated using (public.admin_has_permission('policies.manage')) with check (public.admin_has_permission('policies.manage'));
 create policy platform_settings_read on public.platform_settings for select to authenticated using (public.is_admin());
 create policy platform_settings_manage on public.platform_settings for all to authenticated using (public.admin_has_permission('settings.manage')) with check (public.admin_has_permission('settings.manage'));
+
+alter policy audit_logs_admin_read on public.audit_logs using (public.admin_has_permission('audit.read'));
+alter policy project_audit_logs_admin_select on public.project_audit_logs using (public.admin_has_permission('audit.read'));
+alter policy platform_settings_read on public.platform_settings using (public.admin_has_permission('settings.manage'));
+alter policy profiles_select_own_or_admin on public.profiles using (id = auth.uid() or public.admin_has_permission('profiles.read'));
+alter policy profiles_update_own_or_admin on public.profiles using (id = auth.uid() or public.admin_has_permission('profiles.manage')) with check (id = auth.uid() or public.admin_has_permission('profiles.manage'));
+alter policy files_owner_read on public.files using (owner_profile_id = auth.uid() or public.admin_has_permission('profiles.read'));
+alter policy files_owner_soft_delete on public.files using (owner_profile_id = auth.uid() or public.admin_has_permission('profiles.manage')) with check (owner_profile_id = auth.uid() or public.admin_has_permission('profiles.manage'));
+alter policy user_roles_admin_manage on public.user_roles using (public.admin_has_permission('roles.manage')) with check (public.admin_has_permission('roles.manage'));
+alter policy products_admin_manage on public.products using (public.admin_has_permission('reviews.manage')) with check (public.admin_has_permission('reviews.manage'));
+alter policy orders_admin_manage on public.orders using (public.admin_has_permission('orders.manage')) with check (public.admin_has_permission('orders.manage'));
+alter policy invoices_admin_manage on public.invoices using (public.admin_has_permission('finance.manage')) with check (public.admin_has_permission('finance.manage'));
+alter policy invoice_items_admin_manage on public.invoice_items using (public.admin_has_permission('finance.manage')) with check (public.admin_has_permission('finance.manage'));
+alter policy payment_records_admin_manage on public.payment_records using (public.admin_has_permission('finance.manage')) with check (public.admin_has_permission('finance.manage'));
+alter policy financial_transactions_admin_manage on public.financial_transactions using (public.admin_has_permission('finance.manage')) with check (public.admin_has_permission('finance.manage'));
+alter policy settlements_admin_review on public.settlement_requests using (public.admin_has_permission('finance.manage')) with check (public.admin_has_permission('finance.manage'));
+alter policy provider_applications_select_own_or_admin on public.provider_applications using (applicant_profile_id = auth.uid() or public.admin_has_permission('reviews.manage'));
+alter policy provider_applications_admin_review on public.provider_applications using (public.admin_has_permission('reviews.manage')) with check (public.admin_has_permission('reviews.manage'));
+alter policy contractor_applications_select_own_or_admin on public.contractor_applications using (applicant_profile_id = auth.uid() or public.admin_has_permission('reviews.manage'));
+alter policy contractor_applications_admin_review on public.contractor_applications using (public.admin_has_permission('reviews.manage')) with check (public.admin_has_permission('reviews.manage'));
+alter policy project_requests_customer_all on public.project_requests using (customer_profile_id = auth.uid() or public.admin_has_permission('projects.manage')) with check (customer_profile_id = auth.uid() or public.admin_has_permission('projects.manage'));
+alter policy contractor_projects_admin_insert on public.contractor_projects with check (public.admin_has_permission('projects.manage'));
+alter policy contractor_project_comments_admin_all on public.contractor_project_comments using (public.admin_has_permission('reviews.manage')) with check (public.admin_has_permission('reviews.manage'));
+alter policy provider_assignments_admin_read on public.provider_delivery_assignments using (public.admin_has_permission('deliveries.manage'));
+create policy provider_assignments_admin_manage on public.provider_delivery_assignments for all to authenticated using (public.admin_has_permission('deliveries.manage')) with check (public.admin_has_permission('deliveries.manage'));
+alter policy notifications_admin_insert on public.notifications with check (public.admin_has_permission('operations.manage'));
+alter policy contractor_notifications_owner_all on public.contractor_notifications
+  using (public.is_contractor_owner(contractor_profile_id) or public.admin_has_permission('operations.manage'))
+  with check (public.is_contractor_owner(contractor_profile_id) or public.admin_has_permission('operations.manage'));
+alter policy project_notifications_owner_all on public.project_notifications
+  using (recipient_profile_id = auth.uid() or (contractor_profile_id is not null and public.is_contractor_owner(contractor_profile_id)) or public.admin_has_permission('projects.manage'))
+  with check (recipient_profile_id = auth.uid() or (contractor_profile_id is not null and public.is_contractor_owner(contractor_profile_id)) or public.admin_has_permission('projects.manage'));
+alter policy support_tickets_admin_update on public.support_tickets using (public.admin_has_permission('support.manage')) with check (public.admin_has_permission('support.manage'));
+
+create or replace function public.get_customer_project_comments(p_project_request_id uuid)
+returns table (
+  comment_id uuid,
+  comment_code text,
+  comment_type public.project_comment_type,
+  body text,
+  current_budget numeric,
+  proposed_budget numeric,
+  current_duration text,
+  proposed_duration text,
+  reason text,
+  requested_documents text[],
+  status public.project_comment_status,
+  customer_decision_note text,
+  reviewed_at timestamptz,
+  created_at timestamptz
+)
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+  select c.id, c.comment_code, c.type, c.body, c.current_budget, c.proposed_budget,
+         c.current_duration, c.proposed_duration, c.reason, c.requested_documents,
+         c.status, c.customer_decision_note, c.reviewed_at, c.created_at
+  from public.contractor_project_comments c
+  join public.project_requests r on r.id = c.project_request_id
+  where c.project_request_id = p_project_request_id
+    and r.customer_profile_id = auth.uid()
+    and c.status in ('approved_for_customer','accepted_by_customer','rejected_by_customer','customer_requested_clarification')
+  order by c.created_at;
+$$;
+
+create or replace function public.get_customer_deliveries()
+returns table (
+  delivery_id uuid,
+  order_id uuid,
+  order_code text,
+  delivery_status public.provider_delivery_status,
+  expected_at timestamptz,
+  delivered_at timestamptz,
+  driver_name text,
+  latest_status public.provider_delivery_status,
+  latest_update_at timestamptz
+)
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+  select a.id, o.id, o.order_code, a.status, a.expected_at, a.delivered_at, d.full_name,
+         u.to_status, u.created_at
+  from public.orders o
+  join public.provider_delivery_assignments a on a.order_id = o.id
+  left join public.provider_drivers d on d.id = a.assigned_driver_id
+  left join lateral (
+    select x.to_status, x.created_at from public.provider_delivery_updates x
+    where x.assignment_id = a.id order by x.created_at desc limit 1
+  ) u on true
+  where o.customer_profile_id = auth.uid()
+  order by a.expected_at desc;
+$$;
+
+create or replace function public.approve_provider_application(p_application_id uuid, p_reason text)
+returns uuid
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_application public.provider_applications%rowtype;
+  v_provider_id uuid;
+  v_admin_user_id uuid;
+begin
+  if not public.admin_has_permission('reviews.manage') or btrim(coalesce(p_reason,'')) = '' then raise exception 'Not authorized or missing reason'; end if;
+  select * into v_application from public.provider_applications where id = p_application_id for update;
+  if not found or v_application.status not in ('pending','needs_changes') or v_application.applicant_profile_id is null then raise exception 'Application is not approvable'; end if;
+  select id into v_admin_user_id from public.admin_users where profile_id = auth.uid() and is_active;
+
+  insert into public.providers (owner_profile_id, application_id, company_name, contact_name, mobile, email, google_maps_url, latitude, longitude, status, reviewed_by, reviewed_at, review_notes)
+  values (v_application.applicant_profile_id, v_application.id, v_application.company_name, v_application.contact_name, v_application.mobile, lower(v_application.email), v_application.google_maps_url, v_application.latitude, v_application.longitude, 'approved', auth.uid(), now(), p_reason)
+  returning id into v_provider_id;
+  insert into public.provider_profiles (provider_id, username, delivery_available)
+  values (v_provider_id, v_application.requested_username, v_application.delivery_available);
+  insert into public.provider_members (provider_id, profile_id, member_role, is_active)
+  values (v_provider_id, v_application.applicant_profile_id, 'owner', true);
+  insert into public.user_roles (profile_id, role, is_primary, granted_by)
+  values (v_application.applicant_profile_id, 'provider', false, auth.uid()) on conflict do nothing;
+  update public.provider_applications set status='approved',reviewed_by=auth.uid(),reviewed_at=now(),review_notes=p_reason where id=v_application.id;
+  insert into public.join_request_reviews (admin_user_id, request_kind, request_id, outcome, reason)
+  values (v_admin_user_id, 'provider', v_application.id, 'approved', p_reason);
+  insert into public.outbox_events (aggregate_type, aggregate_id, event_type, payload)
+  values ('provider', v_provider_id, 'provider_application_approved', jsonb_build_object('application_id', v_application.id));
+  return v_provider_id;
+end;
+$$;
+
+create or replace function public.approve_contractor_application(p_application_id uuid, p_reason text)
+returns uuid
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_application public.contractor_applications%rowtype;
+  v_contractor_id uuid;
+  v_admin_user_id uuid;
+begin
+  if not public.admin_has_permission('reviews.manage') or btrim(coalesce(p_reason,'')) = '' then raise exception 'Not authorized or missing reason'; end if;
+  select * into v_application from public.contractor_applications where id = p_application_id for update;
+  if not found or v_application.status not in ('pending','needs_changes') or v_application.applicant_profile_id is null then raise exception 'Application is not approvable'; end if;
+  select id into v_admin_user_id from public.admin_users where profile_id = auth.uid() and is_active;
+
+  insert into public.contractor_profiles (
+    profile_id, application_id, display_name, commercial_name, phone, email,
+    approval_status, directory_visible, subscription_active
+  ) values (
+    v_application.applicant_profile_id, v_application.id, v_application.contractor_name,
+    v_application.contractor_name, v_application.mobile, lower(v_application.email),
+    'approved', false, false
+  ) returning id into v_contractor_id;
+  insert into public.contractor_profile_specialties (profile_id, specialty_name, sort_order)
+  select v_contractor_id, specialty_name, row_number() over (order by created_at)::integer from public.contractor_specialties where application_id = v_application.id;
+  insert into public.contractor_profile_regions (profile_id, region_name)
+  select v_contractor_id, region_name from public.contractor_work_regions where application_id = v_application.id;
+  insert into public.user_roles (profile_id, role, is_primary, granted_by)
+  values (v_application.applicant_profile_id, 'contractor', false, auth.uid()) on conflict do nothing;
+  update public.contractor_applications set status='approved',reviewed_by=auth.uid(),reviewed_at=now(),review_notes=p_reason where id=v_application.id;
+  insert into public.join_request_reviews (admin_user_id, request_kind, request_id, outcome, reason)
+  values (v_admin_user_id, 'contractor', v_application.id, 'approved', p_reason);
+  insert into public.outbox_events (aggregate_type, aggregate_id, event_type, payload)
+  values ('contractor', v_contractor_id, 'contractor_application_approved', jsonb_build_object('application_id', v_application.id));
+  return v_contractor_id;
+end;
+$$;
+
+-- PostgreSQL grants EXECUTE to PUBLIC by default. Deny every function first,
+-- then expose only policy helpers and guarded transactional RPCs.
+revoke execute on all functions in schema public from public, anon, authenticated;
+grant execute on function public.is_admin() to anon, authenticated;
+grant execute on function public.has_role(public.user_role) to authenticated;
+grant execute on function public.is_provider_member(uuid) to authenticated;
+grant execute on function public.safe_storage_folder_uuid(text) to authenticated;
+grant execute on function public.is_contractor_owner(uuid) to authenticated;
+grant execute on function public.current_provider_driver_id() to authenticated;
+grant execute on function public.admin_has_permission(text) to authenticated;
+grant execute on function public.confirm_provider_price(uuid, numeric) to authenticated;
+grant execute on function public.select_best_provider_price(uuid) to authenticated;
+grant execute on function public.accept_customer_quote(uuid, text) to authenticated;
+grant execute on function public.reject_customer_quote(uuid) to authenticated;
+grant execute on function public.get_contractor_opportunities() to authenticated;
+grant execute on function public.get_customer_project_comments(uuid) to authenticated;
+grant execute on function public.get_customer_deliveries() to authenticated;
+grant execute on function public.confirm_delivery_code(uuid, text) to authenticated;
+grant execute on function public.initialize_customer_account() to authenticated;
+grant execute on function public.approve_provider_application(uuid, text) to authenticated;
+grant execute on function public.approve_contractor_application(uuid, text) to authenticated;
+grant execute on all functions in schema public to service_role;
+
+-- Supporting indexes for every remaining foreign-key access path.
+create index user_roles_granted_by_fk_idx on public.user_roles(granted_by);
+create index products_brand_fk_idx on public.products(brand_id);
+create index products_created_by_fk_idx on public.products(created_by);
+create index product_images_file_fk_idx on public.product_images(file_id);
+create index product_measurements_unit_fk_idx on public.product_measurements(unit_id);
+create index provider_applications_applicant_fk_idx on public.provider_applications(applicant_profile_id);
+create index provider_applications_reviewer_fk_idx on public.provider_applications(reviewed_by);
+create index provider_application_categories_category_fk_idx on public.provider_application_categories(category_id);
+create index provider_application_documents_file_fk_idx on public.provider_application_documents(file_id);
+create index provider_application_documents_reviewer_fk_idx on public.provider_application_documents(reviewed_by);
+create index contractor_applications_applicant_fk_idx on public.contractor_applications(applicant_profile_id);
+create index contractor_applications_reviewer_fk_idx on public.contractor_applications(reviewed_by);
+create index contractor_portfolio_items_profile_fk_idx on public.contractor_portfolio_items(profile_id);
+create index contractor_project_updates_contractor_fk_idx on public.contractor_project_updates(contractor_profile_id);
+create index contractor_project_documents_milestone_fk_idx on public.contractor_project_documents(milestone_id);
+create index contractor_project_documents_uploader_fk_idx on public.contractor_project_documents(uploaded_by);
+create index contractor_reviews_customer_fk_idx on public.contractor_reviews(customer_profile_id);
+create index contractor_review_replies_contractor_fk_idx on public.contractor_review_replies(contractor_profile_id);
+create index contractor_financial_project_fk_idx on public.contractor_financial_transactions(project_id);
+create index contractor_financial_milestone_fk_idx on public.contractor_financial_transactions(milestone_id);
+create index contractor_settlements_bank_fk_idx on public.contractor_settlement_requests(bank_account_id);
+create index contractor_settlements_reviewer_fk_idx on public.contractor_settlement_requests(reviewed_by);
+create index contractor_support_assignee_fk_idx on public.contractor_support_tickets(assigned_to);
+create index quote_items_measurement_fk_idx on public.quote_request_items(measurement_id);
+create index quote_items_unit_fk_idx on public.quote_request_items(unit_id);
+create index subscriptions_plan_fk_idx on public.subscriptions(plan_id);
+create index providers_reviewer_fk_idx on public.providers(reviewed_by);
+create index provider_members_profile_fk_idx on public.provider_members(profile_id);
+create index product_review_history_actor_fk_idx on public.product_review_history(changed_by);
+create index provider_quote_items_request_item_fk_idx on public.provider_quote_items(request_item_id);
+create index provider_quote_attachments_quote_fk_idx on public.provider_quote_attachments(provider_quote_id);
+create index provider_quote_history_quote_fk_idx on public.provider_quote_status_history(provider_quote_id);
+create index provider_quote_history_actor_fk_idx on public.provider_quote_status_history(changed_by);
+create index order_items_order_fk_idx on public.order_items(order_id);
+create index order_items_product_fk_idx on public.order_items(product_id);
+create index order_history_actor_fk_idx on public.order_status_history(changed_by);
+create index financial_transactions_order_fk_idx on public.financial_transactions(order_id);
+create index settlement_requests_bank_fk_idx on public.settlement_requests(bank_account_id);
+create index settlement_requests_reviewer_fk_idx on public.settlement_requests(reviewed_by);
+create index notifications_actor_fk_idx on public.notifications(actor_profile_id);
+create index support_tickets_opened_by_fk_idx on public.support_tickets(opened_by);
+create index support_tickets_assignee_fk_idx on public.support_tickets(assigned_to);
+create index support_attachments_ticket_fk_idx on public.support_ticket_attachments(ticket_id);
+create index support_attachments_file_fk_idx on public.support_ticket_attachments(file_id);
+create index support_messages_author_fk_idx on public.support_messages(author_profile_id);
+create index support_message_attachments_file_fk_idx on public.support_message_attachments(file_id);
+create index audit_logs_actor_fk_idx on public.audit_logs(actor_profile_id);
+create index invoice_items_order_item_fk_idx on public.invoice_items(order_item_id);
+create index saved_contractors_contractor_fk_idx on public.saved_contractors(contractor_profile_id);
+create index provider_price_confirmations_price_fk_idx on public.provider_price_confirmations(provider_product_price_id);
+create index internal_sourcing_items_request_item_fk_idx on public.internal_sourcing_request_items(quote_request_item_id);
+create index provider_pricing_responses_price_fk_idx on public.provider_pricing_responses(provider_product_price_id);
+create index internal_selection_results_actor_fk_idx on public.internal_selection_results(evaluated_by);
+create index selected_provider_items_sourcing_item_fk_idx on public.selected_provider_items(sourcing_request_item_id);
+create index bunya_quote_items_request_item_fk_idx on public.bunya_customer_quote_items(quote_request_item_id);
+create index bunya_quote_items_product_fk_idx on public.bunya_customer_quote_items(product_id);
+create index project_request_versions_actor_fk_idx on public.customer_project_request_versions(changed_by);
+create index project_comments_reviewer_fk_idx on public.contractor_project_comments(reviewed_by);
+create index project_comment_attachments_comment_fk_idx on public.contractor_project_comment_attachments(comment_id);
+create index admin_project_comment_reviews_reviewer_fk_idx on public.admin_project_comment_reviews(reviewer_id);
+create index project_change_decisions_customer_fk_idx on public.customer_project_change_decisions(customer_profile_id);
+create index policy_acceptances_profile_fk_idx on public.policy_acceptances(profile_id);
+create index project_notifications_request_fk_idx on public.project_notifications(project_request_id);
+create index project_notifications_contractor_fk_idx on public.project_notifications(contractor_profile_id);
+create index project_audit_actor_fk_idx on public.project_audit_logs(actor_profile_id);
+create index provider_drivers_creator_fk_idx on public.provider_drivers(created_by_provider_id);
+create index provider_delivery_updates_actor_fk_idx on public.provider_delivery_updates(actor_user_id);
+create index delivery_confirmation_records_actor_fk_idx on public.delivery_confirmation_records(confirmed_by_user_id);
+create index delivery_confirmation_records_driver_fk_idx on public.delivery_confirmation_records(assigned_driver_id);
+create index delivery_confirmation_attempts_actor_fk_idx on public.delivery_confirmation_attempts(attempted_by_user_id);
+create index admin_driver_actions_actor_fk_idx on public.admin_driver_actions(admin_user_id);
+create index admin_role_permissions_permission_fk_idx on public.admin_role_permissions(permission_id);
+create index admin_alerts_assignee_fk_idx on public.admin_alerts(assigned_admin_id);
+create index admin_operation_events_retry_fk_idx on public.admin_operation_events(retry_of);
+create index admin_decisions_actor_fk_idx on public.admin_decisions(admin_user_id);
+create index admin_overrides_actor_fk_idx on public.admin_overrides(admin_user_id);
+create index join_request_reviews_actor_fk_idx on public.join_request_reviews(admin_user_id);
+create index product_review_decisions_actor_fk_idx on public.product_review_decisions(admin_user_id);
+create index sourcing_reviews_request_fk_idx on public.sourcing_reviews(sourcing_request_id);
+create index sourcing_reviews_actor_fk_idx on public.sourcing_reviews(admin_user_id);
+create index bunya_quote_reviews_quote_fk_idx on public.bunya_quote_reviews(quote_id);
+create index bunya_quote_reviews_actor_fk_idx on public.bunya_quote_reviews(admin_user_id);
+create index order_admin_actions_order_fk_idx on public.order_admin_actions(order_id);
+create index order_admin_actions_actor_fk_idx on public.order_admin_actions(admin_user_id);
+create index delivery_incidents_assignment_fk_idx on public.delivery_incidents(delivery_assignment_id);
+create index delivery_incidents_actor_fk_idx on public.delivery_incidents(admin_user_id);
+create index project_request_reviews_actor_fk_idx on public.project_request_reviews(admin_user_id);
+create index project_comment_reviews_actor_fk_idx on public.project_comment_reviews(admin_user_id);
+create index settlement_reviews_actor_fk_idx on public.settlement_reviews(admin_user_id);
+create index support_assignments_assignee_fk_idx on public.support_assignments(assigned_admin_id);
+create index support_assignments_assigner_fk_idx on public.support_assignments(assigned_by);
+create index platform_policy_versions_policy_fk_idx on public.platform_policy_versions(policy_id);
+create index platform_policy_versions_creator_fk_idx on public.platform_policy_versions(created_by);
+create index platform_settings_updater_fk_idx on public.platform_settings(updated_by);
+create index contractor_documents_profile_fk_idx on public.contractor_documents(contractor_profile_id);
+create index project_requests_policy_acceptance_fk_idx on public.project_requests(policy_acceptance_id);
+create index quote_requests_customer_address_fk_idx on public.quote_requests(customer_address_id);
+create index contractor_comments_policy_acceptance_fk_idx on public.contractor_project_comments(policy_acceptance_id);
 
 -- TODO(admin-backend): seed the first Super Admin and permission matrix in a privileged deployment step.
 -- TODO(admin-network-audit): populate trusted IP/User-Agent values server-side; client values are not authoritative.

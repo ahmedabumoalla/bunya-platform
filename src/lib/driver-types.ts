@@ -10,7 +10,6 @@ export type ProviderDriver = {
   mobile:string;
   email:string;
   username:string;
-  passwordProof:string;
   status:DriverAccountStatus;
   mustChangePassword:boolean;
   internalNotes?:string;
@@ -88,16 +87,3 @@ export type DriverAdminAction = {
 
 export type PwaInstallState = {installed:boolean;dismissedAt?:string;installedAt?:string;platform?:string};
 export type PwaRoleShortcut = {role:"customer"|"provider"|"contractor"|"driver"|"admin";name:string;url:string};
-
-export type LocalRole = "customer"|"provider"|"contractor"|"driver"|"admin";
-export type LocalRoleSession = {
-  role:LocalRole;
-  userId:string;
-  displayName:string;
-  username:string;
-  email:string;
-  phone:string;
-  status:string;
-  loginAt:string;
-  expiresAt?:string;
-};
