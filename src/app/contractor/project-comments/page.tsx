@@ -1,2 +1,3 @@
-import {ContractorProjectComments} from "@/components/contractor/ContractorProjectComments";
-export default function Page(){return <ContractorProjectComments/>}
+export default function DatabaseRouteSlot() {
+  return null;
+}

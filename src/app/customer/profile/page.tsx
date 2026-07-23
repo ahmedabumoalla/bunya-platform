@@ -1,2 +1,3 @@
-import {CustomerProfilePage} from "@/components/customer/CustomerAccountPages";
-export default function Page(){return <CustomerProfilePage/>}
+export default function DatabaseRouteSlot() {
+  return null;
+}

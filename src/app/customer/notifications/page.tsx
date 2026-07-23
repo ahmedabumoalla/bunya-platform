@@ -1,2 +1,3 @@
-import {CustomerNotifications} from "@/components/customer/CustomerAccountPages";
-export default function Page(){return <CustomerNotifications/>}
+export default function DatabaseRouteSlot() {
+  return null;
+}

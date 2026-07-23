@@ -1,2 +1,3 @@
-import {ContractorNotifications} from "@/components/contractor/ContractorAccountPages";
-export default function Page(){return <ContractorNotifications/>}
+export default function DatabaseRouteSlot() {
+  return null;
+}

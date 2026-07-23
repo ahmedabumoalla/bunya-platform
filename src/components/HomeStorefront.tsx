@@ -20,6 +20,7 @@ const BunyaHero3D = dynamic(() => import("./home/BunyaHero3D"), {
 type HomeStorefrontProps = {
   categories: ProductCategory[];
   products: Product[];
+  dataError?: string;
 };
 
 type QuoteFormState = {
@@ -33,8 +34,6 @@ type QuoteFormState = {
 
 type QuoteErrors = Partial<Record<keyof QuoteFormState, string>>;
 
-const quoteStorageKey = "bunya-home-quote-items";
-
 type StoreViewTransition = { finished: Promise<void> };
 type StoreViewTransitionDocument = Document & {
   startViewTransition?: (update: () => void) => StoreViewTransition;
@@ -44,55 +43,17 @@ function getTodayValue() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function createInitialForm(product: Product): QuoteFormState {
-  const defaultMeasurement = product.measurements.find((item) => item.isDefault) ?? product.measurements[0];
+function createInitialForm(product?: Product): QuoteFormState {
+  const defaultMeasurement = product?.measurements.find((item) => item.isDefault) ?? product?.measurements[0];
 
   return {
     quantity: 1,
-    unit: defaultMeasurement?.unit ?? product.unit,
+    unit: defaultMeasurement?.unit ?? product?.unit ?? "",
     measurementId: defaultMeasurement?.id ?? "",
     desiredReceiptDate: getTodayValue(),
     mapsUrl: "",
     notes: "",
   };
-}
-
-function isQuoteRequestItem(value: unknown): value is QuoteRequestItem {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-
-  const item = value as Record<string, unknown>;
-  return (
-    typeof item.id === "string" &&
-    typeof item.productId === "string" &&
-    typeof item.productName === "string" &&
-    typeof item.quantity === "number" &&
-    typeof item.unit === "string" &&
-    typeof item.measurementId === "string" &&
-    typeof item.measurementLabel === "string" &&
-    typeof item.desiredReceiptDate === "string" &&
-    typeof item.mapsUrl === "string" &&
-    typeof item.createdAt === "string"
-  );
-}
-
-function readQuoteItems(): QuoteRequestItem[] {
-  if (typeof window === "undefined") {
-    return [];
-  }
-
-  try {
-    const raw = window.localStorage.getItem(quoteStorageKey);
-    if (!raw) {
-      return [];
-    }
-
-    const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter(isQuoteRequestItem) : [];
-  } catch {
-    return [];
-  }
 }
 
 function createQuoteId(productId: string) {
@@ -123,7 +84,7 @@ function isGoogleMapsUrl(value: string) {
   }
 }
 
-export function HomeStorefront({ categories, products }: HomeStorefrontProps) {
+export function HomeStorefront({ categories, products, dataError }: HomeStorefrontProps) {
   const [query, setQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<ProductCategory | "الكل">("الكل");
   const [headerCompact, setHeaderCompact] = useState(false);
@@ -135,7 +96,6 @@ export function HomeStorefront({ categories, products }: HomeStorefrontProps) {
   const [errors, setErrors] = useState<QuoteErrors>({});
   const [feedback, setFeedback] = useState("");
   const [duplicateItemId, setDuplicateItemId] = useState<string | null>(null);
-  const storageReadyRef = useRef(false);
   const storefrontRef = useRef<HTMLElement>(null);
   const productOriginRef = useRef<HTMLElement | null>(null);
 
@@ -144,15 +104,6 @@ export function HomeStorefront({ categories, products }: HomeStorefrontProps) {
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      storageReadyRef.current = true;
-      setQuoteItems(readQuoteItems());
-    }, 0);
-
-    return () => window.clearTimeout(timeoutId);
   }, []);
 
   useEffect(() => {
@@ -175,18 +126,6 @@ export function HomeStorefront({ categories, products }: HomeStorefrontProps) {
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [selectedProduct]);
-
-  useEffect(() => {
-    if (!storageReadyRef.current) {
-      return;
-    }
-
-    try {
-      window.localStorage.setItem(quoteStorageKey, JSON.stringify(quoteItems));
-    } catch {
-      // The in-memory request remains usable even if persistent storage is blocked.
-    }
-  }, [quoteItems]);
 
   const filteredProducts = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -309,10 +248,9 @@ export function HomeStorefront({ categories, products }: HomeStorefrontProps) {
       return;
     }
 
-    storageReadyRef.current = true;
     setDuplicateItemId(null);
     setQuoteItems((current) => [item, ...current]);
-    setFeedback("تمت إضافة المنتج إلى طلب عرض السعر محليا.");
+    setFeedback("تمت إضافة المنتج إلى الطلب الحالي. سجّل الدخول لإرساله ومتابعته.");
   };
 
   return (
@@ -342,10 +280,12 @@ export function HomeStorefront({ categories, products }: HomeStorefrontProps) {
         </div>
       </section>
 
+      {dataError ? <section className="store-home-section px-4"><div className="store-empty mx-auto max-w-7xl rounded-lg p-8 text-center" role="alert"><h2 className="text-xl font-black">تعذر الاتصال بقاعدة البيانات</h2><p className="mt-2 font-semibold text-[#2a2a2a]">{dataError}</p></div></section> : null}
+
       <section id="categories" className="store-home-section px-4" data-gsap-section>
         <div className="mx-auto max-w-7xl">
           <div className="store-category-heading">
-            <div><h2 className="text-xl font-black">التصنيفات</h2><span className="text-sm font-bold text-[#2a2a2a]">فلترة محلية فورية</span></div>
+            <div><h2 className="text-xl font-black">التصنيفات</h2><span className="text-sm font-bold text-[#2a2a2a]">تصنيفات محدثة من قاعدة البيانات</span></div>
           </div>
           <div className="store-category-row" role="list" aria-label="تصنيفات المنتجات">
             {(["الكل", ...categories] as const).map((category) => {
@@ -376,7 +316,9 @@ export function HomeStorefront({ categories, products }: HomeStorefrontProps) {
             <a className="store-text-link" href="#products">عرض الشبكة كاملة</a>
           </div>
           <div className="store-latest-grid">
-            {latestProducts.map((product, index) => <LatestProductCard index={index} key={product.id} onOpen={openProduct} product={product} />)}
+            {latestProducts.length > 0
+              ? latestProducts.map((product, index) => <LatestProductCard index={index} key={product.id} onOpen={openProduct} product={product} />)
+              : <div className="store-empty rounded-lg p-8 text-center"><h3 className="text-xl font-black">لا توجد منتجات حديثة حاليا</h3><p className="mt-2 font-semibold text-[#2a2a2a]">ستظهر هنا المنتجات المنشورة حديثا عند إضافتها.</p></div>}
           </div>
         </div>
       </section>

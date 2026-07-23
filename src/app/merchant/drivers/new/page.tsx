@@ -1,2 +1,3 @@
-import {ProviderDriverCreate} from "@/components/provider/ProviderDrivers";
-export default function Page(){return <ProviderDriverCreate/>}
+export default function DatabaseRouteSlot() {
+  return null;
+}

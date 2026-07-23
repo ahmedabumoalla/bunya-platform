@@ -1,2 +1,3 @@
-import { ProviderFinance } from "@/components/provider/ProviderFinance";
-export default function MerchantFinancePage(){return <ProviderFinance/>}
+export default function DatabaseRouteSlot() {
+  return null;
+}

@@ -1,2 +1,3 @@
-import { ProviderSupport } from "@/components/provider/ProviderSupport";
-export default function MerchantSupportPage(){return <ProviderSupport/>}
+export default function DatabaseRouteSlot() {
+  return null;
+}

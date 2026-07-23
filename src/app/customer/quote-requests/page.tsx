@@ -1,2 +1,3 @@
-import {CustomerQuoteRequests} from "@/components/customer/CustomerQuotePages";
-export default function Page(){return <CustomerQuoteRequests/>}
+export default function DatabaseRouteSlot() {
+  return null;
+}

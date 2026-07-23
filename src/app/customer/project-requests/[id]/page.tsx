@@ -1,2 +1,3 @@
-import {CustomerProjectRequestDetails} from "@/components/customer/CustomerProjectRequestPages";
-export default async function Page({params}:{params:Promise<{id:string}>}){const{id}=await params;return <CustomerProjectRequestDetails id={id}/>}
+export default function DatabaseRouteSlot() {
+  return null;
+}

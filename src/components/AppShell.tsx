@@ -67,7 +67,7 @@ export function AppShell({ children }: AppShellProps) {
           <p className="font-black">بُنية: منصة تشغيل لتوريد مواد البناء</p>
           <p className="max-w-2xl text-sm leading-6 text-[var(--muted)]">
             طلب المنتجات، تجميع العروض، اعتماد الأرخص المؤهل، والتسليم بكود
-            المصافحة ضمن تجربة Mock منظمة لكل دور.
+            المصافحة ضمن تجربة تشغيلية مترابطة لكل دور.
           </p>
         </div>
       </footer>

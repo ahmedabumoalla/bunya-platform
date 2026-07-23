@@ -1167,3 +1167,22 @@ body::after {
   }
   .bunya-hero-3d { transition: none; }
 }
+
+/* The storefront artwork belongs to the hero only; the remaining page is a calm solid canvas. */
+body:has(.store-home)::before {
+  background: none !important;
+}
+
+body:has(.store-home)::after {
+  background: #f6ead9 !important;
+}
+
+.store-home {
+  background: #f6ead9 !important;
+}
+
+.store-home .store-intro {
+  background:
+    linear-gradient(90deg, rgb(246 234 217 / 0.16), rgb(255 252 246 / 0.06)),
+    url("/visuals/bunya-daylight-site.png") center / cover no-repeat !important;
+}

@@ -1,2 +1,3 @@
-import {CustomerDeliveries} from "@/components/customer/CustomerOrderPages";
-export default function Page(){return <CustomerDeliveries/>}
+export default function DatabaseRouteSlot() {
+  return null;
+}

@@ -1,2 +1,3 @@
-import {CustomerProjectRequestNew} from "@/components/customer/CustomerProjectRequestPages";
-export default function Page(){return <CustomerProjectRequestNew/>}
+export default function DatabaseRouteSlot() {
+  return null;
+}

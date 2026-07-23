@@ -1,2 +1,3 @@
-import {CustomerDashboard} from "@/components/customer/CustomerDashboard";
-export default function Page(){return <CustomerDashboard/>}
+export default function DatabaseRouteSlot() {
+  return null;
+}
