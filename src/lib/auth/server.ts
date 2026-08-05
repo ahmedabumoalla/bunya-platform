@@ -21,6 +21,8 @@ export async function requirePortalRole(expectedRole: AppRole) {
     redirect(`/login?error=${encodeURIComponent(identity.status)}`);
   }
 
+  if (identity.profile?.mustChangePassword) redirect("/account/change-password");
+
   if (identity.primaryRole !== expectedRole) {
     redirect(routeForRole(identity.primaryRole));
   }

@@ -1,17 +1,21 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { navItems, platformName } from "@/lib/bunya-data";
 import { ThemeToggle } from "./ThemeToggle";
+
+const platformName = "بُنية";
+const compactNav = [
+  { href: "/", label: "الرئيسية" },
+  { href: "/products", label: "المنتجات" },
+  { href: "/customer", label: "حساب العميل" },
+  { href: "/contractors", label: "المقاولون" },
+  { href: "/subscriptions", label: "الاشتراكات" },
+] as const;
 
 type AppShellProps = {
   children: ReactNode;
 };
 
 export function AppShell({ children }: AppShellProps) {
-  const compactNav = navItems.filter((item) =>
-    ["/", "/products", "/customer", "/contractors", "/subscriptions"].includes(item.href),
-  );
-
   return (
     <main className="app-stage min-h-screen text-[var(--foreground)]">
       <header className="sticky top-0 z-50 border-b border-[var(--glass-border)] bg-white/75 shadow-[0_10px_40px_rgb(95_64_38/0.05)] backdrop-blur-2xl">

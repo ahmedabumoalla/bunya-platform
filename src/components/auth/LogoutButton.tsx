@@ -2,7 +2,6 @@
 
 import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { clearLegacyAuthStorage } from "@/lib/auth/legacy-cleanup";
 import { createClient } from "@/lib/supabase/client";
 
 export function LogoutButton({
@@ -22,7 +21,6 @@ export function LogoutButton({
     setBusy(true);
     const supabase = createClient();
     await supabase.auth.signOut();
-    clearLegacyAuthStorage();
     router.replace("/login");
     router.refresh();
   };

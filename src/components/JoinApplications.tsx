@@ -1,175 +1,74 @@
 "use client";
 
-import type { FormEvent } from "react";
+import type { ChangeEvent, FormEvent, ReactNode } from "react";
 import { useState } from "react";
 import type { ParsedMapLocation } from "@/lib/bunya-types";
 import { parseGoogleMapsLink } from "@/lib/bunya-local";
-import { createClient } from "@/lib/supabase/client";
-import { ApplicationSuccessState, MultiValueInput, PortalShell } from "./PortalUI";
+import { MultiValueInput, PortalShell } from "./PortalUI";
 
 type Errors = Record<string, string>;
+type Result = { applicationId: string; status: string; submittedAt: string };
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const mobilePattern = /^(?:\+?966|0)?5\d{8}$/;
 const quickRegions = ["المنطقة الجنوبية", "المنطقة الوسطى", "المنطقة الغربية", "المنطقة الشرقية", "المنطقة الشمالية"];
 
-function ApplicationFrame({ eyebrow, title, description, children }: { eyebrow: string; title: string; description: string; children: React.ReactNode }) {
+function Frame({ eyebrow, title, description, children }: { eyebrow: string; title: string; description: string; children: ReactNode }) {
   return <PortalShell><section className="portal-card application-card"><header className="portal-heading application-heading"><p>{eyebrow}</p><h1>{title}</h1><span>{description}</span></header>{children}</section></PortalShell>;
 }
-
 function Field({ id, label, value, onChange, error, type = "text", placeholder }: { id: string; label: string; value: string; onChange: (value: string) => void; error?: string; type?: string; placeholder?: string }) {
   return <div className="portal-field"><label htmlFor={id}>{label}</label><input id={id} type={type} placeholder={placeholder} value={value} onChange={(event) => onChange(event.target.value)} />{error ? <small className="portal-error">{error}</small> : null}</div>;
+}
+function Documents({ files, onChange, error }: { files: File[]; onChange: (files: File[]) => void; error?: string }) {
+  const select = (event: ChangeEvent<HTMLInputElement>) => onChange(Array.from(event.target.files || []));
+  return <fieldset className="form-section"><legend><span>05</span> المستندات الإثباتية</legend><label className="portal-field"><span>PDF أو JPEG أو PNG أو WebP — خمسة ملفات كحد أقصى، 10 ميجابايت للملف</span><input type="file" accept=".pdf,image/jpeg,image/png,image/webp" multiple onChange={select}/></label>{files.map((file) => <p className="portal-hint" key={`${file.name}-${file.size}`}>{file.name} — {(file.size / 1024 / 1024).toFixed(2)} MB</p>)}{error ? <small className="portal-error">{error}</small> : null}</fieldset>;
+}
+function Success({ result, kind }: { result: Result; kind: "provider" | "contractor" }) {
+  return <PortalShell><section className="portal-card application-card"><header className="portal-heading application-heading"><p>تم استلام الطلب</p><h1>طلب انضمام {kind === "provider" ? "المزود" : "المقاول"}</h1><span>سيصلك رد بعد مراجعة الإدارة.</span></header><dl className="admin-record-meta"><div><dt>رقم الطلب</dt><dd dir="ltr">{result.applicationId}</dd></div><div><dt>الحالة</dt><dd>{result.status === "pending" ? "قيد المراجعة" : result.status}</dd></div></dl></section></PortalShell>;
+}
+function validateDocuments(files: File[], errors: Errors) {
+  const allowed = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"]);
+  if (files.length > 5 || files.some((file) => file.size > 10 * 1024 * 1024 || !allowed.has(file.type))) errors.documents = "تحقق من عدد الملفات وأنواعها وأحجامها.";
+}
+async function send(kind: "provider" | "contractor", values: Record<string, string>, arrays: Record<string, string[]>, files: File[]) {
+  const data = new FormData();
+  Object.entries(values).forEach(([key, value]) => data.set(key, value));
+  Object.entries(arrays).forEach(([key, value]) => data.set(key, JSON.stringify(value)));
+  files.forEach((file) => data.append("documents", file));
+  data.set("website", "");
+  const idempotencyKey = crypto.randomUUID().replaceAll("-", "");
+  const response = await fetch(`/api/public/join/${kind}`, { method: "POST", body: data, headers: { "Idempotency-Key": idempotencyKey } });
+  const body = await response.json() as Result & { message?: string };
+  if (!response.ok) throw new Error(body.message || "تعذر إرسال الطلب.");
+  return body;
 }
 
 export function ProviderJoinFlow({ categories }: { categories: string[] }) {
   const [form, setForm] = useState({ companyName: "", contactName: "", mobile: "", email: "", username: "", mapsUrl: "", discountCode: "" });
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [customCategories, setCustomCategories] = useState<string[]>([]);
-  const [showOther, setShowOther] = useState(false);
-  const [deliveryAvailable, setDeliveryAvailable] = useState<boolean | null>(null);
-  const [deliveryRegions, setDeliveryRegions] = useState<string[]>([]);
-  const [mapResult, setMapResult] = useState<ParsedMapLocation | null>(null);
-  const [errors, setErrors] = useState<Errors>({});
-  const [success, setSuccess] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState("");
+  const [selected, setSelected] = useState<string[]>([]); const [custom, setCustom] = useState<string[]>([]); const [showOther, setShowOther] = useState(false);
+  const [delivery, setDelivery] = useState<boolean | null>(null); const [regions, setRegions] = useState<string[]>([]); const [files, setFiles] = useState<File[]>([]);
+  const [map, setMap] = useState<ParsedMapLocation | null>(null); const [errors, setErrors] = useState<Errors>({}); const [result, setResult] = useState<Result | null>(null); const [busy, setBusy] = useState(false); const [submitError, setSubmitError] = useState("");
   const update = (key: keyof typeof form, value: string) => { setForm((current) => ({ ...current, [key]: value })); setErrors((current) => ({ ...current, [key]: "" })); };
-  const toggleCategory = (category: string) => setSelectedCategories((current) => current.includes(category) ? current.filter((item) => item !== category) : [...current, category]);
-  const analyzeMap = () => { const result = parseGoogleMapsLink(form.mapsUrl); setMapResult(result); setErrors((current) => ({ ...current, mapsUrl: result.kind === "invalid" ? result.message : "" })); };
   const submit = async (event: FormEvent) => {
-    event.preventDefault();
-    const next: Errors = {};
-    if (form.companyName.trim().length < 2) next.companyName = "أدخل اسم الشركة.";
-    if (form.contactName.trim().length < 2) next.contactName = "أدخل اسم المسؤول.";
-    if (!mobilePattern.test(form.mobile.replace(/\s/g, ""))) next.mobile = "أدخل رقم جوال صحيحًا.";
-    if (!emailPattern.test(form.email.trim())) next.email = "أدخل بريدًا إلكترونيًا صحيحًا.";
-    if (form.username.trim().length < 4) next.username = "اسم المستخدم يجب أن يكون 4 أحرف على الأقل.";
-    const parsed = parseGoogleMapsLink(form.mapsUrl);
-    setMapResult(parsed);
-    if (parsed.kind === "invalid") next.mapsUrl = parsed.message;
-    const allCategories = [...selectedCategories, ...customCategories];
-    if (!allCategories.length) next.categories = "اختر تصنيفًا واحدًا على الأقل.";
-    if (deliveryAvailable === null) next.delivery = "حدد ما إذا كان التوصيل متوفرًا.";
-    if (deliveryAvailable && !deliveryRegions.length) next.deliveryRegions = "أضف منطقة توصيل واحدة على الأقل.";
-    if (Object.keys(next).length) return setErrors(next);
-    setSubmitting(true);
-    setSubmitError("");
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setSubmitting(false);
-      setSubmitError("يلزم تسجيل الدخول بحساب بُنية قبل إرسال طلب الانضمام.");
-      return;
-    }
-    const { data: application, error: applicationError } = await supabase.from("provider_applications").insert({
-      applicant_profile_id: user.id,
-      company_name: form.companyName.trim(),
-      contact_name: form.contactName.trim(),
-      mobile: form.mobile.trim(),
-      email: form.email.trim().toLowerCase(),
-      requested_username: form.username.trim(),
-      google_maps_url: parsed.url,
-      latitude: parsed.latitude ?? null,
-      longitude: parsed.longitude ?? null,
-      discount_code: form.discountCode.trim() || null,
-      delivery_available: deliveryAvailable === true,
-    }).select("id").single();
-    if (applicationError || !application) {
-      setSubmitting(false);
-      setSubmitError(applicationError?.message ?? "تعذر إنشاء طلب الانضمام.");
-      return;
-    }
-    const { data: categoryRecords, error: categoryLookupError } = selectedCategories.length
-      ? await supabase.from("product_categories").select("id,name").in("name", selectedCategories)
-      : { data: [], error: null };
-    if (categoryLookupError) {
-      setSubmitting(false);
-      setSubmitError(categoryLookupError.message);
-      return;
-    }
-    const categoryIds = new Map((categoryRecords ?? []).map((category) => [category.name, category.id]));
-    const categoryRows = [
-      ...selectedCategories.map((name) => ({ application_id: application.id, category_id: categoryIds.get(name) ?? null, custom_category: categoryIds.has(name) ? null : name })),
-      ...customCategories.map((name) => ({ application_id: application.id, category_id: null, custom_category: name })),
-    ];
-    const { error: categoriesError } = await supabase.from("provider_application_categories").insert(categoryRows);
-    const { error: regionsError } = deliveryAvailable && deliveryRegions.length
-      ? await supabase.from("provider_delivery_regions").insert(deliveryRegions.map((regionName) => ({ application_id: application.id, region_name: regionName })))
-      : { error: null };
-    setSubmitting(false);
-    if (categoriesError || regionsError) {
-      setSubmitError(categoriesError?.message ?? regionsError?.message ?? "تم إنشاء الطلب، لكن تعذر حفظ بعض التفاصيل.");
-      return;
-    }
-    setSuccess(true);
+    event.preventDefault(); const next: Errors = {};
+    if (form.companyName.trim().length < 2) next.companyName = "أدخل اسم الشركة."; if (form.contactName.trim().length < 2) next.contactName = "أدخل اسم المسؤول.";
+    if (!mobilePattern.test(form.mobile.replace(/\s/g, ""))) next.mobile = "أدخل رقم جوال صحيحًا."; if (!emailPattern.test(form.email.trim())) next.email = "أدخل بريدًا إلكترونيًا صحيحًا."; if (form.username.trim().length < 4) next.username = "اسم المستخدم أربعة أحرف على الأقل.";
+    const parsed = parseGoogleMapsLink(form.mapsUrl); setMap(parsed); if (parsed.kind === "invalid") next.mapsUrl = parsed.message;
+    const allCategories = [...selected, ...custom]; if (!allCategories.length) next.categories = "اختر تصنيفًا واحدًا على الأقل."; if (delivery === null) next.delivery = "حدد توفر التوصيل."; if (delivery && !regions.length) next.regions = "أضف منطقة توصيل واحدة على الأقل."; validateDocuments(files, next);
+    if (Object.keys(next).length) return setErrors(next); setBusy(true); setSubmitError("");
+    try { setResult(await send("provider", { ...form, mapsUrl: parsed.url, latitude: String(parsed.latitude ?? ""), longitude: String(parsed.longitude ?? ""), deliveryAvailable: String(delivery) }, { categories: allCategories, regions: delivery ? regions : ["لا يوجد توصيل"] }, files)); } catch (error) { setSubmitError(error instanceof Error ? error.message : "تعذر إرسال الطلب."); } finally { setBusy(false); }
   };
-  if (success) return <PortalShell><ApplicationSuccessState title="تم رفع طلب انضمام المزود" message="حُفظ الطلب في قاعدة بيانات بُنية بحالة قيد المراجعة." destination="طلبات الانضمام للمزودين" /></PortalShell>;
-  return <ApplicationFrame eyebrow="بوابة الشركاء" title="طلب انضمام مزود" description="قدّم بيانات منشأتك ومنتجاتك في نموذج منظم ومختصر."><form className="application-form" onSubmit={submit} noValidate>
-    <fieldset className="form-section"><legend><span>01</span> بيانات الشركة</legend><div className="form-grid"><Field id="provider-company" label="اسم الشركة" value={form.companyName} onChange={(v) => update("companyName", v)} error={errors.companyName} /><Field id="provider-contact" label="اسم المسؤول" value={form.contactName} onChange={(v) => update("contactName", v)} error={errors.contactName} /><Field id="provider-mobile" label="رقم الجوال" value={form.mobile} onChange={(v) => update("mobile", v)} error={errors.mobile} /><Field id="provider-email" label="البريد الإلكتروني" type="email" value={form.email} onChange={(v) => update("email", v)} error={errors.email} /><Field id="provider-user" label="اسم المستخدم" value={form.username} onChange={(v) => update("username", v)} error={errors.username} /><Field id="provider-discount" label="كود الخصم (اختياري)" value={form.discountCode} onChange={(v) => update("discountCode", v)} /></div></fieldset>
-    <fieldset className="form-section"><legend><span>02</span> موقع الشركة</legend><div className="map-input-row"><Field id="provider-map" label="رابط Google Maps" value={form.mapsUrl} onChange={(v) => { update("mapsUrl", v); setMapResult(null); }} error={errors.mapsUrl} placeholder="https://www.google.com/maps/..." /><button type="button" onClick={analyzeMap}>تحليل الرابط</button></div>{mapResult && mapResult.kind !== "invalid" ? <div className={`map-result map-result-${mapResult.kind}`}><strong>{mapResult.message}</strong>{mapResult.latitude !== undefined ? <span dir="ltr">{mapResult.latitude}, {mapResult.longitude}</span> : null}</div> : null}</fieldset>
-    <fieldset className="form-section"><legend><span>03</span> المنتجات المتوفرة</legend><div className="choice-grid">{categories.map((category) => <label className={selectedCategories.includes(category) ? "choice-card choice-card-active" : "choice-card"} key={category}><input type="checkbox" checked={selectedCategories.includes(category)} onChange={() => toggleCategory(category)} />{category}</label>)}<label className={showOther ? "choice-card choice-card-active" : "choice-card"}><input type="checkbox" checked={showOther} onChange={(event) => setShowOther(event.target.checked)} />أخرى</label></div>{showOther ? <MultiValueInput label="تصنيفات مخصصة" placeholder="اكتب التصنيف" values={customCategories} onChange={setCustomCategories} forbiddenValues={selectedCategories} /> : null}{errors.categories ? <small className="portal-error">{errors.categories}</small> : null}</fieldset>
-    <fieldset className="form-section"><legend><span>04</span> التوصيل</legend><p className="section-question">هل يتوفر توصيل؟</p><div className="binary-choice"><label className={deliveryAvailable === true ? "active" : ""}><input type="radio" name="delivery" checked={deliveryAvailable === true} onChange={() => { setDeliveryAvailable(true); setErrors((c) => ({ ...c, delivery: "" })); }} />نعم</label><label className={deliveryAvailable === false ? "active" : ""}><input type="radio" name="delivery" checked={deliveryAvailable === false} onChange={() => { setDeliveryAvailable(false); setDeliveryRegions([]); setErrors((c) => ({ ...c, delivery: "" })); }} />لا</label></div>{errors.delivery ? <small className="portal-error">{errors.delivery}</small> : null}{deliveryAvailable ? <MultiValueInput label="أماكن التوصيل" placeholder="مثال: شمال الرياض" values={deliveryRegions} onChange={setDeliveryRegions} error={errors.deliveryRegions} /> : null}</fieldset>
-    {submitError ? <p className="portal-form-error" role="alert">{submitError}</p> : null}
-    <button className="portal-primary-button application-submit" type="submit" disabled={submitting}>{submitting ? "جارٍ الإرسال..." : "رفع طلب الانضمام"}</button>
-  </form></ApplicationFrame>;
+  if (result) return <Success result={result} kind="provider"/>;
+  return <Frame eyebrow="بوابة الشركاء" title="طلب انضمام مزود" description="قدّم بيانات منشأتك دون الحاجة إلى تسجيل الدخول."><form className="application-form" onSubmit={submit} noValidate><input tabIndex={-1} autoComplete="off" className="sr-only" name="website"/>
+    <fieldset className="form-section"><legend><span>01</span> بيانات الشركة</legend><div className="form-grid"><Field id="provider-company" label="اسم الشركة" value={form.companyName} onChange={(v)=>update("companyName",v)} error={errors.companyName}/><Field id="provider-contact" label="اسم المسؤول" value={form.contactName} onChange={(v)=>update("contactName",v)} error={errors.contactName}/><Field id="provider-mobile" label="رقم الجوال" value={form.mobile} onChange={(v)=>update("mobile",v)} error={errors.mobile}/><Field id="provider-email" label="البريد الإلكتروني" type="email" value={form.email} onChange={(v)=>update("email",v)} error={errors.email}/><Field id="provider-user" label="اسم المستخدم المطلوب" value={form.username} onChange={(v)=>update("username",v)} error={errors.username}/><Field id="provider-discount" label="كود الخصم (اختياري)" value={form.discountCode} onChange={(v)=>update("discountCode",v)}/></div></fieldset>
+    <fieldset className="form-section"><legend><span>02</span> موقع الشركة</legend><div className="map-input-row"><Field id="provider-map" label="رابط Google Maps" value={form.mapsUrl} onChange={(v)=>{update("mapsUrl",v);setMap(null)}} error={errors.mapsUrl}/><button type="button" onClick={()=>setMap(parseGoogleMapsLink(form.mapsUrl))}>تحليل الرابط</button></div>{map && map.kind!=="invalid"?<p className="portal-hint">{map.message}</p>:null}</fieldset>
+    <fieldset className="form-section"><legend><span>03</span> التصنيفات</legend><div className="choice-grid">{categories.map((category)=><label className={selected.includes(category)?"choice-card choice-card-active":"choice-card"} key={category}><input type="checkbox" checked={selected.includes(category)} onChange={()=>setSelected((current)=>current.includes(category)?current.filter((v)=>v!==category):[...current,category])}/>{category}</label>)}<label className={showOther?"choice-card choice-card-active":"choice-card"}><input type="checkbox" checked={showOther} onChange={(e)=>setShowOther(e.target.checked)}/>أخرى</label></div>{showOther?<MultiValueInput label="تصنيفات مخصصة" placeholder="اكتب التصنيف" values={custom} onChange={setCustom}/>:null}{errors.categories?<small className="portal-error">{errors.categories}</small>:null}</fieldset>
+    <fieldset className="form-section"><legend><span>04</span> التوصيل</legend><div className="binary-choice"><label className={delivery===true?"active":""}><input type="radio" checked={delivery===true} onChange={()=>setDelivery(true)}/>نعم</label><label className={delivery===false?"active":""}><input type="radio" checked={delivery===false} onChange={()=>{setDelivery(false);setRegions([])}}/>لا</label></div>{delivery?<MultiValueInput label="مناطق التوصيل" placeholder="مثال: شمال الرياض" values={regions} onChange={setRegions} error={errors.regions}/>:null}{errors.delivery?<small className="portal-error">{errors.delivery}</small>:null}</fieldset>
+    <Documents files={files} onChange={setFiles} error={errors.documents}/>{submitError?<p className="portal-form-error" role="alert">{submitError}</p>:null}<button className="portal-primary-button application-submit" disabled={busy}>{busy?"جارٍ الإرسال...":"رفع طلب الانضمام"}</button></form></Frame>;
 }
 
 export function ContractorJoinFlow() {
-  const [form, setForm] = useState({ contractorName: "", mobile: "", email: "" });
-  const [regions, setRegions] = useState<string[]>([]);
-  const [specialties, setSpecialties] = useState<string[]>([]);
-  const [errors, setErrors] = useState<Errors>({});
-  const [success, setSuccess] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState("");
-  const update = (key: keyof typeof form, value: string) => { setForm((current) => ({ ...current, [key]: value })); setErrors({}); };
-  const toggleRegion = (region: string) => setRegions((current) => current.includes(region) ? current.filter((item) => item !== region) : [...current, region]);
-  const submit = async (event: FormEvent) => {
-    event.preventDefault();
-    const next: Errors = {};
-    if (form.contractorName.trim().length < 3) next.contractorName = "أدخل اسم المقاول.";
-    if (!mobilePattern.test(form.mobile.replace(/\s/g, ""))) next.mobile = "أدخل رقم جوال صحيحًا.";
-    if (!emailPattern.test(form.email.trim())) next.email = "أدخل بريدًا إلكترونيًا صحيحًا.";
-    if (!regions.length) next.regions = "اختر أو أضف منطقة عمل واحدة على الأقل.";
-    if (!specialties.length) next.specialties = "أضف تخصصًا واحدًا على الأقل.";
-    if (Object.keys(next).length) return setErrors(next);
-    setSubmitting(true);
-    setSubmitError("");
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setSubmitting(false);
-      setSubmitError("يلزم تسجيل الدخول بحساب بُنية قبل إرسال طلب الانضمام.");
-      return;
-    }
-    const { data: application, error: applicationError } = await supabase.from("contractor_applications").insert({
-      applicant_profile_id: user.id,
-      contractor_name: form.contractorName.trim(),
-      mobile: form.mobile.trim(),
-      email: form.email.trim().toLowerCase(),
-    }).select("id").single();
-    if (applicationError || !application) {
-      setSubmitting(false);
-      setSubmitError(applicationError?.message ?? "تعذر إنشاء طلب الانضمام.");
-      return;
-    }
-    const [{ error: regionsError }, { error: specialtiesError }] = await Promise.all([
-      supabase.from("contractor_work_regions").insert(regions.map((regionName) => ({ application_id: application.id, region_name: regionName }))),
-      supabase.from("contractor_specialties").insert(specialties.map((specialtyName) => ({ application_id: application.id, specialty_name: specialtyName }))),
-    ]);
-    setSubmitting(false);
-    if (regionsError || specialtiesError) {
-      setSubmitError(regionsError?.message ?? specialtiesError?.message ?? "تم إنشاء الطلب، لكن تعذر حفظ بعض التفاصيل.");
-      return;
-    }
-    setSuccess(true);
-  };
-  if (success) return <PortalShell><ApplicationSuccessState title="تم إرسال طلب انضمام المقاول" message="حُفظ الطلب في قاعدة بيانات بُنية بحالة قيد المراجعة." destination="طلبات انضمام المقاولين" /></PortalShell>;
-  return <ApplicationFrame eyebrow="بوابة المقاولين" title="طلب انضمام مقاول" description="عرّف بخبراتك ومناطق عملك وارفق بيانات مستنداتك."><form className="application-form" onSubmit={submit} noValidate>
-    <fieldset className="form-section"><legend><span>01</span> البيانات الأساسية</legend><div className="form-grid"><Field id="contractor-name" label="اسم المقاول" value={form.contractorName} onChange={(v) => update("contractorName", v)} error={errors.contractorName} /><Field id="contractor-mobile" label="رقم الجوال" value={form.mobile} onChange={(v) => update("mobile", v)} error={errors.mobile} /><Field id="contractor-email" label="البريد الإلكتروني" type="email" value={form.email} onChange={(v) => update("email", v)} error={errors.email} /></div></fieldset>
-    <fieldset className="form-section"><legend><span>02</span> مناطق العمل</legend><div className="choice-grid region-grid">{quickRegions.map((region) => <label className={regions.includes(region) ? "choice-card choice-card-active" : "choice-card"} key={region}><input type="checkbox" checked={regions.includes(region)} onChange={() => toggleRegion(region)} />{region}</label>)}</div><MultiValueInput label="مناطق مخصصة" placeholder="اكتب اسم المنطقة" values={regions.filter((region) => !quickRegions.includes(region))} onChange={(custom) => setRegions([...regions.filter((region) => quickRegions.includes(region)), ...custom])} error={errors.regions} forbiddenValues={quickRegions} /></fieldset>
-    <fieldset className="form-section"><legend><span>03</span> التخصصات</legend><MultiValueInput label="تخصصات المقاول" placeholder="مثال: بناء عظم" values={specialties} onChange={setSpecialties} error={errors.specialties} /></fieldset>
-    <fieldset className="form-section"><legend><span>04</span> المستندات الإثباتية</legend><p className="portal-hint">تُرفع المستندات من الملف المهني بعد اعتماد الحساب، ولا تُحفظ ملفات وهمية في المتصفح.</p></fieldset>
-    {submitError ? <p className="portal-form-error" role="alert">{submitError}</p> : null}
-    <button className="portal-primary-button application-submit" type="submit" disabled={submitting}>{submitting ? "جارٍ الإرسال..." : "إرسال طلب الانضمام"}</button>
-  </form></ApplicationFrame>;
+  const [form,setForm]=useState({contractorName:"",mobile:"",email:""}); const [regions,setRegions]=useState<string[]>([]); const [specialties,setSpecialties]=useState<string[]>([]); const [files,setFiles]=useState<File[]>([]); const [errors,setErrors]=useState<Errors>({}); const [result,setResult]=useState<Result|null>(null); const [busy,setBusy]=useState(false); const [submitError,setSubmitError]=useState("");
+  const submit=async(event:FormEvent)=>{event.preventDefault();const next:Errors={};if(form.contractorName.trim().length<3)next.contractorName="أدخل اسم المقاول.";if(!mobilePattern.test(form.mobile.replace(/\s/g,"")))next.mobile="أدخل رقم جوال صحيحًا.";if(!emailPattern.test(form.email.trim()))next.email="أدخل بريدًا إلكترونيًا صحيحًا.";if(!regions.length)next.regions="اختر منطقة عمل.";if(!specialties.length)next.specialties="أضف تخصصًا.";validateDocuments(files,next);if(Object.keys(next).length)return setErrors(next);setBusy(true);setSubmitError("");try{setResult(await send("contractor",form,{regions,specialties},files))}catch(error){setSubmitError(error instanceof Error?error.message:"تعذر إرسال الطلب.")}finally{setBusy(false)}};
+  if(result)return <Success result={result} kind="contractor"/>;
+  return <Frame eyebrow="بوابة المقاولين" title="طلب انضمام مقاول" description="عرّف بخبراتك ومناطق عملك دون الحاجة إلى تسجيل الدخول."><form className="application-form" onSubmit={submit} noValidate><fieldset className="form-section"><legend><span>01</span> البيانات الأساسية</legend><div className="form-grid"><Field id="contractor-name" label="اسم المقاول" value={form.contractorName} onChange={(v)=>setForm({...form,contractorName:v})} error={errors.contractorName}/><Field id="contractor-mobile" label="رقم الجوال" value={form.mobile} onChange={(v)=>setForm({...form,mobile:v})} error={errors.mobile}/><Field id="contractor-email" label="البريد الإلكتروني" type="email" value={form.email} onChange={(v)=>setForm({...form,email:v})} error={errors.email}/></div></fieldset><fieldset className="form-section"><legend><span>02</span> مناطق العمل</legend><div className="choice-grid region-grid">{quickRegions.map((region)=><label className={regions.includes(region)?"choice-card choice-card-active":"choice-card"} key={region}><input type="checkbox" checked={regions.includes(region)} onChange={()=>setRegions((current)=>current.includes(region)?current.filter((v)=>v!==region):[...current,region])}/>{region}</label>)}</div><MultiValueInput label="مناطق مخصصة" placeholder="اكتب المنطقة" values={regions.filter((r)=>!quickRegions.includes(r))} onChange={(custom)=>setRegions([...regions.filter((r)=>quickRegions.includes(r)),...custom])} error={errors.regions}/></fieldset><fieldset className="form-section"><legend><span>03</span> التخصصات</legend><MultiValueInput label="تخصصات المقاول" placeholder="مثال: بناء عظم" values={specialties} onChange={setSpecialties} error={errors.specialties}/></fieldset><Documents files={files} onChange={setFiles} error={errors.documents}/>{submitError?<p className="portal-form-error" role="alert">{submitError}</p>:null}<button className="portal-primary-button application-submit" disabled={busy}>{busy?"جارٍ الإرسال...":"إرسال طلب الانضمام"}</button></form></Frame>;
 }

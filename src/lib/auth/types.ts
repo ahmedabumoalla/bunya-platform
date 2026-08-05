@@ -24,6 +24,8 @@ export type ProfileIdentity = {
   mobile: string | null;
   email: string | null;
   isActive: boolean;
+  mustChangePassword: boolean;
+  temporaryPasswordExpiresAt: string | null;
 };
 
 export type RoleDetails = {

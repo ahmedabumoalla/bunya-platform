@@ -7,8 +7,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { useAuthIdentity } from "@/components/auth/AuthIdentityProvider";
-import { adminStorageKeys } from "@/lib/admin-storage";
 import { createClient } from "@/lib/supabase/client";
+
+const sidebarPreferenceKey = "bunya-admin-sidebar-state";
 
 type AdminNavItem = readonly [label: string, href: string, icon: string];
 type AdminNavGroup = readonly [label: string, items: readonly AdminNavItem[]];
@@ -17,7 +18,7 @@ const groups: readonly AdminNavGroup[] = [
   ["المستخدمون والانضمام", [["المستخدمون", "/admin/users", "♙"], ["طلبات المزودين", "/admin/join-requests/providers", "▦"], ["طلبات المقاولين", "/admin/join-requests/contractors", "▤"], ["السائقون", "/admin/drivers", "⌖"], ["المدراء والصلاحيات", "/admin/admins", "⚿"]]],
   ["المنتجات والتوريد", [["التصنيفات والمنتجات", "/admin/catalog", "▦"], ["مراجعة المنتجات", "/admin/products/review", "✓"], ["الأسعار والتوفر", "/admin/pricing", "◈"], ["محرك التوريد", "/admin/sourcing", "⌘"], ["عروض بُنية", "/admin/bunya-quotes", "◇"]]],
   ["الطلبات والتنفيذ", [["طلبات المنتجات", "/admin/quote-requests", "◫"], ["الطلبات", "/admin/orders", "▤"], ["التوصيل والسائقون", "/admin/deliveries", "⌖"], ["مراقبة التوصيل", "/admin/delivery-monitoring", "◎"], ["أكواد التسليم", "/admin/delivery-codes", "#"]]],
-  ["المقاولات", [["طلبات المشاريع", "/admin/project-requests", "▥"], ["فرص المشاريع", "/admin/contractor-opportunities", "◫"], ["عروض المقاولين", "/admin/contractor-proposals", "◈"], ["المشاريع", "/admin/contractor-projects", "▤"], ["مراجعة التعليقات", "/admin/project-comments", "✎"], ["مستندات المقاولين", "/admin/contractor-documents", "▧"], ["التقييمات", "/admin/reviews", "★"]]],
+  ["المقاولات", [["مراجعة الخدمات", "/admin/contractor-services", "✓"], ["مراجعة معرض الأعمال", "/admin/contractor-portfolio", "▧"], ["طلبات المشاريع", "/admin/project-requests", "▥"], ["فرص المشاريع", "/admin/contractor-opportunities", "◫"], ["عروض المقاولين", "/admin/contractor-proposals", "◈"], ["المشاريع", "/admin/contractor-projects", "▤"], ["مراجعة التعليقات", "/admin/project-comments", "✎"], ["مستندات المقاولين", "/admin/contractor-documents", "▧"], ["التقييمات", "/admin/reviews", "★"]]],
   ["المالية", [["المركز المالي", "/admin/finance", "◉"], ["تصفيات المزودين", "/admin/settlements/providers", "⇄"], ["تصفيات المقاولين", "/admin/settlements/contractors", "⇄"], ["الفواتير والاسترجاعات", "/admin/invoices", "▧"]]],
   ["التواصل والحوكمة", [["الإشعارات", "/admin/notifications", "◌"], ["الدعم والتذاكر", "/admin/support", "?"], ["السياسات", "/admin/policies", "§"], ["سجل التدقيق", "/admin/audit", "☷"], ["إعدادات المنصة", "/admin/settings", "⚙"]]],
 ];
@@ -34,7 +35,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
-    setCollapsed(localStorage.getItem(adminStorageKeys.sidebar) === "collapsed");
+    setCollapsed(localStorage.getItem(sidebarPreferenceKey) === "collapsed");
     setDate(new Intl.DateTimeFormat("ar-SA", { weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date()));
     void createClient().from("admin_alerts").select("id", { count: "exact", head: true }).neq("status", "resolved").in("priority", ["high", "critical"]).then(({ count }) => {
       if (active) setAlerts(count ?? 0);
@@ -44,7 +45,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
   const toggle = () => setCollapsed((current) => {
     const next = !current;
-    localStorage.setItem(adminStorageKeys.sidebar, next ? "collapsed" : "expanded");
+    localStorage.setItem(sidebarPreferenceKey, next ? "collapsed" : "expanded");
     return next;
   });
   const activeLabel = labels.find(([, href]) => href === "/admin" ? pathname === href : pathname.startsWith(href))?.[0] ?? "إدارة منصة بُنية";

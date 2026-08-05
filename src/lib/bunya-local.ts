@@ -1,36 +1,10 @@
-import type {
-  ContractorApplication,
-  CustomerRegistration,
-  ParsedMapLocation,
-  ProviderApplication,
-} from "./bunya-types";
-
-export const localStorageKeys = {
-  customers: "bunya-customer-registrations",
-  providers: "bunya-provider-applications",
-  contractors: "bunya-contractor-applications",
-} as const;
+import type { ParsedMapLocation } from "./bunya-types";
 
 export function createLocalId(prefix: string) {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return `${prefix}-${crypto.randomUUID()}`;
   }
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-export function readLocalCollection<T>(key: string): T[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const value: unknown = JSON.parse(window.localStorage.getItem(key) ?? "[]");
-    return Array.isArray(value) ? (value as T[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-export function appendLocalRecord<T>(key: string, record: T) {
-  const records = readLocalCollection<T>(key);
-  window.localStorage.setItem(key, JSON.stringify([record, ...records]));
 }
 
 export function validatePassword(password: string) {
@@ -93,5 +67,3 @@ export function parseGoogleMapsLink(value: string): ParsedMapLocation {
 
   return { url: trimmed, kind: "maps-link", message: "الرابط صالح، لكنه لا يحتوي على إحداثيات صريحة." };
 }
-
-export type LocalRecord = CustomerRegistration | ProviderApplication | ContractorApplication;

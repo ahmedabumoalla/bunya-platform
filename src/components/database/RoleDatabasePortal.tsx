@@ -6,6 +6,11 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useAuthIdentity } from "@/components/auth/AuthIdentityProvider";
 import type { AppRole } from "@/lib/auth/types";
 import { createClient } from "@/lib/supabase/client";
+import {AdminDeliveryCode,AdminOutbox,AdminQuoteAssembly,CustomerQuoteDecision,CustomerRfqForm,DriverDeliveryWorkflow,ProviderFulfillmentWorkflow,ProviderRfqResponse} from "@/components/commerce/CommerceActions";
+import {AdminJoinRequests} from "@/components/admin/AdminJoinRequests";
+import{OpportunityProposal,ProjectProposalDecisions,ProjectRequestForm}from"@/components/contractor/ContractorWorkflows";
+import{AdminContractorCatalogReview,ContractorPortfolioManager,ContractorServicesManager}from"@/components/contractor/ContractorCatalogWorkflows";
+import{AdminSettlements,ContractorFinance,NotificationCenter,SupportCenter}from"@/components/operations/SupportFinanceWorkflows";
 
 type MetricConfig = { label: string; table: string };
 type RouteConfig = {
@@ -298,6 +303,28 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
   }, [config, detailId, pathname]);
 
   if (pathname === "/driver/change-password") return children;
+  if(role==="customer"&&pathname.endsWith("/payment"))return children;
+  if(role==="customer"&&pathname==="/customer/quote-request/new")return <CustomerRfqForm/>;
+  if(role==="provider"&&pathname.startsWith("/merchant/quote-requests/")&&detailId)return <ProviderRfqResponse id={detailId}/>;
+  if(role==="customer"&&pathname.startsWith("/customer/quotes/")&&detailId)return <CustomerQuoteDecision id={detailId}/>;
+  if(role==="admin"&&pathname.startsWith("/admin/sourcing/")&&detailId)return <AdminQuoteAssembly id={detailId}/>;
+  if(role==="admin"&&pathname==="/admin/operations")return <AdminOutbox/>;
+  if(role==="driver"&&pathname==="/driver")return <DriverDeliveryWorkflow/>;
+  if(role==="admin"&&pathname.startsWith("/admin/delivery-codes/")&&detailId)return <AdminDeliveryCode id={detailId}/>;
+  if(role==="admin"&&pathname==="/admin/join-requests/providers")return <AdminJoinRequests kind="provider"/>;
+  if(role==="admin"&&pathname==="/admin/join-requests/contractors")return <AdminJoinRequests kind="contractor"/>;
+  if(role==="provider"&&pathname.startsWith("/merchant/orders/")&&detailId)return <ProviderFulfillmentWorkflow id={detailId}/>;
+  if(role==="customer"&&pathname==="/customer/project-requests/new")return <ProjectRequestForm/>;
+  if(role==="contractor"&&pathname.startsWith("/contractor/opportunities/")&&detailId)return <OpportunityProposal id={detailId}/>;
+  if(role==="customer"&&pathname.startsWith("/customer/project-requests/")&&detailId)return <ProjectProposalDecisions id={detailId}/>;
+  if(role==="contractor"&&pathname==="/contractor/services")return <ContractorServicesManager/>;
+  if(role==="contractor"&&pathname==="/contractor/portfolio")return <ContractorPortfolioManager/>;
+  if(role==="admin"&&pathname==="/admin/contractor-services")return <AdminContractorCatalogReview kind="service"/>;
+  if(role==="admin"&&pathname==="/admin/contractor-portfolio")return <AdminContractorCatalogReview kind="portfolio"/>;
+  if(pathname.endsWith("/support"))return <SupportCenter admin={role==="admin"}/>;
+  if(role==="contractor"&&pathname==="/contractor/finance")return <ContractorFinance/>;
+  if(role==="admin"&&(pathname==="/admin/settlements/contractors"||pathname==="/admin/finance"))return <AdminSettlements/>;
+  if(pathname.endsWith("/notifications"))return <NotificationCenter/>;
 
   const viewer = identity.profile?.fullName ?? identity.profile?.username ?? "مستخدم بُنية";
   return (

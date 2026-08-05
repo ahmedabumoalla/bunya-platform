@@ -138,7 +138,7 @@ export type ContractorProfile = {
   serviceTypes: string[];
   yearsExperience: number;
   summary: string;
-  mockWorkImages: string[];
+  workItems: Array<{ title: string; mediaUrl: string | null; mimeType: string | null }>;
   phone: string;
   email: string;
   subscriptionActive: boolean;

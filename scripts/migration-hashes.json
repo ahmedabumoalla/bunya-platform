@@ -1,0 +1,12 @@
+{
+  "001_bunya_production_schema.sql": "6b6c4dd26cdc66121dfb6d17af742ce36b001ffba1f17e3c6d3a85446d331c34",
+  "002_provider_contractor_onboarding.sql": "25b48082c21e3f6454d669d5a3dfaff1ea139e9e6670b20d4c7c3203a1e9fd13",
+  "003_notification_delivery_providers.sql": "4fae4b83537665dd655bca7a784a0b2918b2cb195a178c1cdea0ab0e77678419",
+  "004_join_revision_tokens.sql": "191315965a8956cb05bf8aa12b7095e3f62102adc58b7c558dc89431faf64e55",
+  "005_complete_commerce_workflows.sql": "e99a9b88a89f626d0023371b30e325cd5a5ff60c70e43c001c981f44121f4564",
+  "006_contractor_workflows.sql": "4770ab0b04f8042efffd8233e975960df915e301fd783646358a3affb0c4c124",
+  "007_contractor_services_portfolio.sql": "7d783f0c1ac685905a4c165b4fa60d49e1326684b2f7f0c42fcc3b086e8c02fc",
+  "008_support_settlements_notifications.sql": "718b0704e935b1bde60d3c2e65d50b169c968cd04b24b92b846e784e83761167",
+  "009_security_definer_execute_hardening.sql": "8b5314f79ca5c27db58ea9ee1bcf7e8ab3ea6124cf41814f024422af35717364",
+  "010_reconcile_onboarding_migration_history.sql": "16f8e311481e0b38fbfff70a031f1f516af40fb86c7abe735ada6f18516dc92f"
+}

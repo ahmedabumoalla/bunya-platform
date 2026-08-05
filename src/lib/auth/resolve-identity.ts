@@ -14,6 +14,8 @@ type ProfileRow = {
   mobile: string | null;
   email: string | null;
   is_active: boolean;
+  must_change_password: boolean;
+  temporary_password_expires_at: string | null;
 };
 
 type UserRoleRow = {
@@ -34,7 +36,7 @@ export async function resolveAuthIdentity(supabase: SupabaseClient, user: User):
   const [profileResult, rolesResult] = await Promise.all([
     supabase
       .from("profiles")
-      .select("id,username,full_name,mobile,email,is_active")
+      .select("id,username,full_name,mobile,email,is_active,must_change_password,temporary_password_expires_at")
       .eq("id", user.id)
       .maybeSingle(),
     supabase
@@ -62,6 +64,8 @@ export async function resolveAuthIdentity(supabase: SupabaseClient, user: User):
         mobile: profileRow.mobile,
         email: profileRow.email,
         isActive: profileRow.is_active,
+        mustChangePassword: profileRow.must_change_password,
+        temporaryPasswordExpiresAt: profileRow.temporary_password_expires_at,
       }
     : null;
 

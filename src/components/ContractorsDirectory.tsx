@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useMemo, useState } from "react";
@@ -34,7 +35,7 @@ export function ContractorsDirectory({ contractors, dataError }: { contractors: 
         <div className="contractor-card-top"><span className="contractor-avatar">{contractor.displayName.slice(0, 1)}</span><div><p>{contractor.badge}</p><h2>{contractor.commercialName}</h2><span>{contractor.city} · {contractor.yearsExperience} سنوات خبرة</span></div><strong>معتمد</strong></div>
         <p className="contractor-summary">{contractor.summary}</p>
         <div className="contractor-meta"><section><h3>التخصصات</h3><div>{contractor.serviceTypes.map((item) => <span key={item}>{item}</span>)}</div></section><section><h3>مناطق العمل</h3><div><span>{contractor.city}</span><span>النطاق المحيط</span></div></section></div>
-        {contractor.mockWorkImages.length ? <div className="contractor-work">{contractor.mockWorkImages.map((title) => <span key={title}>{title}</span>)}</div> : null}
+        {contractor.workItems.length ? <div className="contractor-work">{contractor.workItems.map((item) => <span key={item.title}>{item.mediaUrl&&item.mimeType?.startsWith("image/")?<img src={item.mediaUrl} alt={item.title}/>:null}{item.title}</span>)}</div> : null}
         <div className="directory-card-actions"><Link href="/login">سجّل الدخول لحفظ المقاول</Link><button type="button" disabled>عرض التفاصيل — قريبًا</button></div>
       </article>)}</div> : !dataError ? <div className="directory-empty"><strong>لا توجد نتائج مطابقة</strong><span>غيّر كلمات البحث أو أعد ضبط أحد الفلاتر.</span><button type="button" onClick={() => { setQuery(""); setRegion("الكل"); setSpecialty("الكل"); }}>إعادة ضبط الفلاتر</button></div> : null}
     </section>

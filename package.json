@@ -7,7 +7,13 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "check:ui-colors": "node scripts/check-ui-foreground-colors.mjs"
+    "check:ui-colors": "node scripts/check-ui-foreground-colors.mjs",
+    "check:no-operational-mocks": "node scripts/check-no-operational-mocks.mjs"
+    ,"test:sql": "node scripts/validate-sql.mjs"
+    ,"test:integration": "node tests/workflow-integration.mjs"
+    ,"test:routes": "node scripts/route-smoke.mjs"
+    ,"test:route-audit": "node scripts/audit-routes.mjs"
+    ,"test:migration-hashes": "node scripts/check-migration-hashes.mjs"
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",

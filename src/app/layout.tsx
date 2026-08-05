@@ -6,7 +6,6 @@ import "./brand-experience.css";
 import "./database.css";
 import {PwaRuntime} from "@/components/PwaRuntime";
 import {BunyaVisualRuntime} from "@/components/BunyaVisualRuntime";
-import {LegacyAuthCleanup} from "@/components/auth/LegacyAuthCleanup";
 
 export const metadata: Metadata = {
   title: "بُنية | منصة توريد مواد البناء",
@@ -26,7 +25,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ar" dir="rtl">
-      <body><LegacyAuthCleanup/><PwaRuntime/><BunyaVisualRuntime/>{children}</body>
+      <body><PwaRuntime/><BunyaVisualRuntime/>{children}</body>
     </html>
   );
 }

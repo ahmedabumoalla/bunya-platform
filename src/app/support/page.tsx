@@ -1,0 +1,2 @@
+import{redirect}from"next/navigation";import{createClient}from"@/lib/supabase/server";import{resolveAuthIdentity}from"@/lib/auth/resolve-identity";
+export default async function SupportRedirect(){const supabase=await createClient(),{data:{user}}=await supabase.auth.getUser();if(!user)redirect('/login');const identity=await resolveAuthIdentity(supabase,user);redirect(`/${identity.primaryRole==='provider'?'merchant':identity.primaryRole??'customer'}/support`)}

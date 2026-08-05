@@ -7,7 +7,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { useAuthIdentity } from "@/components/auth/AuthIdentityProvider";
-import { contractorStorageKeys } from "@/lib/contractor-storage";
+const sidebarPreferenceKey = "bunya-contractor-sidebar-state";
 import { createClient } from "@/lib/supabase/client";
 import { ContractorStatus } from "./ContractorUI";
 
@@ -37,7 +37,7 @@ export function ContractorShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
-    setCollapsed(localStorage.getItem(contractorStorageKeys.sidebar) === "collapsed");
+    setCollapsed(localStorage.getItem(sidebarPreferenceKey) === "collapsed");
     setDate(new Intl.DateTimeFormat("ar-SA", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date()));
     void createClient().from("contractor_notifications").select("id", { count: "exact", head: true }).is("read_at", null).then(({ count }) => {
       if (active) setUnread(count ?? 0);
@@ -47,7 +47,7 @@ export function ContractorShell({ children }: { children: ReactNode }) {
 
   const toggle = () => setCollapsed((value) => {
     const next = !value;
-    localStorage.setItem(contractorStorageKeys.sidebar, next ? "collapsed" : "expanded");
+    localStorage.setItem(sidebarPreferenceKey, next ? "collapsed" : "expanded");
     return next;
   });
   const label = nav.find(([, href]) => href === "/contractor" ? pathname === href : pathname.startsWith(href))?.[0] ?? "لوحة المقاول";

@@ -4,7 +4,6 @@ import type { FormEvent } from "react";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { clearLegacyAuthStorage } from "@/lib/auth/legacy-cleanup";
 import { resolveAuthIdentity } from "@/lib/auth/resolve-identity";
 import { routeForRole } from "@/lib/auth/types";
 import { createClient } from "@/lib/supabase/client";
@@ -67,7 +66,11 @@ export function LoginFlow({ initialError }: { initialError?: string }) {
         return;
       }
 
-      clearLegacyAuthStorage();
+      if (identity.profile?.mustChangePassword) {
+        router.replace("/account/change-password");
+        router.refresh();
+        return;
+      }
       const root = routeForRole(identity.primaryRole);
       const returnTo = new URLSearchParams(window.location.search).get("returnTo");
       const safeReturnTo =
@@ -76,7 +79,6 @@ export function LoginFlow({ initialError }: { initialError?: string }) {
         (returnTo === root || returnTo.startsWith(`${root}/`))
           ? returnTo
           : root;
-      window.localStorage.removeItem("bunya-auth-return-to");
       router.replace(safeReturnTo);
       router.refresh();
     } catch {

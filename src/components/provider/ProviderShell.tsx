@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { providerStorageKeys } from "@/lib/provider-storage";
+const sidebarPreferenceKey = "bunya-provider-sidebar-state";
 import { createClient } from "@/lib/supabase/client";
 import { BunyaLogo } from "@/components/brand/BunyaLogo";
 import {LogoutButton} from "@/components/auth/LogoutButton";
@@ -35,7 +35,7 @@ export function ProviderShell({ children }: { children: ReactNode }) {
   /* Browser-only preferences and notification subscription hydrate after mount. */
   useEffect(() => {
     let active = true;
-    setCollapsed(window.localStorage.getItem(providerStorageKeys.sidebar) === "collapsed");
+    setCollapsed(window.localStorage.getItem(sidebarPreferenceKey) === "collapsed");
     setDateLabel(new Intl.DateTimeFormat("ar-SA", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date()));
     void createClient().from("notifications").select("id", { count: "exact", head: true }).is("read_at", null).then(({ count }) => {
       if (active) setUnread(count ?? 0);
@@ -45,7 +45,7 @@ export function ProviderShell({ children }: { children: ReactNode }) {
 
   const toggleCollapsed = () => setCollapsed((current) => {
     const next = !current;
-    window.localStorage.setItem(providerStorageKeys.sidebar, next ? "collapsed" : "expanded");
+    window.localStorage.setItem(sidebarPreferenceKey, next ? "collapsed" : "expanded");
     return next;
   });
   const currentLabel = navigation.find(([, href]) => href === "/merchant" ? pathname === href : pathname.startsWith(href))?.[0] ?? "لوحة المزود";

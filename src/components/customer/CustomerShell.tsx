@@ -7,7 +7,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { useAuthIdentity } from "@/components/auth/AuthIdentityProvider";
-import { customerStorageKeys } from "@/lib/customer-storage";
+const sidebarPreferenceKey = "bunya-customer-sidebar-state";
 import { createClient } from "@/lib/supabase/client";
 
 const nav = [
@@ -37,7 +37,7 @@ export function CustomerShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
-    setCollapsed(localStorage.getItem(customerStorageKeys.sidebar) === "collapsed");
+    setCollapsed(localStorage.getItem(sidebarPreferenceKey) === "collapsed");
     setDate(new Intl.DateTimeFormat("ar-SA", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date()));
     void createClient().from("customer_notifications").select("id", { count: "exact", head: true }).is("read_at", null).then(({ count }) => {
       if (active) setUnread(count ?? 0);
@@ -46,7 +46,7 @@ export function CustomerShell({ children }: { children: ReactNode }) {
   }, [pathname]);
 
   const toggle = () => setCollapsed((value) => {
-    localStorage.setItem(customerStorageKeys.sidebar, !value ? "collapsed" : "expanded");
+    localStorage.setItem(sidebarPreferenceKey, !value ? "collapsed" : "expanded");
     return !value;
   });
   const label = nav.find(([, href]) => href === "/customer" ? pathname === href : pathname.startsWith(href))?.[0] ?? "لوحة العميل";
