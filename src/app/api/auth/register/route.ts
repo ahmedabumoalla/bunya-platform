@@ -19,13 +19,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json() as Record<string, unknown>;
     const fullName = String(body.fullName || "").trim();
     const email = String(body.email || "").trim().toLowerCase();
-    const username = String(body.username || "").trim();
+    const username = String(body.username || "").normalize("NFKC").trim().replace(/\s+/gu, " ");
     const password = String(body.password || "");
     let digits = String(body.mobile || "").replace(/\D/g, "");
     if (digits.startsWith("05")) digits = `966${digits.slice(1)}`;
     else if (digits.startsWith("5")) digits = `966${digits}`;
 
-    if (fullName.length < 3 || !/^\S{4,40}$/.test(username) || !/^\S+@\S+\.\S+$/.test(email) || !/^9665\d{8}$/.test(digits)) {
+    if (fullName.length < 3 || username.length < 4 || username.length > 40 || !/^\S+@\S+\.\S+$/.test(email) || !/^9665\d{8}$/.test(digits)) {
       throw new PublicJoinError("بيانات التسجيل غير صالحة.", 400);
     }
     const passwordError = validatePassword(password);
