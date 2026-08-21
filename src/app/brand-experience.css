@@ -14,7 +14,7 @@
 }
 
 .bunya-logo-mark-only { width: 3rem; }
-.store-brand .bunya-logo { width: clamp(6.8rem, 8vw, 7.8rem); height: 3.15rem; }
+.store-brand .bunya-logo { width: clamp(6.8rem, 8vw, 7.8rem); height: 5rem; }
 .store-brand .bunya-logo-image { width: 100%; height: 100%; object-fit: contain; }
 .store-hero-logo { width: clamp(11rem, 22vw, 17rem); }
 .portal-brand .bunya-logo { width: clamp(11rem, 24vw, 16rem); margin-inline: auto; }

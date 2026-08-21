@@ -1,18 +1,11 @@
 import type { ParsedMapLocation } from "./bunya-types";
+export { validatePassword } from "./auth/password-policy";
 
 export function createLocalId(prefix: string) {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return `${prefix}-${crypto.randomUUID()}`;
   }
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-export function validatePassword(password: string) {
-  if (password.length < 8) return "يجب ألا تقل كلمة المرور عن 8 أحرف.";
-  if (!/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
-    return "يجب أن تحتوي كلمة المرور على حرف ورقم على الأقل.";
-  }
-  return "";
 }
 
 export function normalizeValue(value: string) {
@@ -52,6 +45,7 @@ export function parseGoogleMapsLink(value: string): ParsedMapLocation {
   const decoded = decodeURIComponent(`${url.pathname}${url.search}${url.hash}`);
   const patterns = [
     /@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/,
+    /\/maps\/(?:search|place)\/(-?\d+(?:\.\d+)?),\+?(-?\d+(?:\.\d+)?)/,
     /[?&](?:q|query)=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/,
     /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/,
   ];

@@ -5,7 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 
 type CatalogProductRow = {
   id: string;
-  category_id: string;
+  category_id: string | null;
+  custom_category: string | null;
   name: string;
   base_unit: string;
   short_description: string;
@@ -30,7 +31,7 @@ export async function loadPublicCatalog(): Promise<{ categories: string[]; produ
   const supabase = await createClient();
   const [categoriesResult, productsResult] = await Promise.all([
     supabase.from("product_categories").select("id,name,sort_order").eq("is_active", true).order("sort_order"),
-    supabase.from("products").select("id,category_id,name,base_unit,short_description,description,full_description,availability_summary,availability_status,lead_time_label,delivery_label,delivery_window,delivery_notes,is_new").eq("is_published", true).order("created_at", { ascending: false }),
+    supabase.from("products").select("id,category_id,custom_category,name,base_unit,short_description,description,full_description,availability_summary,availability_status,lead_time_label,delivery_label,delivery_window,delivery_notes,is_new").eq("is_published", true).order("created_at", { ascending: false }),
   ]);
 
   if (categoriesResult.error) throw new Error(`تعذر تحميل تصنيفات المنتجات: ${categoriesResult.error.message}`);
@@ -60,7 +61,7 @@ export async function loadPublicCatalog(): Promise<{ categories: string[]; produ
   const products = rows.map<Product>((row) => ({
     id: row.id,
     name: row.name,
-    category: categoryNames.get(row.category_id) ?? "غير مصنف",
+    category: row.custom_category || (row.category_id ? categoryNames.get(row.category_id) : null) || "غير مصنف",
     unit: row.base_unit,
     description: row.description,
     shortDescription: row.short_description,

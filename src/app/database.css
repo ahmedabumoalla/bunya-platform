@@ -53,6 +53,24 @@
 .database-state { display: grid; min-height: 18rem; place-items: center; align-content: center; gap: .5rem; padding: 2rem; text-align: center; }
 .database-state > span { display: grid; width: 3rem; height: 3rem; place-items: center; border-radius: 999px; background: var(--bunya-surface-muted); color: var(--bunya-accent); font-size: 1.35rem; font-weight: 900; }
 .database-state p { max-width: 40rem; color: var(--bunya-text-secondary); line-height: 1.7; }
+.provider-account-overview { display: grid; gap: 1rem; padding: 1.15rem; }
+.provider-account-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.provider-account-heading small { color: var(--bunya-text-muted); font-weight: 800; }
+.provider-account-heading h2 { margin: .2rem 0; }
+.provider-account-heading p { color: var(--bunya-text-secondary); }
+.provider-account-ready { flex: 0 0 auto; border: 1px solid rgb(20 120 80 / .22); border-radius: 999px; background: rgb(20 120 80 / .09); color: #0f6844; padding: .45rem .75rem; font-size: .78rem; font-weight: 900; }
+.provider-account-overview dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: .7rem; margin: 0; }
+.provider-account-overview dl > div { padding: .8rem; border: 1px solid var(--bunya-border); border-radius: .8rem; background: var(--bunya-surface-muted); }
+.provider-account-overview dt { color: var(--bunya-text-muted); font-size: .72rem; font-weight: 800; }
+.provider-account-overview dd { margin: .25rem 0 0; color: var(--bunya-text-primary); font-weight: 900; }
+.provider-account-overview footer,.provider-operations-empty > div { display: flex; flex-wrap: wrap; gap: .6rem; }
+.provider-account-overview footer { padding: 0; }
+.provider-account-overview footer a,.provider-operations-empty a { border: 1px solid var(--bunya-border-active); border-radius: .7rem; background: var(--bunya-surface); color: var(--bunya-link); padding: .6rem .85rem; font-size: .78rem; font-weight: 900; text-decoration: none; }
+.provider-operations-empty { min-height: 13rem; }
+.provider-operations-empty > span { background: rgb(20 120 80 / .09); color: #0f6844; }
+.provider-image-drop { position: relative; }
+.provider-image-input { position: absolute; width: 1px !important; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+@media (max-width: 640px) { .provider-account-heading { align-items: stretch; flex-direction: column; } .provider-account-ready { align-self: flex-start; } }
 .database-error { border-color: rgb(180 35 24 / .25); }
 .database-error > span { background: var(--bunya-danger-bg); color: var(--bunya-danger); }
 .database-spinner { border: 3px solid var(--bunya-border) !important; border-top-color: var(--bunya-accent) !important; animation: database-spin .8s linear infinite; }

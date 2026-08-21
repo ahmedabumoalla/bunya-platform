@@ -8,5 +8,22 @@
   "007_contractor_services_portfolio.sql": "7d783f0c1ac685905a4c165b4fa60d49e1326684b2f7f0c42fcc3b086e8c02fc",
   "008_support_settlements_notifications.sql": "718b0704e935b1bde60d3c2e65d50b169c968cd04b24b92b846e784e83761167",
   "009_security_definer_execute_hardening.sql": "8b5314f79ca5c27db58ea9ee1bcf7e8ab3ea6124cf41814f024422af35717364",
-  "010_reconcile_onboarding_migration_history.sql": "16f8e311481e0b38fbfff70a031f1f516af40fb86c7abe735ada6f18516dc92f"
+  "010_reconcile_onboarding_migration_history.sql": "16f8e311481e0b38fbfff70a031f1f516af40fb86c7abe735ada6f18516dc92f",
+  "011_fix_submit_customer_rfq_enum_assignments.sql": "7467bf8614a33c8c1200ce9e338815f8fd6ddea42d1891499012f51232fe8da3",
+  "012_preserve_immutable_audit_on_parent_delete.sql": "7e0116519606027966719b34824156a8184b53b9ac52ed0aeb9eb11976e0d06a",
+  "013_prevent_contractor_catalog_outbox_key_collisions.sql": "e0dcfcb09e6f0944307e6d1f9db4fdef295c76d9f87a96fa22777d39ea0ac0c8",
+  "014_fix_contractor_portfolio_public_policy.sql": "4f1c1c8a10ef82fdc472e689afe7d86b21dc509db55ce8e1a0f3ecc7f4fad0ab",
+  "015_fix_submit_customer_project_request_enum.sql": "68e73886639060938b8d987a6a4e22db05d6d5c1964680f013652c2ad4d0fb83",
+  "016_prevent_proposal_outbox_key_collisions.sql": "fda38b124c2bbf7c0cdca8c80500fa959c865838b4d40872d510a02d5be92a95",
+  "017_allow_referential_cleanup_of_immutable_records.sql": "608ec679939139379bba73c08a6da72596a013b17cd88aecadd7e4974fa2c618",
+  "018_remote_e2e_reconciliation.sql": "0d60c107a405d4f69c5a9e6718ff3cdf1ca018eb67f71e21dd07696937581295",
+  "019_add_internal_sourcing_completion_timestamp.sql": "427ffe0bfe8aa6bc298736f9d987c761eb58d5540b985a62932b4a5a90dd7239",
+  "020_fix_remaining_connected_workflow_transitions.sql": "99b14ee7be9f10ae10b3eefd9bbdd6bf2683de753e9862c193cea2e930e5379e",
+  "021_restore_anon_is_admin_execute.sql": "5d7aea55320f07086766c0bb25be9165794eeeadbb4e4ea4d9ea1b88d92c86ae",
+  "022_notify_admins_product_review.sql": "1678326b186814bc917b0e5fa69368add8c4c294242d1b3a1187c97de44d1ecf",
+  "023_allow_internal_product_review_notifications.sql": "3ae622e16d634449350e16612f4d847c9d7ce8c6787ce0369db850562752ef4c",
+  "024_enqueue_product_review_whatsapp.sql": "141b584b9a0e4da235a33c4abe075f0f7a54291a12a1cf91fceddc40734fcf5f",
+  "025_provider_catalog_and_driver_management.sql": "07220c9554b7908dcce28d4759cf58f659d94c765cb53032d05010f34ca05abc",
+  "026_provider_workspace_expansion.sql": "39a78b10e6edaa8337b515eca9916cc3c3b17599d95ca5ef529a0fb7a7d9bcf6",
+  "027_secure_provider_settlements.sql": "72cd9691950897e1196fc5aadbd6c4bf8b7cf90c1cdfe51d73721b8b2fa00c7c"
 }

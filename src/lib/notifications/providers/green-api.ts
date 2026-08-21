@@ -50,7 +50,8 @@ async function submitText(input:{to:string;text:string;idempotencyKey:string}):P
 
 async function submitFile(input:{to:string;file:File;caption:string;idempotencyKey:string}):Promise<ProviderSubmission>{
   const config=configuration();if(!config||!config.mediaUrl)return missing();
-  if(input.file.type!=="application/pdf")return {status:"failed",providerMessageId:null,sanitizedError:"unsupported_media_type",submittedAt:null};
+  if(!["application/pdf","image/jpeg","image/png"].includes(input.file.type))return {status:"failed",providerMessageId:null,sanitizedError:"unsupported_media_type",submittedAt:null};
+  if(input.caption.length>1024)return {status:"failed",providerMessageId:null,sanitizedError:"caption_too_long",submittedAt:null};
   const body=new FormData();body.set("chatId",normalizeWhatsAppChatId(input.to));body.set("caption",input.caption);body.set("file",input.file);
   return retry(async()=>fetch(`${config.mediaUrl}/waInstance${config.id}/sendFileByUpload/${config.token}`,{method:"POST",headers:{"x-idempotency-key":input.idempotencyKey},body,signal:AbortSignal.timeout(20000),cache:"no-store"}));
 }

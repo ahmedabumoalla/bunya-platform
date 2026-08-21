@@ -8,28 +8,34 @@
     "start": "next start",
     "lint": "eslint",
     "check:ui-colors": "node scripts/check-ui-foreground-colors.mjs",
-    "check:no-operational-mocks": "node scripts/check-no-operational-mocks.mjs"
-    ,"test:sql": "node scripts/validate-sql.mjs"
-    ,"test:integration": "node tests/workflow-integration.mjs"
-    ,"test:routes": "node scripts/route-smoke.mjs"
-    ,"test:route-audit": "node scripts/audit-routes.mjs"
-    ,"test:migration-hashes": "node scripts/check-migration-hashes.mjs"
+    "check:no-operational-mocks": "node scripts/check-no-operational-mocks.mjs",
+    "test:sql": "node scripts/validate-sql.mjs",
+    "test:integration": "node tests/workflow-integration.mjs",
+    "test:routes": "node scripts/route-smoke.mjs",
+    "test:route-audit": "node scripts/audit-routes.mjs",
+    "test:migration-hashes": "node scripts/check-migration-hashes.mjs"
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",
     "@supabase/ssr": "^0.12.3",
     "@supabase/supabase-js": "^2.110.8",
+    "ffmpeg-static": "5.2.0",
     "gsap": "^3.15.0",
     "next": "16.2.9",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "three": "0.185.1"
+    "sharp": "0.34.5",
+    "three": "0.185.1",
+    "ws": "^8.21.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
+    "@types/ffmpeg-static": "^3.0.3",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/ws": "^8.18.1",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "tailwindcss": "^4",

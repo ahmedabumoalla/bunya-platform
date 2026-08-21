@@ -32,6 +32,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const [date, setDate] = useState("");
   const [search, setSearch] = useState("");
   const [alerts, setAlerts] = useState(0);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -39,6 +40,9 @@ export function AdminShell({ children }: { children: ReactNode }) {
     setDate(new Intl.DateTimeFormat("ar-SA", { weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date()));
     void createClient().from("admin_alerts").select("id", { count: "exact", head: true }).neq("status", "resolved").in("priority", ["high", "critical"]).then(({ count }) => {
       if (active) setAlerts(count ?? 0);
+    });
+    void createClient().from("notifications").select("id", { count: "exact", head: true }).is("read_at", null).then(({ count }) => {
+      if (active) setUnreadNotifications(count ?? 0);
     });
     return () => { active = false; };
   }, [pathname]);
@@ -67,7 +71,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
         <button onClick={() => setDrawer(true)} aria-label="فتح القائمة">☰</button>
         <div className="admin-page-identity"><p>لوحة التحكم المركزية</p><h1>{activeLabel}</h1><small>{date}</small></div>
         <div className="admin-global-search"><span>⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="بحث شامل في وحدات الإدارة" aria-label="البحث الشامل" />{matches.length ? <div>{matches.map(([label, href]) => <Link href={href} key={href} onClick={() => setSearch("")}>{label}</Link>)}</div> : null}</div>
-        <div className="admin-top-actions"><Link className="admin-quick" href="/admin/operations">متابعة العمليات</Link><Link href="/admin/notifications" aria-label="مركز الإشعارات">◌</Link><Link href="/admin/alerts" aria-label={`${alerts} تنبيه حرج`}>!{alerts ? <em>{alerts}</em> : null}</Link><button aria-label="قائمة حساب المدير"><span>{viewerName.slice(0, 1)}</span><div><b>{viewerName}</b><small>{roleLabel}</small></div></button></div>
+        <div className="admin-top-actions"><Link className="admin-quick" href="/admin/operations">متابعة العمليات</Link><Link href="/admin/notifications" aria-label={`${unreadNotifications} إشعار غير مقروء`}>◌{unreadNotifications ? <em>{unreadNotifications}</em> : null}</Link><Link href="/admin/alerts" aria-label={`${alerts} تنبيه حرج`}>!{alerts ? <em>{alerts}</em> : null}</Link><button aria-label="قائمة حساب المدير"><span>{viewerName.slice(0, 1)}</span><div><b>{viewerName}</b><small>{roleLabel}</small></div></button></div>
       </header>
       <div className="admin-breadcrumb"><Link href="/admin">الإدارة</Link><span>←</span><b>{activeLabel}</b></div>
       <main className="admin-content">{children}</main>

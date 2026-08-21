@@ -21,7 +21,8 @@ const navigation = [
   ["المالية والتصفية", "/merchant/finance", "◉"],
   ["الإشعارات", "/merchant/notifications", "◌"],
   ["ملف المنشأة", "/merchant/profile", "◇"],
-  ["السياسات والدعم", "/merchant/support", "?"],
+  ["السياسات", "/merchant/policies", "§"],
+  ["الدعم والتذاكر", "/merchant/support", "?"],
 ] as const;
 
 export function ProviderShell({ children }: { children: ReactNode }) {

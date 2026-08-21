@@ -16,8 +16,10 @@ export async function GET(_request: Request, context: { params: Promise<{ kind: 
   const output=[];
   for(const row of rows.data||[]){
     const docs=kind==="provider"?(row.provider_application_documents||[]).map((d:Record<string,unknown>)=>({id:d.id,name:(d.files as {original_name:string})?.original_name,path:(d.files as {object_path:string})?.object_path})):(row.contractor_documents||[]).map((d:Record<string,unknown>)=>({id:d.id,name:d.file_name,path:d.storage_path}));
-    const documents=[];
-    for(const doc of docs){const signed=await auth.admin.storage.from("join-applications").createSignedUrl(String(doc.path),300);documents.push({...doc,url:signed.data?.signedUrl||null})}
+    const documents=docs.map((doc:Record<string,unknown>)=>({
+      ...doc,
+      url:`/api/admin/join-requests/${kind}/${row.id}/documents/${doc.id}`,
+    }));
     output.push({...row,documents,reviews:(reviews.data||[]).filter(review=>review.request_id===row.id),onboarding:(onboarding.data||[]).find(item=>item.application_id===row.id)||null});
   }
   return NextResponse.json({applications:output});

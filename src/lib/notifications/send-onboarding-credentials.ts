@@ -3,10 +3,12 @@ import {sendGreenApiMessage,maskWhatsAppDestination} from "./providers/green-api
 import {sendResendSensitiveCopy} from "./providers/resend";
 import {maskEmail,recordProviderSubmission} from "./submissions";
 
-export async function sendOnboardingCredentials(input:{kind:"provider"|"contractor";email:string;mobile:string;password:string;idempotencyKey:string}){
-  const site=process.env.APP_URL||"https://bunya-platform.vercel.app";
+export async function sendOnboardingCredentials(input:{kind:"provider"|"contractor";applicationId:string;applicantName:string;details:Array<{label:string;value:string}>;email:string;mobile:string;password:string;idempotencyKey:string}){
+  const site=(process.env.APP_URL||process.env.NEXT_PUBLIC_SITE_URL||"https://buniahksa.com").replace(/\/$/,"");
   const role=input.kind==="provider"?"مزود":"مقاول";
-  const text=`مرحبًا بك في منصة بُنية. تم اعتماد حسابك كـ${role}.\nالبريد المستخدم للدخول: ${input.email}\nكلمة المرور المؤقتة: ${input.password}\nتسجيل الدخول: ${site}/login\nغيّر كلمة المرور فور الدخول ولا تشاركها مع أي شخص.`;
+  const portal=input.kind==="provider"?"/merchant":"/contractor";
+  const details=input.details.map(({label,value})=>`${label}: ${value||"—"}`).join("\n");
+  const text=`مرحبًا ${input.applicantName}،\nتمت الموافقة على طلب انضمامك كـ${role} في منصة بُنية.\nرقم الطلب: ${input.applicationId}\n\nبيانات الطلب:\n${details}\n\nبيانات الدخول:\nالبريد المستخدم: ${input.email}\nكلمة المرور المؤقتة: ${input.password}\nالدخول إلى لوحة التحكم: ${site}/login?returnTo=${encodeURIComponent(portal)}\nغيّر كلمة المرور فور الدخول ولا تشاركها مع أي شخص.`;
   const whatsapp=await sendGreenApiMessage({to:input.mobile,text,idempotencyKey:`${input.idempotencyKey}-wa`});
   await recordProviderSubmission({eventType:"onboarding.temporary_password",channel:"whatsapp",destinationMasked:maskWhatsAppDestination(input.mobile),idempotencyKey:`${input.idempotencyKey}-wa`,result:whatsapp}).catch(()=>undefined);
   const email=await sendResendSensitiveCopy({to:input.email,subject:"بيانات الدخول إلى منصة بُنية",text,idempotencyKey:`${input.idempotencyKey}-email`});

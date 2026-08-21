@@ -11,6 +11,10 @@ import {AdminJoinRequests} from "@/components/admin/AdminJoinRequests";
 import{OpportunityProposal,ProjectProposalDecisions,ProjectRequestForm}from"@/components/contractor/ContractorWorkflows";
 import{AdminContractorCatalogReview,ContractorPortfolioManager,ContractorServicesManager}from"@/components/contractor/ContractorCatalogWorkflows";
 import{AdminSettlements,ContractorFinance,NotificationCenter,SupportCenter}from"@/components/operations/SupportFinanceWorkflows";
+import{ProviderProductCreate,ProviderProductsList}from"@/components/provider/ProviderProducts";
+import{ProviderDriverCreate,ProviderDriversManager}from"@/components/provider/ProviderDrivers";
+import{ProviderFinance,ProviderNotifications,ProviderOrders,ProviderPolicies,ProviderProfile,ProviderQuoteRequests,ProviderQuotes}from"@/components/provider/ProviderWorkspace";
+import{AdminPolicyManager}from"@/components/admin/AdminPolicies";
 
 type MetricConfig = { label: string; table: string };
 type RouteConfig = {
@@ -122,6 +126,7 @@ const providerRoutes: RouteConfig[] = [
   route("/merchant/quote-requests", "طلبات التحقق والتسعير", "internal_sourcing_request_targets", ["sourcing_item_id", "provider_id", "status", "sent_at", "viewed_at"]),
   route("/merchant/quotes", "استجابات التسعير", "provider_pricing_responses", ["response_code", "request_item_id", "unit_price", "status", "price_expires_at", "created_at"]),
   route("/merchant/support", "تذاكر الدعم", "support_tickets", ["ticket_code", "subject", "priority", "status", "created_at"]),
+  route("/merchant/policies", "السياسات", "platform_policies", ["title", "summary", "version", "published_at"], undefined, false),
 ];
 
 const customerRoutes: RouteConfig[] = [
@@ -257,6 +262,8 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
   const identity = useAuthIdentity();
   const { config, detailId } = useMemo(() => resolveRoute(role, pathname), [pathname, role]);
   const [state, setState] = useState<LoadState>({ loading: true, rows: [], counts: {}, error: null });
+  const providerHome = role === "provider" && pathname === "/merchant";
+  const providerAccount = providerHome ? identity.details.provider : null;
 
   useEffect(() => {
     if (pathname === "/driver/change-password") return;
@@ -313,7 +320,19 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
   if(role==="admin"&&pathname.startsWith("/admin/delivery-codes/")&&detailId)return <AdminDeliveryCode id={detailId}/>;
   if(role==="admin"&&pathname==="/admin/join-requests/providers")return <AdminJoinRequests kind="provider"/>;
   if(role==="admin"&&pathname==="/admin/join-requests/contractors")return <AdminJoinRequests kind="contractor"/>;
+  if(role==="provider"&&pathname==="/merchant/products")return <ProviderProductsList/>;
+  if(role==="provider"&&pathname==="/merchant/products/new")return <ProviderProductCreate/>;
+  if(role==="provider"&&pathname==="/merchant/drivers")return <ProviderDriversManager/>;
+  if(role==="provider"&&pathname==="/merchant/drivers/new")return <ProviderDriverCreate/>;
   if(role==="provider"&&pathname.startsWith("/merchant/orders/")&&detailId)return <ProviderFulfillmentWorkflow id={detailId}/>;
+  if(role==="provider"&&pathname==="/merchant/quote-requests")return <ProviderQuoteRequests/>;
+  if(role==="provider"&&pathname==="/merchant/quotes")return <ProviderQuotes/>;
+  if(role==="provider"&&pathname==="/merchant/orders")return <ProviderOrders/>;
+  if(role==="provider"&&pathname==="/merchant/finance")return <ProviderFinance/>;
+  if(role==="provider"&&pathname==="/merchant/notifications")return <ProviderNotifications/>;
+  if(role==="provider"&&pathname==="/merchant/profile")return <ProviderProfile/>;
+  if(role==="provider"&&pathname==="/merchant/policies")return <ProviderPolicies/>;
+  if(role==="admin"&&pathname==="/admin/policies")return <AdminPolicyManager/>;
   if(role==="customer"&&pathname==="/customer/project-requests/new")return <ProjectRequestForm/>;
   if(role==="contractor"&&pathname.startsWith("/contractor/opportunities/")&&detailId)return <OpportunityProposal id={detailId}/>;
   if(role==="customer"&&pathname.startsWith("/customer/project-requests/")&&detailId)return <ProjectProposalDecisions id={detailId}/>;
@@ -350,14 +369,80 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
         </section>
       ) : null}
 
+      {providerAccount ? (
+        <ProviderAccountOverview
+          companyName={providerAccount.companyName}
+          status={providerAccount.status}
+          memberRole={providerAccount.memberRole}
+          counts={state.counts}
+          loading={state.loading}
+        />
+      ) : null}
+
       {state.loading ? <LoadingState /> : state.error ? <ErrorState message={state.error} /> : state.rows.length === 0 ? (
-        <EmptyState message={config.empty ?? "لا توجد بيانات حقيقية مسجلة في هذا القسم حتى الآن."} />
+        providerAccount ? (
+          <ProviderOperationsEmpty />
+        ) : (
+          <EmptyState message={config.empty ?? "لا توجد بيانات حقيقية مسجلة في هذا القسم حتى الآن."} />
+        )
       ) : detailId ? (
         <DetailView row={state.rows[0]} />
       ) : (
         <RowsTable config={config} rows={state.rows} />
       )}
     </main>
+  );
+}
+
+function ProviderAccountOverview({
+  companyName,
+  status,
+  memberRole,
+  counts,
+  loading,
+}: {
+  companyName: string;
+  status: string;
+  memberRole: string;
+  counts: Record<string, number>;
+  loading: boolean;
+}) {
+  return (
+    <section className="database-panel provider-account-overview">
+      <div className="provider-account-heading">
+        <div>
+          <small>حساب المنشأة</small>
+          <h2>{companyName}</h2>
+          <p>تم ربط الحساب بالمنشأة، وصلاحية المالك فعالة تحت سياسات RLS.</p>
+        </div>
+        <span className="provider-account-ready">✓ {status === "approved" ? "معتمد وجاهز" : status}</span>
+      </div>
+      <dl>
+        <div><dt>نوع العضوية</dt><dd>{memberRole === "owner" ? "مالك المنشأة" : memberRole}</dd></div>
+        <div><dt>المنتجات</dt><dd>{loading ? "…" : (counts["المنتجات"] ?? 0).toLocaleString("ar-SA")}</dd></div>
+        <div><dt>طلبات التسعير</dt><dd>{loading ? "…" : (counts["طلبات التسعير"] ?? 0).toLocaleString("ar-SA")}</dd></div>
+        <div><dt>أوامر التوريد</dt><dd>{loading ? "…" : (counts["أوامر التوريد"] ?? 0).toLocaleString("ar-SA")}</dd></div>
+      </dl>
+      <footer>
+        <Link href="/merchant/profile">عرض ملف المنشأة</Link>
+        <Link href="/merchant/products">إدارة المنتجات</Link>
+        <Link href="/merchant/drivers">إدارة السائقين</Link>
+      </footer>
+    </section>
+  );
+}
+
+function ProviderOperationsEmpty() {
+  return (
+    <section className="database-state provider-operations-empty">
+      <span aria-hidden>✓</span>
+      <h2>حساب المزود جاهز</h2>
+      <p>لا توجد عمليات تشغيلية بعد لأن هذا حساب جديد. ستظهر هنا أوامر التوريد بعد إضافة المنتجات واستقبال طلبات التسعير واعتماد الطلبات المدفوعة.</p>
+      <div>
+        <Link href="/merchant/products">البدء بإدارة المنتجات</Link>
+        <Link href="/merchant/profile">مراجعة بيانات المنشأة</Link>
+      </div>
+    </section>
   );
 }
 

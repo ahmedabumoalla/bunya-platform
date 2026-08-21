@@ -2,7 +2,9 @@ import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { assertSameOrigin, enforceRateLimit, normalizeEmail, normalizeMobile, PublicJoinError, randomObjectName, requiredText, stringArray, validateFiles, verifyTurnstile } from "@/lib/join/security";
+import { isValidJoinUsername } from "@/lib/join/username";
 import { notifyJoinReviewers } from "@/lib/notifications/join-reviewers";
+import { prepareUpload } from "@/lib/uploads/server";
 
 export const runtime = "nodejs";
 
@@ -27,8 +29,12 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ki
     if (duplicate.error) throw duplicate.error;
     if (duplicate.data?.length) throw new PublicJoinError("يوجد طلب نشط مرتبط بالبريد أو الجوال المدخل.", 409);
 
+    const requestedUsername = kind === "provider" ? requiredText(data, "username", 4, 40) : "";
+    if (kind === "provider" && !isValidJoinUsername(requestedUsername)) {
+      throw new PublicJoinError("اسم المستخدم يجب أن يكون من 4 إلى 40 حرفًا وبدون مسافات. استخدم _ أو - للفصل.", 400);
+    }
     const base = kind === "provider"
-      ? { applicant_profile_id: null, company_name: requiredText(data, "companyName", 2, 160), contact_name: requiredText(data, "contactName", 2, 120), mobile, email, requested_username: requiredText(data, "username", 4, 40), google_maps_url: requiredText(data, "mapsUrl", 8, 2000), latitude: optionalNumber(data.get("latitude"), -90, 90), longitude: optionalNumber(data.get("longitude"), -180, 180), discount_code: String(data.get("discountCode") || "").trim() || null, delivery_available: data.get("deliveryAvailable") === "true", status: "pending", public_idempotency_key: idempotencyKey }
+      ? { applicant_profile_id: null, company_name: requiredText(data, "companyName", 2, 160), contact_name: requiredText(data, "contactName", 2, 120), mobile, email, requested_username: requestedUsername, google_maps_url: requiredText(data, "mapsUrl", 8, 2000), latitude: optionalNumber(data.get("latitude"), -90, 90), longitude: optionalNumber(data.get("longitude"), -180, 180), discount_code: String(data.get("discountCode") || "").trim() || null, delivery_available: data.get("deliveryAvailable") === "true", status: "pending", public_idempotency_key: idempotencyKey }
       : { applicant_profile_id: null, contractor_name: requiredText(data, "contractorName", 3, 160), mobile, email, status: "pending", public_idempotency_key: idempotencyKey };
     const inserted = await supabase.from(table).insert(base as never).select("id,status,created_at").single();
     if (inserted.error) {
@@ -47,21 +53,43 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ki
 
     for (const file of files) {
       const objectPath = `join-applications/${kind}/${applicationId}/${randomObjectName()}`;
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      const upload = await supabase.storage.from("join-applications").upload(objectPath, bytes, { contentType: file.type, upsert: false });
+      const prepared = await prepareUpload(file);
+      const upload = await supabase.storage.from("join-applications").upload(objectPath, prepared.bytes, { contentType: prepared.mimeType, upsert: false });
       if (upload.error) throw upload.error;
       uploaded.push(objectPath);
       if (kind === "provider") {
-        const registry = await supabase.from("files").insert({ owner_profile_id: null, bucket_id: "join-applications", object_path: objectPath, purpose: "provider_join_document", original_name: file.name, mime_type: file.type, size_bytes: file.size, checksum_sha256: createHash("sha256").update(bytes).digest("hex"), uploaded_at: new Date().toISOString() }).select("id").single();
+        const registry = await supabase.from("files").insert({ owner_profile_id: null, bucket_id: "join-applications", object_path: objectPath, purpose: "provider_join_document", original_name: prepared.fileName, mime_type: prepared.mimeType, size_bytes: prepared.size, checksum_sha256: createHash("sha256").update(prepared.bytes).digest("hex"), uploaded_at: new Date().toISOString() }).select("id").single();
         if (registry.error) throw registry.error;
         const link = await supabase.from("provider_application_documents").insert({ application_id: applicationId, file_id: registry.data.id, document_type: "supporting_document" });
         if (link.error) throw link.error;
       } else {
-        const document = await supabase.from("contractor_documents").insert({ application_id: applicationId, document_type: "supporting_document", storage_path: objectPath, file_name: file.name, mime_type: file.type, size_bytes: file.size });
+        const document = await supabase.from("contractor_documents").insert({ application_id: applicationId, document_type: "supporting_document", storage_path: objectPath, file_name: prepared.fileName, mime_type: prepared.mimeType, size_bytes: prepared.size });
         if (document.error) throw document.error;
       }
     }
-    await notifyJoinReviewers({kind,applicationId,name:kind==="provider"?String("contact_name" in base?base.contact_name:""):String("contractor_name" in base?base.contractor_name:""),company:kind==="provider"?String("company_name" in base?base.company_name:""):undefined,submittedAt:String(inserted.data.created_at)}).catch(()=>undefined);
+    const applicantName = kind === "provider" ? String("contact_name" in base ? base.contact_name : "") : String("contractor_name" in base ? base.contractor_name : "");
+    const notificationDetails = kind === "provider"
+      ? [
+          { label: "اسم الشركة", value: String("company_name" in base ? base.company_name : "") },
+          { label: "اسم المسؤول", value: applicantName },
+          { label: "رقم الجوال", value: mobile },
+          { label: "البريد الإلكتروني", value: email },
+          { label: "اسم المستخدم المطلوب", value: String("requested_username" in base ? base.requested_username : "") },
+          { label: "كود الخصم", value: String("discount_code" in base ? base.discount_code ?? "—" : "—") },
+          { label: "رابط Google Maps", value: String("google_maps_url" in base ? base.google_maps_url : "") },
+          { label: "الإحداثيات", value: "latitude" in base && base.latitude !== null && base.longitude !== null ? `${base.latitude}, ${base.longitude}` : "—" },
+          { label: "التصنيفات الرئيسية", value: categories.join("، ") },
+          { label: "هل يوجد توصيل؟", value: "delivery_available" in base && base.delivery_available ? "نعم" : "لا" },
+          { label: "مناطق التوصيل", value: "delivery_available" in base && base.delivery_available ? regions.join("، ") : "لا يوجد توصيل" },
+        ]
+      : [
+          { label: "اسم المقاول", value: applicantName },
+          { label: "رقم الجوال", value: mobile },
+          { label: "البريد الإلكتروني", value: email },
+          { label: "مناطق العمل", value: regions.join("، ") },
+          { label: "التخصصات", value: specialties.join("، ") },
+        ];
+    await notifyJoinReviewers({ kind, applicationId, applicantEmail: email, applicantName, submittedAt: String(inserted.data.created_at), details: notificationDetails }).catch(() => undefined);
     return NextResponse.json({ applicationId, status: inserted.data.status, submittedAt: inserted.data.created_at }, { status: 201 });
   } catch (error) {
     if (uploaded.length) { try { await createAdminClient().storage.from("join-applications").remove(uploaded); } catch {} }

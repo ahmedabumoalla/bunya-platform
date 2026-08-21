@@ -41,7 +41,7 @@ export function DriverChangePassword() {
     const { error: profileError } = await supabase
       .from("provider_drivers")
       .update({ must_change_password: false, status: "active", updated_at: new Date().toISOString() })
-      .eq("profile_id", identity.profile?.id ?? "");
+      .eq("id", identity.details.driver?.driverId ?? "");
     if (profileError) {
       setBusy(false);
       setError("تم تغيير كلمة المرور، لكن تعذر تحديث حالة الحساب.");
@@ -55,7 +55,7 @@ export function DriverChangePassword() {
     <div className="driver-logo"><span>ب</span><div><strong>بُنية</strong><small>أول دخول للسائق</small></div></div>
     <h1>غيّر كلمة المرور الأولية</h1><p>اختر كلمة مرور قوية خاصة بك قبل دخول لوحة التوصيلات.</p>
     {([ ["current", "كلمة المرور الحالية"], ["password", "كلمة المرور الجديدة"], ["confirm", "تأكيد الجديدة"] ] as const).map(([key, label]) => <label key={key}><span>{label}</span><input type={show[key] ? "text" : "password"} value={form[key]} onChange={(event) => { setForm((current) => ({ ...current, [key]: event.target.value })); setError(""); }} /><small><input type="checkbox" checked={show[key]} onChange={(event) => setShow((current) => ({ ...current, [key]: event.target.checked }))} /> إظهار الحقل</small></label>)}
-    <div className="driver-password-strength"><i style={{ width: `${Math.min(100, form.password.length * 10)}%` }} /><span>{form.password && form.password === form.confirm ? "كلمتا المرور متطابقتان" : "استخدم حرفًا ورقمًا و8 أحرف على الأقل"}</span></div>
+    <div className="driver-password-strength"><i style={{ width: `${Math.min(100, form.password.length * 10)}%` }} /><span>{form.password && form.password === form.confirm ? "كلمتا المرور متطابقتان" : "استخدم 8 أحرف على الأقل، بينها حرف إنجليزي كبير ورقم"}</span></div>
     {error ? <p className="driver-error">{error}</p> : null}<button className="driver-primary" disabled={busy}>{busy ? "جارٍ الحفظ..." : "حفظ والدخول للوحة"}</button>
   </form></main>;
 }
