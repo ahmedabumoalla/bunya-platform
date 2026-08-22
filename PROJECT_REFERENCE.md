@@ -148,3 +148,19 @@
 - هذا التدفق يعالج إمكانية العودة للتوثيق، لكنه لا يلغي ضرورة إصلاح إعداد Send SMS Hook/Green API في الإنتاج حتى يصل الرمز فعليًا.
 - رُفع الإصلاح إلى GitHub على `main` في commit `4d8e693`، ثم نُشر يدويًا إلى Vercel Production في deployment `dpl_egj8Cceji7aoVV4k36e9bcfeDiK3` وأصبح `Ready` ومربوطًا بـ`https://www.buniahksa.com`. تحقق الدومين أعاد `200` لـ`/login` و`307` من `/verify-phone` إلى `/login` بلا جلسة مع `X-Matched-Path: /verify-phone`، ما يثبت وصول المسار الجديد إلى الدومين الرسمي.
 - تحقق ما قبل النشر: ESLint وTypeScript وroute smoke وworkflow integration وproduction build كلها ناجحة. تحذير Supabase عن Node 20 ظهر محليًا فقط؛ Vercel Production يبني على Node 24.
+
+### رقم يكتبه المستخدم ويُحفظ بعد التحقق فقط — 2026-08-22
+
+- ألغي الاعتماد على أي رقم جوال قديم غير موثق في Auth أو `profiles.mobile` أو `providers.mobile`. العميل أو مالك المزود غير الموثق يدخل بعد البريد وكلمة المرور إلى `/verify-phone` ويجد حقل رقم فارغًا.
+- صفحة التوثيق تسمح بكتابة رقم سعودي جديد، إعادة إرسال الرمز، والعودة عبر «تعديل رقم الجوال» لتصحيح الرقم. لا يُكتب الرقم في Supabase Auth أو الجداول العامة أثناء الطلب أو الإرسال؛ الحفظ يحدث فقط بعد قبول رمز صحيح.
+- أضيف مسارا الخادم `/api/auth/phone-verification/request` و`/api/auth/phone-verification/complete`. الأول يفحص الرقم مباشرة من WhatsApp عبر Green API `checkWhatsapp` مع `force: true` ثم يرسل رمزًا عاجلًا؛ الثاني يتحقق من hash مؤقت محدود بعشر دقائق وخمس محاولات ثم يعتمد الرقم وينشئ حساب العميل الجديد عند الحاجة أو يعيد المزود إلى بوابته الصحيحة.
+- رموز التحقق تحفظ مؤقتًا في `phone_verification_challenges` بصلاحيات service role فقط، مع hash وsalt وفترة منع إعادة الإرسال. لا يُحفظ الرمز كنص صريح ولا يُعاد إلى الواجهة.
+- مسار التسجيل الجديد لا يطلب أو يخزن رقمًا قبل إنشاء الحساب؛ يسجل الدخول بالبريد وكلمة المرور ثم ينقل المستخدم إلى إدخال الرقم والتحقق منه. مسار دخول المزود يفرض التحقق أيضًا حتى لو كان Auth phone فارغًا.
+- أضيفت migration `029_verified_phone_capture.sql` وطُبقت على Supabase: أنشأت تحديات التحقق والمزامنة، جعلت جوال المزود قابلًا للفراغ قبل التحقق، ومسحت تحديدًا 3 حسابات غير موثقة: عميلين بأرقام منتهية بـ`769` و`689`، ومزودًا برقم منتهٍ بـ`570`. حُذفت أرقام Auth وهوية phone الداخلية وmetadata وأرقام الملفات، مع إبقاء الحسابات وطلبات الانضمام والسجل التاريخي.
+- أضيفت وطُبقت migration `030_canonical_verified_phone_format.sql` لتوحيد جوال الجداول العامة بصيغة `+9665xxxxxxxx` لأن Supabase Auth يعرض الرقم المؤكد داخليًا بلا علامة `+`. تحقق مستقل أثبت أن Auth مؤكد وأن `profiles.mobile` يُزامن بالصيغة القياسية.
+- أُصلح Send SMS Hook القديم أيضًا: إرسال Green API العاجل يتجاوز الطابور والتأخير، وتسجيل الإرسال ونسخة البريد ينفذان عبر `after()` بعد استجابة الـhook لتجنب `hook_timeout`.
+- تحقق الإنتاج الكامل نجح بحساب مؤقت: طلب الرمز أعاد `201`، سجل Green الحالة `sent`، التحقق أعاد `200` و`/customer`، وأنشأ دور العميل. حُذف الحساب المؤقت وتحديه وسجل اختباره بعد الفحص. فحص Green النهائي: instance `authorized`، الرقم المرسل فعّال على واتساب بنتيجة غير مخبأة، والطابور صفر.
+- تحقق التنظيف النهائي: 3/3 أرقام Auth فارغة، 3/3 أرقام profiles فارغة، رقم المزود فارغ، لا توجد phone identities أو phone providers للحسابات المستهدفة، وعدد التحديات المعلقة صفر.
+- فحوص TypeScript وESLint وSQL validation وmigration hashes وproduction build وroute smoke وroute audit وworkflow integration وno-operational-mocks ناجحة. فحص HTTP للدومين أعاد `200` لـ`/login` و`/register`، و`307` لـ`/verify-phone` بلا جلسة، و`401` لمساري API بلا جلسة.
+- رفع الكود إلى GitHub في `66b0f32` وتوحيد الصيغة في `31c00a8`. Vercel Production الحالي `dpl_DxoZpB9eYThZbxC5C6W7dxUxiaMQ` بحالة `Ready` ومربوط بـ`https://www.buniahksa.com`.
+- الملفات المحورية: `src/components/PhoneVerificationFlow.tsx`، `src/app/api/auth/phone-verification/request/route.ts`، `src/app/api/auth/phone-verification/complete/route.ts`، `src/lib/auth/phone-verification.ts`، `src/lib/notifications/providers/green-api.ts`، وmigrations `029` و`030`.
