@@ -29,5 +29,6 @@
   "028_allow_spaces_in_profile_usernames.sql": "cf867f1e5564fe8d0d86de97e0bb342c507f776ad5074af018003b47f7c82035",
   "029_verified_phone_capture.sql": "0382288291034f788dfbb60f986f795c99a196e0aee229f3e2bd61384036a4ee",
   "030_canonical_verified_phone_format.sql": "1e99b6f37e4eb2ed25973f3bdede9463fa16259038a0358551bed6e542cb3ec1",
-  "031_customer_workspace_actions.sql": "ee517ff66e819dd4197b05c093b492da31458ad49e3c627d5e0852bd056ac3cd"
+  "031_customer_workspace_actions.sql": "ee517ff66e819dd4197b05c093b492da31458ad49e3c627d5e0852bd056ac3cd",
+  "032_product_review_actions.sql": "ac12f65e6b877b002999c2b708a147d4aaa96c0fc4c165c9ec0332b58c0462e2"
 }
