@@ -17,7 +17,7 @@ import{ProviderFinance,ProviderNotifications,ProviderOrders,ProviderPolicies,Pro
 import{AdminPolicyManager}from"@/components/admin/AdminPolicies";
 import{AdminUsers}from"@/components/admin/AdminUsers";
 import{AdminProductReview}from"@/components/admin/AdminProductReview";
-import{CustomerAddresses,CustomerBilling,CustomerDashboard,CustomerDeliveries,CustomerOrders,CustomerProfile,CustomerProjectRequests,CustomerQuoteRequests,CustomerQuotes,CustomerSavedContractors}from"@/components/customer/CustomerWorkspace";
+import{CustomerAddresses,CustomerBilling,CustomerDashboard,CustomerDeliveries,CustomerOrders,CustomerProfile,CustomerProjectRequests,CustomerQuoteRequestDetail,CustomerQuoteRequests,CustomerQuotes,CustomerSavedContractors}from"@/components/customer/CustomerWorkspace";
 import{ContractorProfileEditor}from"@/components/contractor/ContractorProfileEditor";
 import{ContractorDashboard,ContractorOpportunities,ContractorProjectComments,ContractorProjectDetail,ContractorProjects,ContractorProposalDetail,ContractorProposals,ContractorReviews,ContractorVerification}from"@/components/contractor/ContractorWorkspace";
 
@@ -344,6 +344,7 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
   if(role==="admin"&&pathname==="/admin/policies")return <AdminPolicyManager/>;
   if(role==="customer"&&pathname==="/customer/project-requests/new")return <ProjectRequestForm/>;
   if(role==="customer"&&pathname==="/customer/project-requests")return <CustomerProjectRequests/>;
+  if(role==="customer"&&pathname.startsWith("/customer/quote-requests/")&&detailId)return <CustomerQuoteRequestDetail id={detailId}/>;
   if(role==="customer"&&pathname==="/customer/quote-requests")return <CustomerQuoteRequests/>;
   if(role==="customer"&&pathname==="/customer/quotes")return <CustomerQuotes/>;
   if(role==="customer"&&pathname==="/customer/orders")return <CustomerOrders/>;

@@ -39,6 +39,8 @@ const statusLabels: Record<string, string> = {
   submitted: "مُرسل",
   under_review: "قيد المراجعة",
   sourcing: "جاري التسعير",
+  verifying: "جارٍ التحقق من التوفر",
+  quote_ready: "عرض السعر جاهز",
   quoted: "تم إصدار العرض",
   ready: "جاهز",
   customer_review: "بانتظار قرارك",
@@ -161,7 +163,105 @@ export function CustomerProjectRequests() {
 export function CustomerQuoteRequests() {
   const state = useCustomerRows(() => db.from("quote_requests").select("id,request_code,project_name,city,status,payment_status,desired_receipt_at,quote_deadline,created_at").order("created_at", { ascending: false }), "quote-requests");
   return <Shell title="طلبات عرض السعر" description="طلبات مواد البناء المرسلة وحالتها الفعلية في دورة التسعير." loading={state.loading} error={state.error} actions={<Link className="customer-primary-link" href="/customer/quote-request/new">طلب جديد</Link>}>
-    {state.rows.length ? <div className="customer-cards">{state.rows.map(row => <article key={row.id}><header><div><small>{row.request_code}</small><h2>{row.project_name || `طلب ${row.request_code}`}</h2></div><Badge value={row.status}/></header><dl><div><dt>المدينة</dt><dd>{row.city}</dd></div><div><dt>حالة الدفع</dt><dd>{label(row.payment_status)}</dd></div><div><dt>موعد الاستلام</dt><dd>{date(row.desired_receipt_at)}</dd></div><div><dt>تاريخ الطلب</dt><dd>{date(row.created_at)}</dd></div></dl></article>)}</div> : <Empty text="لم ترسل طلب مواد بعد. اختر المنتجات والكميات وأرسل طلبك ليبدأ فريق بُنية بالتسعير." action={<Link className="customer-primary-link" href="/customer/quote-request/new">إنشاء طلب عرض سعر</Link>}/>} 
+    {state.rows.length ? <div className="customer-cards">{state.rows.map(row => <article key={row.id}><header><div><small>{row.request_code}</small><h2>{row.project_name || `طلب ${row.request_code}`}</h2></div><Badge value={row.status}/></header><dl><div><dt>المدينة</dt><dd>{row.city}</dd></div><div><dt>حالة الدفع</dt><dd>{label(row.payment_status)}</dd></div><div><dt>موعد الاستلام</dt><dd>{date(row.desired_receipt_at)}</dd></div><div><dt>تاريخ الطلب</dt><dd>{date(row.created_at)}</dd></div></dl><Link className="customer-card-action" href={`/customer/quote-requests/${row.id}`}>عرض تفاصيل الطلب</Link></article>)}</div> : <Empty text="لم ترسل طلب مواد بعد. اختر المنتجات والكميات وأرسل طلبك ليبدأ فريق بُنية بالتسعير." action={<Link className="customer-primary-link" href="/customer/quote-request/new">إنشاء طلب عرض سعر</Link>}/>}
+  </Shell>;
+}
+
+const quoteStatusHelp: Record<string, string> = {
+  draft: "الطلب محفوظ كمسودة ولم يُرسل بعد.",
+  submitted: "استلمنا طلبك وسيبدأ فريق بُنية مراجعته.",
+  sourcing: "يجري جمع الأسعار والتحقق من المنتجات المطلوبة.",
+  verifying: "يتحقق فريق بُنية من التوفر وموعد التسليم قبل إصدار العرض.",
+  quote_ready: "اكتمل عرض السعر ويمكنك مراجعته واتخاذ القرار.",
+  customer_review: "عرض السعر بانتظار مراجعتك وقرارك.",
+  accepted: "تم اعتماد العرض وتحويله إلى طلب شراء.",
+  rejected: "لم يتم اعتماد هذا الطلب.",
+  expired: "انتهت مهلة هذا الطلب.",
+  cancelled: "تم إلغاء هذا الطلب.",
+};
+
+export function CustomerQuoteRequestDetail({ id }: { id: string }) {
+  const [request, setRequest] = useState<Row | null>(null);
+  const [items, setItems] = useState<Row[]>([]);
+  const [quote, setQuote] = useState<Row | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => { void (async () => {
+    const [requestResult, itemsResult, quoteResult] = await Promise.all([
+      db.from("quote_requests").select("id,request_code,project_name,city,location_hint,google_maps_url,desired_receipt_at,quote_window_label,quote_deadline,payment_status,delivery_promise,notes,status,created_at,updated_at,delivery_mode,recipient_name,recipient_mobile").eq("id", id).maybeSingle(),
+      db.from("quote_request_items").select("id,product_name_snapshot,measurement_label_snapshot,unit_name_snapshot,quantity,notes,created_at").eq("request_id", id).order("created_at", { ascending: true }),
+      db.from("bunya_customer_quotes").select("id,quote_code,total,status,valid_until").eq("customer_request_id", id).maybeSingle(),
+    ]);
+    const failure = requestResult.error ?? itemsResult.error ?? quoteResult.error;
+    if (failure) setError(failure.message);
+    else {
+      setRequest(requestResult.data);
+      setItems(itemsResult.data ?? []);
+      setQuote(quoteResult.data);
+    }
+    setLoading(false);
+  })(); }, [id]);
+
+  if (loading) return <Shell title="تفاصيل طلب عرض السعر" description="جارٍ تجهيز بيانات طلبك…" loading><div/></Shell>;
+  if (error || !request) return <Shell title="تفاصيل طلب عرض السعر" description="تعذر فتح الطلب." error={error || "الطلب غير موجود أو لا تملك صلاحية عرضه."}><div/></Shell>;
+
+  const status = String(request.status);
+  const currentStep = ["draft", "submitted"].includes(status) ? 0 : ["sourcing", "verifying", "rejected", "expired", "cancelled"].includes(status) ? 1 : status === "quote_ready" ? 2 : 3;
+  const steps = ["تم إرسال الطلب", "التحقق والتسعير", "تجهيز عرض السعر", "مراجعة العميل"];
+
+  return <Shell
+    title={request.project_name || "طلب عرض سعر"}
+    description={`رقم الطلب: ${request.request_code}`}
+    actions={<Link className="customer-primary-link customer-back-link" href="/customer/quote-requests">العودة إلى الطلبات</Link>}
+  >
+    <section className="customer-rfq-status">
+      <div><small>حالة الطلب الآن</small><h2>{label(request.status)}</h2><p>{quoteStatusHelp[status] ?? "يمكنك متابعة آخر تحديثات الطلب من هذه الصفحة."}</p></div>
+      <Badge value={request.status}/>
+    </section>
+
+    <ol className="customer-rfq-steps">
+      {steps.map((step, index) => <li key={step} className={index < currentStep ? "done" : index === currentStep ? "current" : ""}><span>{index < currentStep ? "✓" : index + 1}</span><b>{step}</b></li>)}
+    </ol>
+
+    <div className="customer-rfq-layout">
+      <section className="database-panel customer-rfq-products">
+        <header><div><small>محتوى الطلب</small><h2>المنتجات المطلوبة</h2></div><strong>{items.length} {items.length === 1 ? "منتج" : "منتجات"}</strong></header>
+        <div className="customer-rfq-items">
+          {items.map((item, index) => <article key={item.id}>
+            <span>{index + 1}</span>
+            <div><h3>{item.product_name_snapshot}</h3><p>{item.measurement_label_snapshot || "بدون قياس إضافي"}{item.notes ? ` · ${item.notes}` : ""}</p></div>
+            <strong>{Number(item.quantity).toLocaleString("ar-SA")} {item.unit_name_snapshot}</strong>
+          </article>)}
+        </div>
+        {request.notes ? <div className="customer-rfq-note"><b>ملاحظات الطلب</b><p>{request.notes}</p></div> : null}
+      </section>
+
+      <aside className="customer-rfq-summary">
+        <section className="database-panel">
+          <h2>التسليم والموقع</h2>
+          <dl>
+            <div><dt>طريقة الاستلام</dt><dd>{request.delivery_mode === "pickup" ? "استلام من المزود" : "توصيل إلى الموقع"}</dd></div>
+            <div><dt>المدينة</dt><dd>{request.city}</dd></div>
+            <div><dt>وصف الموقع</dt><dd>{request.location_hint}</dd></div>
+            <div><dt>موعد الاستلام المطلوب</dt><dd>{date(request.desired_receipt_at)}</dd></div>
+            {request.recipient_name ? <div><dt>المستلم</dt><dd>{request.recipient_name}</dd></div> : null}
+            {request.recipient_mobile ? <div><dt>جوال المستلم</dt><dd dir="ltr">{request.recipient_mobile}</dd></div> : null}
+          </dl>
+          {request.google_maps_url ? <a className="customer-card-action" href={request.google_maps_url} target="_blank" rel="noreferrer">فتح الموقع في الخرائط</a> : null}
+        </section>
+
+        <section className="database-panel">
+          <h2>متابعة الطلب</h2>
+          <dl>
+            <div><dt>تاريخ الإرسال</dt><dd>{date(request.created_at)}</dd></div>
+            <div><dt>مدة إعداد العرض</dt><dd>{/24|hours/i.test(String(request.quote_window_label || "")) ? "خلال 24 ساعة" : request.quote_window_label || "تظهر بعد المراجعة"}</dd></div>
+            <div><dt>حالة الدفع</dt><dd>{label(request.payment_status)}</dd></div>
+          </dl>
+          {quote ? <Link className="customer-primary-link customer-rfq-quote" href={`/customer/quotes/${quote.id}`}>فتح عرض السعر {quote.total != null ? `· ${money(quote.total)}` : ""}</Link> : <p className="customer-rfq-wait">سيظهر زر عرض السعر هنا فور اكتماله.</p>}
+        </section>
+      </aside>
+    </div>
   </Shell>;
 }
 
