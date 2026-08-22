@@ -15,6 +15,7 @@ import{ProviderProductCreate,ProviderProductsList}from"@/components/provider/Pro
 import{ProviderDriverCreate,ProviderDriversManager}from"@/components/provider/ProviderDrivers";
 import{ProviderFinance,ProviderNotifications,ProviderOrders,ProviderPolicies,ProviderProfile,ProviderQuoteRequests,ProviderQuotes}from"@/components/provider/ProviderWorkspace";
 import{AdminPolicyManager}from"@/components/admin/AdminPolicies";
+import{AdminUsers}from"@/components/admin/AdminUsers";
 import{CustomerAddresses,CustomerBilling,CustomerDashboard,CustomerDeliveries,CustomerOrders,CustomerProfile,CustomerProjectRequests,CustomerQuoteRequests,CustomerQuotes,CustomerSavedContractors}from"@/components/customer/CustomerWorkspace";
 import{ContractorProfileEditor}from"@/components/contractor/ContractorProfileEditor";
 
@@ -323,6 +324,7 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
   if(role==="admin"&&pathname.startsWith("/admin/delivery-codes/")&&detailId)return <AdminDeliveryCode id={detailId}/>;
   if(role==="admin"&&pathname==="/admin/join-requests/providers")return <AdminJoinRequests kind="provider"/>;
   if(role==="admin"&&pathname==="/admin/join-requests/contractors")return <AdminJoinRequests kind="contractor"/>;
+  if(role==="admin"&&pathname==="/admin/users")return <AdminUsers/>;
   if(role==="provider"&&pathname==="/merchant/products")return <ProviderProductsList/>;
   if(role==="provider"&&pathname==="/merchant/products/new")return <ProviderProductCreate/>;
   if(role==="provider"&&pathname==="/merchant/drivers")return <ProviderDriversManager/>;
