@@ -2,13 +2,14 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { resolveSafeReturnTo } from "@/lib/auth/return-to";
 import { maskSaudiPhone, normalizeSaudiPhone } from "@/lib/auth/phone-verification";
 import { createClient } from "@/lib/supabase/client";
 import { AuthCard, PortalShell } from "@/components/PortalUI";
 
 type ApiResponse = { message?: string; redirectTo?: string; phone?: string };
 
-export function PhoneVerificationFlow() {
+export function PhoneVerificationFlow({ returnTo }: { returnTo?: string }) {
   const router = useRouter();
   const [phone, setPhone] = useState("");
   const [requestedPhone, setRequestedPhone] = useState("");
@@ -70,7 +71,10 @@ export function PhoneVerificationFlow() {
       return;
     }
 
-    router.replace(body.redirectTo);
+    const destination = body.redirectTo === "/customer"
+      ? resolveSafeReturnTo("customer", returnTo)
+      : body.redirectTo;
+    router.replace(destination);
     router.refresh();
   };
 

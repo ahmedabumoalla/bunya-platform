@@ -56,11 +56,13 @@ type StoreHeaderProps = {
   compact: boolean;
   menuOpen: boolean;
   quoteCount: number;
+  quoteOpen: boolean;
   onMenuToggle: () => void;
   onNavigate: () => void;
+  onQuoteOpen: () => void;
 };
 
-export function StoreHeader({ compact, menuOpen, quoteCount, onMenuToggle, onNavigate }: StoreHeaderProps) {
+export function StoreHeader({ compact, menuOpen, quoteCount, quoteOpen, onMenuToggle, onNavigate, onQuoteOpen }: StoreHeaderProps) {
   const quoteLabel = `طلب عرض السعر يحتوي على ${quoteCount.toLocaleString("ar-SA")} منتج`;
   return (
     <header className={`store-header ${compact ? "store-header-compact" : ""}`}>
@@ -81,9 +83,9 @@ export function StoreHeader({ compact, menuOpen, quoteCount, onMenuToggle, onNav
           <Link className="store-portal-link" href="/contractors/join">المقاولون</Link>
         </nav>
 
-        <a href="#quote" className="store-icon-button store-header-quote" aria-label={quoteLabel}>
+        <button aria-controls="store-quote-drawer" aria-expanded={quoteOpen} className="store-icon-button store-header-quote" aria-label={quoteLabel} onClick={onQuoteOpen} type="button">
           <Icon name="quote" /><span className="store-count">{quoteCount.toLocaleString("ar-SA")}</span>
-        </a>
+        </button>
         <button aria-expanded={menuOpen} aria-controls="store-mobile-menu" aria-label={menuOpen ? "إغلاق القائمة" : "فتح القائمة"} className="store-menu-button" onClick={onMenuToggle} type="button"><Icon name={menuOpen ? "close" : "menu"} /></button>
       </div>
 

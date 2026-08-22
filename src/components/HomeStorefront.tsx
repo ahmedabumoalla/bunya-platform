@@ -6,6 +6,13 @@ import { flushSync } from "react-dom";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import type { Product, ProductCategory, QuoteRequestItem } from "@/lib/bunya-types";
+import {
+  emptyStorefrontQuoteDetails,
+  normalizePendingStorefrontQuote,
+  type PendingStorefrontQuote,
+  type StorefrontQuoteDetails,
+} from "@/lib/quotes/pending-draft";
+import { createClient } from "@/lib/supabase/client";
 import { BunyaLogo } from "./brand/BunyaLogo";
 import {PwaInstallPrompt} from "./PwaInstallPrompt";
 import { BunyaHomeMotion } from "./home/BunyaHomeMotion";
@@ -90,6 +97,27 @@ function isGoogleMapsUrl(value: string) {
   }
 }
 
+function localDateTimeValue(date: Date) {
+  const offset = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+}
+
+function minimumReceiptDateTime() {
+  const date = new Date(Date.now() + 3 * 60 * 60 * 1000);
+  date.setMinutes(Math.ceil(date.getMinutes() / 15) * 15, 0, 0);
+  return localDateTimeValue(date);
+}
+
+function detailsFromFirstItem(item: QuoteRequestItem): StorefrontQuoteDetails {
+  const requested = new Date(`${item.desiredReceiptDate}T12:00:00`);
+  const minimum = new Date(Date.now() + 3 * 60 * 60 * 1000);
+  return {
+    ...emptyStorefrontQuoteDetails,
+    mapsUrl: item.mapsUrl,
+    desiredReceiptAt: localDateTimeValue(requested > minimum ? requested : minimum),
+  };
+}
+
 export function HomeStorefront({ categories, products, dataError }: HomeStorefrontProps) {
   const [query, setQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<ProductCategory | "الكل">("الكل");
@@ -103,6 +131,11 @@ export function HomeStorefront({ categories, products, dataError }: HomeStorefro
   const [feedback, setFeedback] = useState("");
   const [storefrontNotice, setStorefrontNotice] = useState("");
   const [duplicateItemId, setDuplicateItemId] = useState<string | null>(null);
+  const [quoteDrawerOpen, setQuoteDrawerOpen] = useState(false);
+  const [quoteDetails, setQuoteDetails] = useState<StorefrontQuoteDetails>(emptyStorefrontQuoteDetails);
+  const [quoteDrawerBusy, setQuoteDrawerBusy] = useState(false);
+  const [quoteDrawerFeedback, setQuoteDrawerFeedback] = useState("");
+  const [quoteSubmissionKey, setQuoteSubmissionKey] = useState(() => createQuoteId("storefront-quote"));
   const storefrontRef = useRef<HTMLElement>(null);
   const productOriginRef = useRef<HTMLElement | null>(null);
 
@@ -114,7 +147,7 @@ export function HomeStorefront({ categories, products, dataError }: HomeStorefro
   }, []);
 
   useEffect(() => {
-    if (!selectedProduct) {
+    if (!selectedProduct && !quoteDrawerOpen) {
       return;
     }
 
@@ -123,7 +156,8 @@ export function HomeStorefront({ categories, products, dataError }: HomeStorefro
 
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape") {
-        setSelectedProduct(null);
+        if (selectedProduct) setSelectedProduct(null);
+        else setQuoteDrawerOpen(false);
       }
     };
 
@@ -132,7 +166,35 @@ export function HomeStorefront({ categories, products, dataError }: HomeStorefro
       document.body.style.overflow = originalOverflow;
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [selectedProduct]);
+  }, [quoteDrawerOpen, selectedProduct]);
+
+  useEffect(() => {
+    void (async () => {
+      const response = await fetch("/api/public/quote-draft", { cache: "no-store" }).catch(() => null);
+      if (!response?.ok) return;
+      const body = await response.json().catch(() => null) as { draft?: unknown } | null;
+      const draft = normalizePendingStorefrontQuote(body?.draft);
+      if (!draft) return;
+      setQuoteItems(draft.items);
+      setQuoteDetails(draft.details);
+      setQuoteSubmissionKey(draft.idempotencyKey);
+      if (new URLSearchParams(window.location.search).get("quote") === "review") {
+        setQuoteDrawerOpen(true);
+        const supabase = createClient();
+        const { data } = await supabase.auth.getUser();
+        if (data.user) {
+          const profile = await supabase.from("profiles").select("full_name,mobile").eq("id", data.user.id).maybeSingle();
+          if (profile.data) {
+            setQuoteDetails((current) => ({
+              ...current,
+              recipientName: current.recipientName || profile.data?.full_name || "",
+              recipientMobile: current.recipientMobile || profile.data?.mobile || "",
+            }));
+          }
+        }
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     if (!storefrontNotice) {
@@ -266,10 +328,87 @@ export function HomeStorefront({ categories, products, dataError }: HomeStorefro
     }
 
     setDuplicateItemId(null);
+    if (quoteItems.length === 0) setQuoteDetails(detailsFromFirstItem(item));
     setQuoteItems((current) => [item, ...current]);
     setFeedback("");
     setStorefrontNotice(`تمت إضافة «${selectedProduct.name}» إلى طلب عرض السعر.`);
     closeProduct();
+  };
+
+  const openQuoteDrawer = async () => {
+    setSelectedProduct(null);
+    setQuoteDrawerOpen(true);
+    setQuoteDrawerFeedback("");
+    const supabase = createClient();
+    const { data } = await supabase.auth.getUser();
+    if (!data.user) return;
+    const profile = await supabase.from("profiles").select("full_name,mobile").eq("id", data.user.id).maybeSingle();
+    const profileData = profile.data;
+    if (!profileData) return;
+    setQuoteDetails((current) => ({
+      ...current,
+      recipientName: current.recipientName || profileData.full_name || "",
+      recipientMobile: current.recipientMobile || profileData.mobile || "",
+    }));
+  };
+
+  const updateQuoteDetails = <Key extends keyof StorefrontQuoteDetails>(key: Key, value: StorefrontQuoteDetails[Key]) => {
+    setQuoteDetails((current) => ({ ...current, [key]: value }));
+    setQuoteDrawerFeedback("");
+  };
+
+  const updateQuoteItemQuantity = (id: string, quantity: number) => {
+    if (!Number.isFinite(quantity) || quantity < 1) return;
+    setQuoteItems((current) => current.map((item) => item.id === id ? { ...item, quantity } : item));
+  };
+
+  const removeQuoteItem = (id: string) => {
+    setQuoteItems((current) => current.filter((item) => item.id !== id));
+    setQuoteDrawerFeedback("");
+  };
+
+  const approveQuoteRequest = async () => {
+    if (!quoteItems.length || quoteDrawerBusy) {
+      if (!quoteItems.length) setQuoteDrawerFeedback("أضف منتجًا واحدًا على الأقل قبل اعتماد الطلب.");
+      return;
+    }
+
+    setQuoteDrawerBusy(true);
+    setQuoteDrawerFeedback("");
+    const draft: PendingStorefrontQuote = { version: 1, idempotencyKey: quoteSubmissionKey, items: quoteItems, details: quoteDetails, savedAt: new Date().toISOString() };
+    const { data } = await createClient().auth.getUser();
+    if (!data.user) {
+      const saved = await fetch("/api/public/quote-draft", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(draft),
+      }).catch(() => null);
+      if (!saved?.ok) {
+        const body = await saved?.json().catch(() => null) as { message?: string } | null;
+        setQuoteDrawerBusy(false);
+        setQuoteDrawerFeedback(body?.message || "تعذر حفظ الطلب قبل تسجيل الدخول. حاول مرة أخرى.");
+        return;
+      }
+      window.location.assign(`/login?returnTo=${encodeURIComponent("/?quote=review")}`);
+      return;
+    }
+
+    const response = await fetch("/api/customer/quote-requests", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(draft),
+    }).catch(() => null);
+    const body = await response?.json().catch(() => null) as { message?: string; requestId?: string } | null;
+    if (!response?.ok || !body?.requestId) {
+      setQuoteDrawerBusy(false);
+      setQuoteDrawerFeedback(body?.message || "تعذر اعتماد الطلب حاليًا. حاول مرة أخرى.");
+      return;
+    }
+
+    setQuoteItems([]);
+    setQuoteSubmissionKey(createQuoteId("storefront-quote"));
+    setQuoteDrawerOpen(false);
+    window.location.assign(`/customer/quote-requests/${body.requestId}`);
   };
 
   const increaseDuplicateQuantity = () => {
@@ -289,8 +428,8 @@ export function HomeStorefront({ categories, products, dataError }: HomeStorefro
   return (
     <main className="store-home min-h-screen overflow-hidden" ref={storefrontRef}>
       <BunyaLogoIntro />
-      <BunyaHomeMotion detailOpen={Boolean(selectedProduct)} filterKey={`${activeCategory}:${query}`} scope={storefrontRef} />
-      <StoreHeader compact={headerCompact} menuOpen={mobileMenuOpen} onMenuToggle={() => setMobileMenuOpen((current) => !current)} onNavigate={() => setMobileMenuOpen(false)} quoteCount={quoteItems.length} />
+      <BunyaHomeMotion detailOpen={Boolean(selectedProduct || quoteDrawerOpen)} filterKey={`${activeCategory}:${query}`} scope={storefrontRef} />
+      <StoreHeader compact={headerCompact} menuOpen={mobileMenuOpen} onMenuToggle={() => setMobileMenuOpen((current) => !current)} onNavigate={() => setMobileMenuOpen(false)} onQuoteOpen={() => void openQuoteDrawer()} quoteCount={quoteItems.length} quoteOpen={quoteDrawerOpen} />
 
       <section className="store-intro px-4" data-store-reveal>
         <div className="store-intro-copy mx-auto">
@@ -392,6 +531,67 @@ export function HomeStorefront({ categories, products, dataError }: HomeStorefro
           <button aria-label="إغلاق رسالة التأكيد" onClick={() => setStorefrontNotice("")} type="button">
             <Icon name="close" />
           </button>
+        </div>
+      ) : null}
+
+      {quoteDrawerOpen ? (
+        <div className="store-quote-drawer-backdrop" onMouseDown={() => setQuoteDrawerOpen(false)}>
+          <aside aria-labelledby="store-quote-drawer-title" aria-modal="true" className="store-quote-drawer" id="store-quote-drawer" onMouseDown={(event) => event.stopPropagation()} role="dialog">
+            <header className="store-quote-drawer-header">
+              <div>
+                <p>طلب عرض السعر</p>
+                <h2 id="store-quote-drawer-title">راجع طلبك قبل الاعتماد</h2>
+                <span>{quoteItems.length.toLocaleString("ar-SA")} منتج في الطلب الحالي</span>
+              </div>
+              <button aria-label="إغلاق قائمة طلب عرض السعر" onClick={() => setQuoteDrawerOpen(false)} type="button"><Icon name="close" /></button>
+            </header>
+
+            <div className="store-quote-drawer-content">
+              <section className="store-quote-drawer-section">
+                <div className="store-quote-drawer-section-heading"><h3>المنتجات المطلوبة</h3><span>{quoteItems.length.toLocaleString("ar-SA")}</span></div>
+                {quoteItems.length ? <div className="store-quote-drawer-items">{quoteItems.map((item) => {
+                  const product = products.find((candidate) => candidate.id === item.productId);
+                  return <article className="store-quote-drawer-item" key={item.id}>
+                    <ProductArtwork image={product?.images[0]} />
+                    <div className="store-quote-drawer-item-copy">
+                      <div><h4>{item.productName}</h4><button onClick={() => removeQuoteItem(item.id)} type="button">حذف</button></div>
+                      <dl>
+                        <div><dt>الوحدة</dt><dd>{item.unit}</dd></div>
+                        <div><dt>القياس</dt><dd>{item.measurementLabel}</dd></div>
+                        <div><dt>الموعد المضاف</dt><dd>{new Date(`${item.desiredReceiptDate}T12:00:00`).toLocaleDateString("ar-SA")}</dd></div>
+                      </dl>
+                      <label><span>الكمية</span><input aria-label={`كمية ${item.productName}`} min="1" onChange={(event) => updateQuoteItemQuantity(item.id, Number(event.target.value))} type="number" value={item.quantity} /></label>
+                      {item.notes ? <p>{item.notes}</p> : null}
+                      <a href={item.mapsUrl} rel="noreferrer" target="_blank">فتح موقع التسليم المضاف</a>
+                    </div>
+                  </article>;
+                })}</div> : <div className="store-quote-drawer-empty"><Icon name="quote" /><h3>الطلب فارغ</h3><p>أغلق القائمة واختر منتجًا ثم أضفه إلى طلب عرض السعر.</p></div>}
+              </section>
+
+              {quoteItems.length ? <section className="store-quote-drawer-section">
+                <div className="store-quote-drawer-section-heading"><h3>بيانات الطلب والتسليم</h3><span>مطلوبة للاعتماد</span></div>
+                <div className="store-quote-drawer-form">
+                  <label><span>المدينة أو المنطقة</span><input onChange={(event) => updateQuoteDetails("city", event.target.value)} placeholder="مثال: الرياض" value={quoteDetails.city} /></label>
+                  <label><span>اسم المشروع</span><input onChange={(event) => updateQuoteDetails("projectName", event.target.value)} placeholder="اختياري" value={quoteDetails.projectName} /></label>
+                  <label className="store-quote-drawer-wide"><span>وصف موقع التسليم</span><input onChange={(event) => updateQuoteDetails("locationHint", event.target.value)} placeholder="الحي، بوابة الموقع أو أقرب معلم" value={quoteDetails.locationHint} /></label>
+                  <label className="store-quote-drawer-wide"><span>رابط Google Maps</span><input dir="ltr" onChange={(event) => updateQuoteDetails("mapsUrl", event.target.value)} value={quoteDetails.mapsUrl} /></label>
+                  <label><span>موعد الاستلام المطلوب</span><input min={minimumReceiptDateTime()} onChange={(event) => updateQuoteDetails("desiredReceiptAt", event.target.value)} type="datetime-local" value={quoteDetails.desiredReceiptAt} /></label>
+                  <label><span>طريقة الاستلام</span><select onChange={(event) => updateQuoteDetails("deliveryMode", event.target.value as StorefrontQuoteDetails["deliveryMode"])} value={quoteDetails.deliveryMode}><option value="delivery">توصيل للموقع</option><option value="pickup">استلام من المزود</option></select></label>
+                  <label><span>اسم المستلم</span><input onChange={(event) => updateQuoteDetails("recipientName", event.target.value)} value={quoteDetails.recipientName} /></label>
+                  <label><span>جوال المستلم</span><input dir="ltr" inputMode="tel" onChange={(event) => updateQuoteDetails("recipientMobile", event.target.value)} placeholder="05xxxxxxxx" value={quoteDetails.recipientMobile} /></label>
+                  <label className="store-quote-drawer-wide"><span>ملاحظات عامة</span><textarea onChange={(event) => updateQuoteDetails("notes", event.target.value)} rows={3} value={quoteDetails.notes} /></label>
+                </div>
+              </section> : null}
+            </div>
+
+            <footer className="store-quote-drawer-footer">
+              {quoteDrawerFeedback ? <p role="alert">{quoteDrawerFeedback}</p> : null}
+              <button className="store-quote-approve" disabled={quoteDrawerBusy || quoteItems.length === 0} onClick={() => void approveQuoteRequest()} type="button">
+                {quoteDrawerBusy ? "جارٍ تجهيز الطلب..." : "اعتماد طلب عرض السعر"}
+              </button>
+              <small>إذا لم تكن مسجلًا سنحفظ الطلب مؤقتًا، ثم نعيدك إلى هذه القائمة بعد تسجيل الدخول.</small>
+            </footer>
+          </aside>
         </div>
       ) : null}
 

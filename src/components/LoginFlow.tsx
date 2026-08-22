@@ -3,7 +3,8 @@
 import type { FormEvent } from "react";
 import { useState } from "react";
 import Link from "next/link";
-import { isAppRole, routeForRole } from "@/lib/auth/types";
+import { quoteReturnToQuery, resolveSafeReturnTo } from "@/lib/auth/return-to";
+import { isAppRole } from "@/lib/auth/types";
 import { createClient } from "@/lib/supabase/client";
 import { AuthCard, PasswordFieldWithVisibilityCheckbox, PortalShell } from "./PortalUI";
 
@@ -35,7 +36,7 @@ function loginErrorMessage(error: { code?: string; status?: number }) {
   return "تعذر الاتصال بخدمة تسجيل الدخول حاليًا. بياناتك لم تُرفض؛ حاول مرة أخرى بعد قليل.";
 }
 
-export function LoginFlow({ initialError }: { initialError?: string }) {
+export function LoginFlow({ initialError, returnTo }: { initialError?: string; returnTo?: string }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<Errors>(
@@ -95,9 +96,10 @@ export function LoginFlow({ initialError }: { initialError?: string }) {
       const primaryRole = isAppRole(primaryValue) ? primaryValue : null;
       const needsPhone = !(data.user.phone && data.user.phone_confirmed_at) && Boolean(profile?.is_active) &&
         (roles.some((row) => row.role === "customer" || row.role === "provider") || roles.length === 0);
+      const returnTo = new URLSearchParams(window.location.search).get("returnTo");
 
       if (needsPhone) {
-        window.location.replace("/verify-phone");
+        window.location.replace(`/verify-phone${quoteReturnToQuery(returnTo)}`);
         return;
       }
       if (!profile || !profile.is_active || !primaryRole) {
@@ -111,14 +113,7 @@ export function LoginFlow({ initialError }: { initialError?: string }) {
         window.location.replace("/account/change-password");
         return;
       }
-      const root = routeForRole(primaryRole);
-      const returnTo = new URLSearchParams(window.location.search).get("returnTo");
-      const safeReturnTo =
-        returnTo &&
-        !returnTo.startsWith("//") &&
-        (returnTo === root || returnTo.startsWith(`${root}/`))
-          ? returnTo
-          : root;
+      const safeReturnTo = resolveSafeReturnTo(primaryRole, returnTo);
       window.location.replace(safeReturnTo);
     } catch {
       await supabase.auth.signOut();
@@ -168,7 +163,7 @@ export function LoginFlow({ initialError }: { initialError?: string }) {
           </button>
           <div className="portal-links">
             <Link href="/forgot-password">نسيت كلمة المرور؟</Link>
-            <Link href="/register">إنشاء حساب جديد</Link>
+            <Link href={`/register${quoteReturnToQuery(returnTo)}`}>إنشاء حساب جديد</Link>
           </div>
         </form>
       </AuthCard>

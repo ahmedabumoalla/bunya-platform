@@ -1956,6 +1956,322 @@ html[data-theme="dark"] .glass-card-strong {
   outline: none;
 }
 
+.store-quote-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  justify-content: flex-start;
+  background: rgb(38 29 23 / 0.48);
+  backdrop-filter: blur(8px);
+  animation: store-backdrop-in 180ms ease both;
+}
+
+.store-quote-drawer {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(42rem, 94vw);
+  height: 100dvh;
+  overflow: hidden;
+  direction: rtl;
+  border-inline-end: 1px solid rgb(166 97 56 / 0.25);
+  background: #fffaf3;
+  color: #241a14;
+  box-shadow: 30px 0 90px rgb(39 27 19 / 0.3);
+  animation: store-quote-drawer-in 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.store-quote-drawer-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid #ead7c7;
+  background: linear-gradient(145deg, #fffdf9, #f8ecdc);
+  padding: 1.2rem clamp(1rem, 3vw, 1.5rem);
+}
+
+.store-quote-drawer-header p {
+  color: #a4512f;
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.store-quote-drawer-header h2 {
+  margin-top: 0.2rem;
+  font-size: clamp(1.35rem, 3vw, 1.8rem);
+  font-weight: 950;
+}
+
+.store-quote-drawer-header span {
+  display: block;
+  margin-top: 0.25rem;
+  color: #715b4d;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.store-quote-drawer-header button {
+  display: grid;
+  flex: 0 0 auto;
+  width: 2.55rem;
+  height: 2.55rem;
+  place-items: center;
+  border: 1px solid #e4cfbc;
+  border-radius: 0.65rem;
+  background: #fff;
+  color: #2b211b;
+}
+
+.store-quote-drawer-content {
+  display: grid;
+  align-content: start;
+  gap: 1rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1rem clamp(0.8rem, 3vw, 1.35rem) 2rem;
+}
+
+.store-quote-drawer-section {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.store-quote-drawer-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.store-quote-drawer-section-heading h3 {
+  font-size: 1rem;
+  font-weight: 950;
+}
+
+.store-quote-drawer-section-heading span {
+  border: 1px solid #e4cfbc;
+  border-radius: 999px;
+  background: #f7eadb;
+  color: #8b4a2d;
+  font-size: 0.7rem;
+  font-weight: 900;
+  padding: 0.32rem 0.6rem;
+}
+
+.store-quote-drawer-items {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.store-quote-drawer-item {
+  display: grid;
+  grid-template-columns: 7rem minmax(0, 1fr);
+  gap: 0.8rem;
+  border: 1px solid #ead7c7;
+  border-radius: 0.8rem;
+  background: #fff;
+  padding: 0.65rem;
+  box-shadow: 0 12px 30px rgb(93 61 39 / 0.07);
+}
+
+.store-quote-drawer-item > .store-product-art {
+  min-height: 7rem;
+  border-radius: 0.55rem;
+}
+
+.store-quote-drawer-item-copy {
+  display: grid;
+  align-content: start;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.store-quote-drawer-item-copy > div:first-child {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.store-quote-drawer-item-copy h4 {
+  font-size: 0.95rem;
+  font-weight: 950;
+}
+
+.store-quote-drawer-item-copy > div:first-child button {
+  border: 0;
+  background: transparent;
+  color: #b42318;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.store-quote-drawer-item-copy dl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+}
+
+.store-quote-drawer-item-copy dl div {
+  display: flex;
+  gap: 0.25rem;
+  font-size: 0.7rem;
+}
+
+.store-quote-drawer-item-copy dt {
+  color: #7b6658;
+  font-weight: 800;
+}
+
+.store-quote-drawer-item-copy dd {
+  margin: 0;
+  font-weight: 900;
+}
+
+.store-quote-drawer-item-copy > label {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 900;
+}
+
+.store-quote-drawer-item-copy > label input {
+  width: 6rem;
+  min-height: 2.15rem;
+  border: 1px solid #dcbfa8;
+  border-radius: 0.5rem;
+  background: #fffaf3;
+  padding: 0.35rem 0.55rem;
+}
+
+.store-quote-drawer-item-copy > p {
+  color: #685548;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.store-quote-drawer-item-copy > a {
+  width: fit-content;
+  color: #9e4f2e;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-decoration: underline;
+}
+
+.store-quote-drawer-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  border: 1px solid #ead7c7;
+  border-radius: 0.8rem;
+  background: #fff;
+  padding: 0.8rem;
+}
+
+.store-quote-drawer-form label {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.store-quote-drawer-form label > span {
+  color: #554237;
+  font-size: 0.75rem;
+  font-weight: 900;
+}
+
+.store-quote-drawer-form input,
+.store-quote-drawer-form select,
+.store-quote-drawer-form textarea {
+  width: 100%;
+  min-height: 2.65rem;
+  border: 1px solid #ddc4b0;
+  border-radius: 0.55rem;
+  background: #fffdf9;
+  color: #241a14;
+  padding: 0.6rem 0.7rem;
+  font-weight: 800;
+  outline: none;
+}
+
+.store-quote-drawer-form textarea {
+  resize: vertical;
+}
+
+.store-quote-drawer-form input:focus,
+.store-quote-drawer-form select:focus,
+.store-quote-drawer-form textarea:focus {
+  border-color: #ad5c38;
+  box-shadow: 0 0 0 3px rgb(173 92 56 / 0.12);
+}
+
+.store-quote-drawer-wide {
+  grid-column: 1 / -1;
+}
+
+.store-quote-drawer-empty {
+  display: grid;
+  place-items: center;
+  gap: 0.45rem;
+  min-height: 14rem;
+  border: 1px dashed #d9bda7;
+  border-radius: 0.8rem;
+  background: #fff;
+  color: #725b4c;
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.store-quote-drawer-empty svg {
+  width: 2.5rem;
+  height: 2.5rem;
+  color: #a4512f;
+}
+
+.store-quote-drawer-footer {
+  display: grid;
+  gap: 0.55rem;
+  border-top: 1px solid #ead7c7;
+  background: #fffdf9;
+  padding: 0.9rem clamp(1rem, 3vw, 1.5rem);
+  box-shadow: 0 -12px 35px rgb(70 42 26 / 0.08);
+}
+
+.store-quote-drawer-footer > p {
+  border-radius: 0.55rem;
+  background: #fff0ed;
+  color: #a52a22;
+  font-size: 0.76rem;
+  font-weight: 900;
+  line-height: 1.6;
+  padding: 0.65rem 0.75rem;
+}
+
+.store-quote-approve {
+  min-height: 3.2rem;
+  border: 0;
+  border-radius: 0.65rem;
+  background: linear-gradient(135deg, #ad5b36, #8f4327);
+  color: #fff;
+  font-weight: 950;
+  box-shadow: 0 16px 35px rgb(143 67 39 / 0.22);
+}
+
+.store-quote-approve:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.store-quote-drawer-footer small {
+  color: #756052;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.6;
+  text-align: center;
+}
+
 .store-submit-button:hover,
 .store-submit-button:focus-visible {
   border-color: rgb(186 230 253 / 0.72);
@@ -1981,6 +2297,17 @@ html[data-theme="dark"] .glass-card-strong {
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes store-quote-drawer-in {
+  from {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
   }
 }
 
@@ -2042,6 +2369,26 @@ html[data-theme="dark"] .glass-card-strong {
 }
 
 @media (max-width: 640px) {
+  .store-quote-drawer {
+    width: 100%;
+  }
+
+  .store-quote-drawer-item {
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+  }
+
+  .store-quote-drawer-item > .store-product-art {
+    min-height: 5.5rem;
+  }
+
+  .store-quote-drawer-form {
+    grid-template-columns: 1fr;
+  }
+
+  .store-quote-drawer-wide {
+    grid-column: 1;
+  }
+
   .store-detail-backdrop {
     align-items: stretch;
     padding: 0.5rem;
@@ -2114,6 +2461,8 @@ html[data-theme="dark"] .glass-card-strong {
   .store-detail-panel,
   .store-detail-visual,
   .store-cart-toast,
+  .store-quote-drawer-backdrop,
+  .store-quote-drawer,
   .store-category-chip,
   .store-submit-button,
   .store-nav-link,

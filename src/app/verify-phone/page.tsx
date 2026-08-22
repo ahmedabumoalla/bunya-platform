@@ -1,14 +1,14 @@
 import { redirect } from "next/navigation";
 import { PhoneVerificationFlow } from "@/components/PhoneVerificationFlow";
+import { quoteReturnToQuery, resolveSafeReturnTo } from "@/lib/auth/return-to";
 import { requiresPhoneVerification } from "@/lib/auth/phone-verification";
 import { resolveAuthIdentity } from "@/lib/auth/resolve-identity";
-import { routeForRole } from "@/lib/auth/types";
 import { createClient } from "@/lib/supabase/server";
 
-export default async function VerifyPhonePage() {
+export default async function VerifyPhonePage({ searchParams }: { searchParams: Promise<{ returnTo?: string }> }) {
   const supabase = await createClient();
-  const { data, error } = await supabase.auth.getUser();
-  if (error || !data.user) redirect("/login");
+  const [{ data, error }, params] = await Promise.all([supabase.auth.getUser(), searchParams]);
+  if (error || !data.user) redirect(`/login${quoteReturnToQuery(params.returnTo)}`);
   let identity = await resolveAuthIdentity(supabase, data.user);
 
   if (data.user.phone && data.user.phone_confirmed_at && identity.status === "missing_role") {
@@ -18,9 +18,9 @@ export default async function VerifyPhonePage() {
   }
 
   if (!requiresPhoneVerification(data.user, identity)) {
-    if (identity.status === "ready" && identity.primaryRole) redirect(routeForRole(identity.primaryRole));
+    if (identity.status === "ready" && identity.primaryRole) redirect(resolveSafeReturnTo(identity.primaryRole, params.returnTo));
     redirect(`/login?error=${identity.status}`);
   }
 
-  return <PhoneVerificationFlow />;
+  return <PhoneVerificationFlow returnTo={params.returnTo} />;
 }

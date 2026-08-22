@@ -1,2 +1,5 @@
 import { RegisterFlow } from "@/components/AuthFlows";
-export default function RegisterPage() { return <RegisterFlow />; }
+export default async function RegisterPage({ searchParams }: { searchParams: Promise<{ returnTo?: string }> }) {
+  const params = await searchParams;
+  return <RegisterFlow returnTo={params.returnTo} />;
+}
