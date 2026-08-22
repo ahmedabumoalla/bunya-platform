@@ -136,3 +136,5 @@
 - صفحة `/verify-phone` لا تفتح دون جلسة، وتتيح إرسال OTP وإعادة إرساله والتحقق منه. بعد النجاح تستدعي `initialize_customer_account` ثم توجه إلى `/customer`. الحسابات الموثقة وبقية الأدوار تستمر في مسار الدخول المعتاد دون تغيير.
 - تحقق بعيد بحساب مؤقت أثبت نجاح تسجيل الدخول بكلمة المرور مع وجود جوال غير موثق وصفر أدوار، ثم حُذف الحساب. TypeScript وESLint وproduction build ناجحة، والبناء يتضمن `/verify-phone` كمسار ديناميكي.
 - هذا التدفق يعالج إمكانية العودة للتوثيق، لكنه لا يلغي ضرورة إصلاح إعداد Send SMS Hook/Green API في الإنتاج حتى يصل الرمز فعليًا.
+- رُفع الإصلاح إلى GitHub على `main` في commit `4d8e693`، ثم نُشر يدويًا إلى Vercel Production في deployment `dpl_egj8Cceji7aoVV4k36e9bcfeDiK3` وأصبح `Ready` ومربوطًا بـ`https://www.buniahksa.com`. تحقق الدومين أعاد `200` لـ`/login` و`307` من `/verify-phone` إلى `/login` بلا جلسة مع `X-Matched-Path: /verify-phone`، ما يثبت وصول المسار الجديد إلى الدومين الرسمي.
+- تحقق ما قبل النشر: ESLint وTypeScript وroute smoke وworkflow integration وproduction build كلها ناجحة. تحذير Supabase عن Node 20 ظهر محليًا فقط؛ Vercel Production يبني على Node 24.
