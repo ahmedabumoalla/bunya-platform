@@ -43,12 +43,18 @@ function getTodayValue() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function getProductUnits(product?: Product) {
+  if (!product) return [];
+  return [...new Set([product.unit, ...product.units].map((unit) => unit.trim()).filter(Boolean))];
+}
+
 function createInitialForm(product?: Product): QuoteFormState {
   const defaultMeasurement = product?.measurements.find((item) => item.isDefault) ?? product?.measurements[0];
+  const units = getProductUnits(product);
 
   return {
     quantity: 1,
-    unit: defaultMeasurement?.unit ?? product?.unit ?? "",
+    unit: defaultMeasurement?.unit ?? units[0] ?? "",
     measurementId: defaultMeasurement?.id ?? "",
     desiredReceiptDate: getTodayValue(),
     mapsUrl: "",
@@ -200,7 +206,7 @@ export function HomeStorefront({ categories, products, dataError }: HomeStorefro
       nextErrors.unit = "اختر وحدة الطلب.";
     }
 
-    if (!quoteForm.measurementId) {
+    if (selectedProduct?.measurements.length && !quoteForm.measurementId) {
       nextErrors.measurementId = "اختر القياس المطلوب.";
     }
 
@@ -218,7 +224,7 @@ export function HomeStorefront({ categories, products, dataError }: HomeStorefro
 
   const addQuoteItem = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!selectedProduct || !selectedMeasurement || !validateQuote()) {
+    if (!selectedProduct || !validateQuote()) {
       setFeedback("راجع الحقول المطلوبة قبل إضافة المنتج.");
       return;
     }
@@ -229,8 +235,8 @@ export function HomeStorefront({ categories, products, dataError }: HomeStorefro
       productName: selectedProduct.name,
       quantity: quoteForm.quantity,
       unit: quoteForm.unit,
-      measurementId: selectedMeasurement.id,
-      measurementLabel: selectedMeasurement.label,
+      measurementId: selectedMeasurement?.id ?? "",
+      measurementLabel: selectedMeasurement?.label ?? "بدون قياس إضافي",
       desiredReceiptDate: quoteForm.desiredReceiptDate,
       mapsUrl: quoteForm.mapsUrl.trim(),
       notes: quoteForm.notes.trim() || undefined,
@@ -416,9 +422,9 @@ export function HomeStorefront({ categories, products, dataError }: HomeStorefro
                 <section className="store-detail-section">
                   <h3>القياسات المتوفرة</h3>
                   <div className="store-measurement-list">
-                    {selectedProduct.measurements.map((measurement) => (
+                    {selectedProduct.measurements.length ? selectedProduct.measurements.map((measurement) => (
                       <span className="store-soft-pill" key={measurement.id}>{measurement.label}</span>
-                    ))}
+                    )) : <span className="store-soft-pill">لا توجد قياسات إضافية لهذا المنتج</span>}
                   </div>
                 </section>
                 <section className="store-detail-section">
@@ -465,7 +471,7 @@ export function HomeStorefront({ categories, products, dataError }: HomeStorefro
                 <label className="store-field store-field-half">
                   <span>الوحدة</span>
                   <select value={quoteForm.unit} onChange={(event) => updateForm("unit", event.target.value)}>
-                    {selectedProduct.units.map((unit) => (
+                    {getProductUnits(selectedProduct).map((unit) => (
                       <option key={unit} value={unit}>{unit}</option>
                     ))}
                   </select>
@@ -475,6 +481,7 @@ export function HomeStorefront({ categories, products, dataError }: HomeStorefro
                 <label className="store-field store-field-half">
                   <span>القياس</span>
                   <select
+                    disabled={selectedProduct.measurements.length === 0}
                     value={quoteForm.measurementId}
                     onChange={(event) => {
                       const measurement = selectedProduct.measurements.find((item) => item.id === event.target.value);
@@ -486,7 +493,7 @@ export function HomeStorefront({ categories, products, dataError }: HomeStorefro
                       setErrors((current) => ({ ...current, measurementId: undefined }));
                     }}
                   >
-                    {selectedProduct.measurements.map((measurement) => (
+                    {selectedProduct.measurements.length === 0 ? <option value="">بدون قياس إضافي</option> : selectedProduct.measurements.map((measurement) => (
                       <option key={measurement.id} value={measurement.id}>{measurement.label}</option>
                     ))}
                   </select>
