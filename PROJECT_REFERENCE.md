@@ -117,3 +117,22 @@
 - تسجيل العميل يقبل اسم مستخدم من 4 إلى 40 حرفًا مع مسافات داخلية، مثل `محمد أحمد`، ويطبع Unicode ويزيل المسافات الطرفية ويختصر تتابع المسافات قبل الحفظ.
 - أضيفت وطُبقت migration `028_allow_spaces_in_profile_usernames.sql` على Supabase البعيد لتحديث قيد `profiles_username_format` دون تعديل migration تاريخية.
 - نجح TypeScript وESLint وفحص SQL وحارس hashes، كما نجح إنشاء حساب بعيد مؤقت باسم مستخدم يحتوي مسافة مع حفظه كما هو ثم حُذف الحساب التجريبي.
+
+### تشخيص OTP على الدومين الرسمي — 2026-08-22
+
+- النسخة المنشورة على `https://www.buniahksa.com/register` متاحة، ومسار `POST /api/auth/hooks/send-sms` منشور ويعيد `401 Invalid hook signature` للطلب غير الموقع، أي أن الملفات وRoute Handler موجودان في Vercel.
+- الدومين `https://buniahksa.com` يعيد `308` إلى `https://www.buniahksa.com` حتى لطلبات POST. يجب أن يكون رابط Supabase Send SMS Hook هو الرابط النهائي `https://www.buniahksa.com/api/auth/hooks/send-sms` مباشرة؛ استخدام الرابط بلا `www` قد يمنع وصول webhook الموقع أو يفقد ترويسات التوقيع عند التحويل.
+- لا توجد أي سجلات `auth.phone_otp` أو `auth.phone_otp_copy` في `notification_provider_submissions` بعد محاولة الإنتاج، ما يثبت أن الطلب لم يصل إلى مرحلة Green API في التطبيق. إعداد Auth العام يظهر `sms_provider: twilio` و`phone_autoconfirm: false`.
+- الاحتمالات المحصورة في إعداد Supabase/Vercel: Send SMS Hook غير مفعّل، أو URI غير نهائي/خاطئ، أو `SUPABASE_SEND_SMS_HOOK_SECRET` غير موجود/غير مطابق في Vercel Production. رفع الملفات وحده لا ينقل أسرار البيئة ولا يضبط Auth Hooks.
+- أظهرت لقطة إعداد Vercel أن قيمة `SUPABASE_SEND_SMS_HOOK_SECRET` تبدأ بـ`sk_live_`، وهي ليست قيمة سر Supabase Send SMS Hook الظاهرة بصيغة `v1,whsec_...`. هذا عدم تطابق مؤكد يجعل التحقق من توقيع الـWebhook يعيد `401` قبل استدعاء Green API. يجب نسخ سر الـHook نفسه كاملًا إلى بيئة Vercel Production ثم إعادة النشر؛ دالة التحقق تقبل `v1,whsec_...` أو `whsec_...`.
+- بعد تصحيح سر الـHook، سُجلت محاولتا OTP إنتاجيتان في `notification_provider_submissions` عند `2026-08-22T09:15:05Z` و`09:17:46Z` للوجهة المقنعة `966****769`، وكلتاهما `submitted` ومعهما Green API `provider_message_id`. هذا يثبت وصول الـHook وقبول `sendMessage` للطلب، لكنه لا يثبت التسليم إلى واتساب؛ `submitted` في التطبيق تعني أن Green API أعاد `idMessage` فقط.
+- فحص Green API بالإعداد المحلي أظهر instance بحالة `authorized` ورقم مرسل مقنع `966****556`، لكن سجل آخر الرسائل لم يحتو الرسالتين/الوجهة `966****769`. يلزم مقارنة `GREEN_API_URL` و`GREEN_API_ID_INSTANCE` و`GREEN_API_TOKEN_INSTANCE` في Vercel Production مع الـinstance المربوط فعليًا في لوحة Green API، ثم فحص حالة instance والطابور/سجل الرسائل هناك. قيم Vercel الحساسة لا يمكن تنزيلها نصيًا عبر CLI للتحقق منها؛ تُعاد بصيغة `[SENSITIVE]`.
+- لم يُغيّر الكود في هذا التشخيص؛ يلزم ضبط Hook/secret في لوحتي Supabase وVercel ثم إعادة نشر Production واختبار OTP جديد.
+
+### استئناف توثيق جوال العميل من تسجيل الدخول — 2026-08-22
+
+- سبب رسالة «لا يوجد دور نشط» للحساب الذي فشل إرسال OTP إليه هو أن `initialize_customer_account` لا ينشئ `customer_profiles` ودور `customer` إلا بعد نجاح توثيق الجوال، بينما مسار الدخول السابق كان يفحص الدور مباشرة ثم يسجل خروج المستخدم.
+- بعد نجاح البريد وكلمة المرور، يفحص تسجيل الدخول الآن Auth user: إذا كان لديه `phone` و`phone_confirmed_at` فارغًا فقط، يحتفظ بالجلسة ويوجهه إلى `/verify-phone`. كما توجه صفحة `/login` الجلسة غير الموثقة الموجودة مسبقًا إلى المسار نفسه.
+- صفحة `/verify-phone` لا تفتح دون جلسة، وتتيح إرسال OTP وإعادة إرساله والتحقق منه. بعد النجاح تستدعي `initialize_customer_account` ثم توجه إلى `/customer`. الحسابات الموثقة وبقية الأدوار تستمر في مسار الدخول المعتاد دون تغيير.
+- تحقق بعيد بحساب مؤقت أثبت نجاح تسجيل الدخول بكلمة المرور مع وجود جوال غير موثق وصفر أدوار، ثم حُذف الحساب. TypeScript وESLint وproduction build ناجحة، والبناء يتضمن `/verify-phone` كمسار ديناميكي.
+- هذا التدفق يعالج إمكانية العودة للتوثيق، لكنه لا يلغي ضرورة إصلاح إعداد Send SMS Hook/Green API في الإنتاج حتى يصل الرمز فعليًا.

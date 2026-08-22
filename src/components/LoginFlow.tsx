@@ -57,6 +57,12 @@ export function LoginFlow({ initialError }: { initialError?: string }) {
       return;
     }
 
+    if (data.user.phone && !data.user.phone_confirmed_at) {
+      router.replace("/verify-phone");
+      router.refresh();
+      return;
+    }
+
     try {
       const identity = await resolveAuthIdentity(supabase, data.user);
       if (identity.status !== "ready" || !identity.primaryRole) {
