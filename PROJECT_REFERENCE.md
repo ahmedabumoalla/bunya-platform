@@ -229,4 +229,6 @@
 - المنتج المنشور «تجربة المنتجات» يملك سجل صورة أساسية حقيقيًا في `product_images` بمسار `storage_path`، والملف موجود في bucket `provider-product-images` ويعيد `200 image/jpeg`؛ الرفع والتخزين سليمان.
 - سبب ظهور الرسم الأزرق أن `loadPublicCatalog` يجلب من `product_images` حقول `id,product_id,label,alt_text,tone,sort_order` فقط ولا يجلب `storage_path` أو ينشئ signed URL، ثم يحول المنتج إلى `ProductImage` بلا رابط صورة.
 - `ProductArtwork` في `HomeStorefrontUi` لا يرسم عنصر صورة أصلًا؛ يستخدم `tone` وطبقات CSS لتوليد الرسم التجريدي الاحتياطي. لذلك تعرض الصفحة الرسم نفسه رغم وجود الملف الحقيقي.
-- لم يُطبق إصلاح في هذا التشخيص؛ الإصلاح المطلوب هو توقيع صور المنتجات المنشورة في الخادم وتمرير URL إلى `ProductArtwork` مع fallback عند غياب الصورة أو فشل تحميلها.
+- أُصلح المسار لاحقًا: `loadPublicCatalog` يجلب `storage_path` و`image_url` ويرتب الصورة الأساسية أولًا، ثم ينشئ روابط موقعة جماعيًا لمدة ساعة من الخادم للصور الموجودة في bucket الخاص.
+- امتد نوع `ProductImage` بحقل URL، وأصبح `ProductArtwork` يعرض ملف الصورة الحقيقي فوق الرسم الاحتياطي. يبقى الرسم الاحتياطي ظاهرًا فقط عندما لا توجد صورة أو يفشل تحميلها، وتستخدم نافذة التفاصيل `object-fit: contain` لعدم قص الصورة.
+- تحقق حي على `http://localhost:3000/` أعاد HTML يحتوي `store-product-photo` ورابط Storage موقعًا، ثم أعاد رابط الصورة نفسه `200 image/jpeg` بالحجم المسجل. نجحت TypeScript وESLint والبناء الإنتاجي وroute audit وno-operational-mocks؛ تعذر التقاط فحص بصري آلي لعدم وجود متصفح متصل بجلسة Codex.

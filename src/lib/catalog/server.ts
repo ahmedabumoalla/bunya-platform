@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { Product, ProductImage } from "@/lib/bunya-types";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 type CatalogProductRow = {
@@ -19,6 +20,18 @@ type CatalogProductRow = {
   delivery_window: string;
   delivery_notes: string;
   is_new: boolean;
+};
+
+type CatalogImageRow = {
+  id: string;
+  product_id: string;
+  label: string;
+  alt_text: string;
+  tone: ProductImage["tone"];
+  storage_path: string | null;
+  image_url: string | null;
+  is_primary: boolean;
+  sort_order: number;
 };
 
 const availabilityLabels = {
@@ -44,7 +57,7 @@ export async function loadPublicCatalog(): Promise<{ categories: string[]; produ
   }
 
   const [images, units, measurements, specs, warranties, regions] = await Promise.all([
-    supabase.from("product_images").select("id,product_id,label,alt_text,tone,sort_order").in("product_id", ids).order("sort_order"),
+    supabase.from("product_images").select("id,product_id,label,alt_text,tone,storage_path,image_url,is_primary,sort_order").in("product_id", ids).order("is_primary", { ascending: false }).order("sort_order"),
     supabase.from("product_units").select("id,product_id,name,sort_order").in("product_id", ids).order("sort_order"),
     supabase.from("product_measurements").select("id,product_id,unit_id,label,is_default,sort_order").in("product_id", ids).order("sort_order"),
     supabase.from("product_specifications").select("product_id,value,sort_order").in("product_id", ids).order("sort_order"),
@@ -57,6 +70,20 @@ export async function loadPublicCatalog(): Promise<{ categories: string[]; produ
 
   const categoryNames = new Map((categoriesResult.data ?? []).map((row) => [row.id, row.name]));
   const unitNames = new Map((units.data ?? []).map((row) => [row.id, row.name]));
+  const imageRows = (images.data ?? []) as CatalogImageRow[];
+  const storedImages = imageRows.filter((image) => image.storage_path);
+  const signedImageUrls = new Map<string, string>();
+
+  if (storedImages.length > 0) {
+    const admin = createAdminClient();
+    const signed = await admin.storage
+      .from("provider-product-images")
+      .createSignedUrls(storedImages.map((image) => image.storage_path!), 3600);
+
+    for (const image of signed.data ?? []) {
+      if (image.path && image.signedUrl) signedImageUrls.set(image.path, image.signedUrl);
+    }
+  }
 
   const products = rows.map<Product>((row) => ({
     id: row.id,
@@ -85,11 +112,12 @@ export async function loadPublicCatalog(): Promise<{ categories: string[]; produ
         ? { label: warranty.label, duration: warranty.duration, details: warranty.details }
         : { label: "لا توجد معلومات ضمان", duration: "—", details: "لم تُسجل معلومات ضمان لهذا المنتج." };
     })(),
-    images: (images.data ?? []).filter((item) => item.product_id === row.id).map((item) => ({
+    images: imageRows.filter((item) => item.product_id === row.id).map((item) => ({
       id: item.id,
       label: item.label,
       alt: item.alt_text,
       tone: item.tone as ProductImage["tone"],
+      url: (item.storage_path ? signedImageUrls.get(item.storage_path) : null) || item.image_url,
     })),
     deliveryNotes: row.delivery_notes,
     isNew: row.is_new,

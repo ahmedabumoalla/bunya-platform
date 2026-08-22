@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element -- Private Supabase images use short-lived signed URLs and already pass through the upload optimizer. */
 import type { CSSProperties } from "react";
 import Link from "next/link";
 import type { Product, ProductImage } from "@/lib/bunya-types";
@@ -45,6 +46,7 @@ export function ProductArtwork({ image, large = false }: { image?: ProductImage;
       <span className="store-art-sheen" />
       <span className="store-art-object store-art-object-main" />
       <span className="store-art-object store-art-object-alt" />
+      {image?.url ? <img alt={image.alt || image.label} className="store-product-photo" decoding="async" key={image.url} loading="lazy" onError={(event) => { event.currentTarget.hidden = true; }} src={image.url} /> : null}
       <figcaption className="sr-only">{image?.alt ?? "صورة منتج مواد بناء"}</figcaption>
     </figure>
   );
