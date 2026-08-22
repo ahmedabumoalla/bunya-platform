@@ -100,7 +100,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ki
   }
 
   const password = generateTemporaryPassword();
-  const created = await auth.admin.auth.admin.createUser({ email: application.data.email, password, email_confirm: true, user_metadata: { full_name: kind === "provider" ? application.data.contact_name : application.data.contractor_name, mobile: application.data.mobile, onboarding_role: kind, application_id: id } });
+  const created = await auth.admin.auth.admin.createUser({ email: application.data.email, password, email_confirm: true, user_metadata: { full_name: kind === "provider" ? application.data.contact_name : application.data.contractor_name, ...(kind === "contractor" ? { mobile: application.data.mobile } : {}), onboarding_role: kind, application_id: id } });
   if (created.error || !created.data.user) return NextResponse.json({ message: "تعذر إنشاء حساب الدخول؛ تحقق من عدم تعارض البريد." }, { status: 409 });
   const userId = created.data.user.id;
   const rpcName = kind === "provider" ? "finalize_provider_application_approval" : "finalize_contractor_application_approval";
@@ -109,6 +109,13 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ki
     logDataError("finalize_approval", finalized.error, kind, id);
     await auth.admin.auth.admin.deleteUser(userId);
     return NextResponse.json({ message: "تعذر إكمال تجهيز الحساب وتم التراجع عن إنشائه بأمان." }, { status: 500 });
+  }
+  if (kind === "provider") {
+    const cleared = await auth.admin.rpc("clear_unverified_provider_phone", { p_user_id: userId });
+    if (cleared.error) {
+      logDataError("clear_unverified_provider_phone", cleared.error, kind, id);
+      return NextResponse.json({ message: "تم تجهيز الحساب، لكن تعذر إزالة رقم الطلب قبل التحقق. تواصل مع الدعم التشغيلي." }, { status: 500 });
+    }
   }
   const delivery = await sendOnboardingCredentials({ kind: kind as "provider"|"contractor", applicationId:id, applicantName, details, email: application.data.email, mobile: application.data.mobile, password, idempotencyKey: `onboarding-approved-${id}` });
   await markDelivery(auth.admin, kind, id, delivery);

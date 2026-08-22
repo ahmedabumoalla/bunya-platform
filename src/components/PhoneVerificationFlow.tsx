@@ -2,94 +2,83 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { AuthCard, PortalShell } from "@/components/PortalUI";
+import { maskSaudiPhone, normalizeSaudiPhone } from "@/lib/auth/phone-verification";
 import { createClient } from "@/lib/supabase/client";
+import { AuthCard, PortalShell } from "@/components/PortalUI";
 
-export function PhoneVerificationFlow({ maskedPhone }: { maskedPhone: string }) {
+type ApiResponse = { message?: string; redirectTo?: string; phone?: string };
+
+export function PhoneVerificationFlow() {
   const router = useRouter();
+  const [phone, setPhone] = useState("");
+  const [requestedPhone, setRequestedPhone] = useState("");
   const [otp, setOtp] = useState("");
-  const [sent, setSent] = useState(false);
+  const [step, setStep] = useState<"phone" | "otp">("phone");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
-  const sendCode = async () => {
+  const requestCode = async (event?: FormEvent) => {
+    event?.preventDefault();
     if (busy) return;
+    const normalized = normalizeSaudiPhone(phone);
+    if (!normalized) {
+      setError("أدخل رقم جوال سعوديًا صحيحًا، مثل 05xxxxxxxx.");
+      return;
+    }
+
     setBusy(true);
     setError("");
     setMessage("");
-    const supabase = createClient();
-    const { data } = await supabase.auth.getUser();
-    const user = data.user;
-
-    if (!user) {
-      router.replace("/login");
-      router.refresh();
-      return;
-    }
-    if (user.phone_confirmed_at) {
-      router.replace("/customer");
-      router.refresh();
-      return;
-    }
-    if (!user.phone) {
-      setBusy(false);
-      setError("لا يوجد رقم جوال مرتبط بهذا الحساب.");
-      return;
-    }
-
-    const result = await supabase.auth.signInWithOtp({
-      phone: user.phone,
-      options: { shouldCreateUser: false },
+    const response = await fetch("/api/auth/phone-verification/request", {
+      method: "POST",
+      headers: { "content-type": "application/json", "Idempotency-Key": crypto.randomUUID() },
+      body: JSON.stringify({ phone: normalized }),
     });
+    const body = (await response.json().catch(() => ({}))) as ApiResponse;
     setBusy(false);
-    if (result.error) {
-      setError("تعذر إرسال الرمز من مزود الرسائل. حاول مجددًا بعد التأكد من إعداد قناة الإرسال.");
+    if (!response.ok) {
+      setError(body.message || "تعذر إرسال رمز التحقق. حاول مجددًا.");
       return;
     }
-    setSent(true);
-    setMessage("تم إرسال رمز التحقق إلى رقم الجوال المرتبط بالحساب.");
+
+    setRequestedPhone(body.phone || normalized);
+    setStep("otp");
+    setOtp("");
+    setMessage(body.message || "أُرسل رمز التحقق عبر واتساب.");
   };
 
   const verify = async (event: FormEvent) => {
     event.preventDefault();
     if (busy) return;
-    if (!/^\d{4,10}$/.test(otp)) {
-      setError("أدخل رمز التحقق الصحيح.");
+    if (!/^\d{6}$/.test(otp)) {
+      setError("أدخل رمز التحقق المكوّن من 6 أرقام.");
       return;
     }
 
     setBusy(true);
     setError("");
-    const supabase = createClient();
-    const { data } = await supabase.auth.getUser();
-    if (!data.user?.phone) {
-      await supabase.auth.signOut();
-      router.replace("/login");
-      router.refresh();
-      return;
-    }
-
-    const verified = await supabase.auth.verifyOtp({
-      phone: data.user.phone,
-      token: otp,
-      type: "sms",
+    const response = await fetch("/api/auth/phone-verification/complete", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code: otp }),
     });
-    if (verified.error || !verified.data.session) {
-      setBusy(false);
-      setError("رمز التحقق غير صحيح أو انتهت صلاحيته.");
+    const body = (await response.json().catch(() => ({}))) as ApiResponse;
+    setBusy(false);
+    if (!response.ok || !body.redirectTo) {
+      setError(body.message || "الرمز غير صحيح أو انتهت صلاحيته.");
       return;
     }
 
-    const initialized = await supabase.rpc("initialize_customer_account");
-    if (initialized.error) {
-      setBusy(false);
-      setError("تم توثيق الجوال، لكن تعذر تجهيز حساب العميل. حاول تسجيل الدخول مجددًا.");
-      return;
-    }
-
-    router.replace("/customer");
+    router.replace(body.redirectTo);
     router.refresh();
+  };
+
+  const editPhone = () => {
+    setStep("phone");
+    setOtp("");
+    setMessage("");
+    setError("");
   };
 
   const signOut = async () => {
@@ -103,35 +92,55 @@ export function PhoneVerificationFlow({ maskedPhone }: { maskedPhone: string }) 
       <AuthCard
         eyebrow="إكمال تفعيل الحساب"
         title="وثّق رقم الجوال"
-        description={`حسابك موجود، وبقي توثيق الرقم ${maskedPhone} قبل دخول لوحة العميل.`}
+        description={step === "phone"
+          ? "اكتب رقم الجوال الذي تريد اعتماده. لن يُحفظ الرقم إلا بعد إدخال رمز التحقق الصحيح."
+          : `أرسلنا رمزًا عبر واتساب إلى الرقم ${maskSaudiPhone(requestedPhone)}.`}
       >
-        <form className="portal-form" onSubmit={verify}>
-          {!sent ? (
-            <button className="portal-primary-button" disabled={busy} onClick={() => void sendCode()} type="button">
-              {busy ? "جارٍ إرسال الرمز..." : "إرسال رمز التحقق"}
+        {step === "phone" ? (
+          <form className="portal-form" onSubmit={requestCode} noValidate>
+            <div className="portal-field">
+              <label htmlFor="phone-verification-number">رقم الجوال</label>
+              <input
+                id="phone-verification-number"
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                dir="ltr"
+                placeholder="05xxxxxxxx"
+                value={phone}
+                onChange={(event) => { setPhone(event.target.value); setError(""); }}
+              />
+              <small>تأكد أن الرقم مفعّل على واتساب ويمكنك الوصول إليه الآن.</small>
+            </div>
+            <button className="portal-primary-button" disabled={busy} type="submit">
+              {busy ? "جارٍ التحقق والإرسال..." : "إرسال رمز التحقق"}
             </button>
-          ) : (
-            <>
-              <div className="portal-field">
-                <label htmlFor="phone-verification-otp">رمز التحقق</label>
-                <input
-                  id="phone-verification-otp"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  value={otp}
-                  onChange={(event) => { setOtp(event.target.value.replace(/\D/g, "")); setError(""); }}
-                />
-              </div>
-              <button className="portal-primary-button" disabled={busy} type="submit">
-                {busy ? "جارٍ التحقق..." : "تحقق وادخل إلى الحساب"}
-              </button>
-              <button disabled={busy} onClick={() => void sendCode()} type="button">إعادة إرسال الرمز</button>
-            </>
-          )}
-          {message ? <p className="portal-form-message">{message}</p> : null}
-          {error ? <p className="portal-form-message portal-form-error">{error}</p> : null}
-          <button disabled={busy} onClick={() => void signOut()} type="button">تسجيل الخروج</button>
-        </form>
+            {error ? <p className="portal-form-message portal-form-error" role="alert">{error}</p> : null}
+            <button disabled={busy} onClick={() => void signOut()} type="button">تسجيل الخروج</button>
+          </form>
+        ) : (
+          <form className="portal-form" onSubmit={verify} noValidate>
+            <div className="portal-field">
+              <label htmlFor="phone-verification-otp">رمز التحقق</label>
+              <input
+                id="phone-verification-otp"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                value={otp}
+                onChange={(event) => { setOtp(event.target.value.replace(/\D/g, "")); setError(""); }}
+              />
+            </div>
+            <button className="portal-primary-button" disabled={busy} type="submit">
+              {busy ? "جارٍ التحقق..." : "تحقق وادخل إلى الحساب"}
+            </button>
+            <button disabled={busy} onClick={() => void requestCode()} type="button">إعادة إرسال الرمز</button>
+            <button disabled={busy} onClick={editPhone} type="button">تعديل رقم الجوال</button>
+            {message ? <p className="portal-form-message">{message}</p> : null}
+            {error ? <p className="portal-form-message portal-form-error" role="alert">{error}</p> : null}
+            <button disabled={busy} onClick={() => void signOut()} type="button">تسجيل الخروج</button>
+          </form>
+        )}
       </AuthCard>
     </PortalShell>
   );

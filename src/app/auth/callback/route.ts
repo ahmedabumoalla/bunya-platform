@@ -18,6 +18,10 @@ export async function GET(request: NextRequest) {
   if (error) return NextResponse.redirect(new URL("/login?error=invalid_callback", request.url));
 
   if (next === "/customer") {
+    const user = await supabase.auth.getUser();
+    if (!user.data.user?.phone || !user.data.user.phone_confirmed_at) {
+      return NextResponse.redirect(new URL("/verify-phone", request.url));
+    }
     const { error: initializeError } = await supabase.rpc("initialize_customer_account");
     if (initializeError) {
       await supabase.auth.signOut();

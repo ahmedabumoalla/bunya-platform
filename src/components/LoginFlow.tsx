@@ -5,6 +5,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { resolveAuthIdentity } from "@/lib/auth/resolve-identity";
+import { requiresPhoneVerification } from "@/lib/auth/phone-verification";
 import { routeForRole } from "@/lib/auth/types";
 import { createClient } from "@/lib/supabase/client";
 import { AuthCard, PasswordFieldWithVisibilityCheckbox, PortalShell } from "./PortalUI";
@@ -57,14 +58,13 @@ export function LoginFlow({ initialError }: { initialError?: string }) {
       return;
     }
 
-    if (data.user.phone && !data.user.phone_confirmed_at) {
-      router.replace("/verify-phone");
-      router.refresh();
-      return;
-    }
-
     try {
       const identity = await resolveAuthIdentity(supabase, data.user);
+      if (requiresPhoneVerification(data.user, identity)) {
+        router.replace("/verify-phone");
+        router.refresh();
+        return;
+      }
       if (identity.status !== "ready" || !identity.primaryRole) {
         await supabase.auth.signOut();
         setBusy(false);
