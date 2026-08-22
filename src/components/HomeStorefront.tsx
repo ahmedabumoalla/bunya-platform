@@ -101,6 +101,7 @@ export function HomeStorefront({ categories, products, dataError }: HomeStorefro
   const [quoteForm, setQuoteForm] = useState<QuoteFormState>(() => createInitialForm(products[0]));
   const [errors, setErrors] = useState<QuoteErrors>({});
   const [feedback, setFeedback] = useState("");
+  const [storefrontNotice, setStorefrontNotice] = useState("");
   const [duplicateItemId, setDuplicateItemId] = useState<string | null>(null);
   const storefrontRef = useRef<HTMLElement>(null);
   const productOriginRef = useRef<HTMLElement | null>(null);
@@ -132,6 +133,15 @@ export function HomeStorefront({ categories, products, dataError }: HomeStorefro
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [selectedProduct]);
+
+  useEffect(() => {
+    if (!storefrontNotice) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => setStorefrontNotice(""), 4500);
+    return () => window.clearTimeout(timeout);
+  }, [storefrontNotice]);
 
   const filteredProducts = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -174,6 +184,7 @@ export function HomeStorefront({ categories, products, dataError }: HomeStorefro
       setQuoteForm(createInitialForm(product));
       setErrors({});
       setFeedback("");
+      setStorefrontNotice("");
       setSelectedProduct(product);
     });
     if (!transition) origin.style.viewTransitionName = "";
@@ -256,7 +267,23 @@ export function HomeStorefront({ categories, products, dataError }: HomeStorefro
 
     setDuplicateItemId(null);
     setQuoteItems((current) => [item, ...current]);
-    setFeedback("تمت إضافة المنتج إلى الطلب الحالي. سجّل الدخول لإرساله ومتابعته.");
+    setFeedback("");
+    setStorefrontNotice(`تمت إضافة «${selectedProduct.name}» إلى طلب عرض السعر.`);
+    closeProduct();
+  };
+
+  const increaseDuplicateQuantity = () => {
+    if (!duplicateItemId || !selectedProduct) {
+      return;
+    }
+
+    setQuoteItems((current) => current.map((item) =>
+      item.id === duplicateItemId ? { ...item, quantity: item.quantity + quoteForm.quantity } : item
+    ));
+    setDuplicateItemId(null);
+    setFeedback("");
+    setStorefrontNotice(`تم تحديث كمية «${selectedProduct.name}» في طلب عرض السعر.`);
+    closeProduct();
   };
 
   return (
@@ -354,6 +381,19 @@ export function HomeStorefront({ categories, products, dataError }: HomeStorefro
       </section>
 
       <PwaInstallPrompt />
+
+      {storefrontNotice ? (
+        <div aria-live="polite" className="store-cart-toast" role="status">
+          <span className="store-cart-toast-icon"><Icon name="check" /></span>
+          <span>
+            <strong>{storefrontNotice}</strong>
+            <small>الطلب الحالي يحتوي على {quoteItems.length.toLocaleString("ar-SA")} منتج.</small>
+          </span>
+          <button aria-label="إغلاق رسالة التأكيد" onClick={() => setStorefrontNotice("")} type="button">
+            <Icon name="close" />
+          </button>
+        </div>
+      ) : null}
 
       {selectedProduct ? (
         <div className="store-detail-backdrop" onMouseDown={closeProduct}>
@@ -543,7 +583,7 @@ export function HomeStorefront({ categories, products, dataError }: HomeStorefro
                   {feedback}
                 </p>
               ) : null}
-              {duplicateItemId ? <div className="store-duplicate-actions"><button type="button" onClick={() => { setQuoteItems((current) => current.map((item) => item.id === duplicateItemId ? { ...item, quantity: item.quantity + quoteForm.quantity } : item)); setDuplicateItemId(null); setFeedback("تمت زيادة كمية المنتج الموجود في طلب عرض السعر."); }}>زيادة كمية العنصر الموجود</button><button type="button" onClick={() => { setDuplicateItemId(null); setFeedback(""); }}>تراجع</button></div> : null}
+              {duplicateItemId ? <div className="store-duplicate-actions"><button type="button" onClick={increaseDuplicateQuantity}>زيادة كمية العنصر الموجود</button><button type="button" onClick={() => { setDuplicateItemId(null); setFeedback(""); }}>تراجع</button></div> : null}
             </aside>
           </section>
         </div>

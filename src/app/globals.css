@@ -1892,6 +1892,70 @@ html[data-theme="dark"] .glass-card-strong {
   color: #fffbeb;
 }
 
+.store-cart-toast {
+  position: fixed;
+  z-index: 140;
+  right: clamp(0.75rem, 3vw, 2rem);
+  bottom: clamp(0.75rem, 3vw, 2rem);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.8rem;
+  width: min(28rem, calc(100vw - 1.5rem));
+  border: 1px solid rgb(16 185 129 / 0.28);
+  border-radius: 0.85rem;
+  background: rgb(240 253 244 / 0.97);
+  color: #14532d;
+  padding: 0.8rem;
+  box-shadow: 0 24px 70px rgb(15 23 42 / 0.24);
+  backdrop-filter: blur(18px);
+  animation: store-cart-toast-in 220ms ease-out both;
+}
+
+.store-cart-toast-icon {
+  display: grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 999px;
+  background: #15803d;
+  color: #fff;
+}
+
+.store-cart-toast > span:nth-child(2) {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.store-cart-toast strong {
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
+.store-cart-toast small {
+  color: #3f6212;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.store-cart-toast button {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #166534;
+}
+
+.store-cart-toast button:hover,
+.store-cart-toast button:focus-visible {
+  background: rgb(22 101 52 / 0.1);
+  outline: none;
+}
+
 .store-submit-button:hover,
 .store-submit-button:focus-visible {
   border-color: rgb(186 230 253 / 0.72);
@@ -1906,6 +1970,17 @@ html[data-theme="dark"] .glass-card-strong {
   }
   to {
     opacity: 1;
+  }
+}
+
+@keyframes store-cart-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -2038,6 +2113,7 @@ html[data-theme="dark"] .glass-card-strong {
   .store-detail-backdrop,
   .store-detail-panel,
   .store-detail-visual,
+  .store-cart-toast,
   .store-category-chip,
   .store-submit-button,
   .store-nav-link,
