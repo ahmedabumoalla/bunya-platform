@@ -27,5 +27,6 @@
   "026_provider_workspace_expansion.sql": "39a78b10e6edaa8337b515eca9916cc3c3b17599d95ca5ef529a0fb7a7d9bcf6",
   "027_secure_provider_settlements.sql": "72cd9691950897e1196fc5aadbd6c4bf8b7cf90c1cdfe51d73721b8b2fa00c7c",
   "028_allow_spaces_in_profile_usernames.sql": "cf867f1e5564fe8d0d86de97e0bb342c507f776ad5074af018003b47f7c82035",
-  "029_verified_phone_capture.sql": "0382288291034f788dfbb60f986f795c99a196e0aee229f3e2bd61384036a4ee"
+  "029_verified_phone_capture.sql": "0382288291034f788dfbb60f986f795c99a196e0aee229f3e2bd61384036a4ee",
+  "030_canonical_verified_phone_format.sql": "1e99b6f37e4eb2ed25973f3bdede9463fa16259038a0358551bed6e542cb3ec1"
 }
