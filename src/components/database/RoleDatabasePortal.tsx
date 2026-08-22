@@ -15,6 +15,8 @@ import{ProviderProductCreate,ProviderProductsList}from"@/components/provider/Pro
 import{ProviderDriverCreate,ProviderDriversManager}from"@/components/provider/ProviderDrivers";
 import{ProviderFinance,ProviderNotifications,ProviderOrders,ProviderPolicies,ProviderProfile,ProviderQuoteRequests,ProviderQuotes}from"@/components/provider/ProviderWorkspace";
 import{AdminPolicyManager}from"@/components/admin/AdminPolicies";
+import{CustomerAddresses,CustomerBilling,CustomerDashboard,CustomerDeliveries,CustomerOrders,CustomerProfile,CustomerProjectRequests,CustomerQuoteRequests,CustomerQuotes,CustomerSavedContractors}from"@/components/customer/CustomerWorkspace";
+import{ContractorProfileEditor}from"@/components/contractor/ContractorProfileEditor";
 
 type MetricConfig = { label: string; table: string };
 type RouteConfig = {
@@ -166,7 +168,7 @@ const contractorRoutes: RouteConfig[] = [
     title: "لوحة المقاول",
     description: "الفرص والعروض والمشاريع الفعلية المرتبطة بملف المقاول.",
     table: "contractor_projects",
-    fields: ["project_code", "status", "contract_value", "start_date", "expected_end_date"],
+    fields: ["project_code", "name", "status", "project_value", "start_at", "expected_end_at"],
     metrics: [
       { label: "الفرص", table: "contractor_opportunities" },
       { label: "العروض", table: "contractor_proposals" },
@@ -181,9 +183,9 @@ const contractorRoutes: RouteConfig[] = [
   route("/contractor/portfolio", "معرض الأعمال", "contractor_portfolio_items", ["title", "description", "is_visible", "is_approved", "created_at"]),
   route("/contractor/profile", "الملف المهني", "contractor_profiles", ["display_name", "commercial_name", "city", "approval_status", "availability", "updated_at"], undefined, false),
   route("/contractor/project-comments", "تعليقات المشاريع", "contractor_project_comments", ["comment_code", "project_request_id", "type", "status", "created_at"]),
-  route("/contractor/projects", "المشاريع", "contractor_projects", ["project_code", "project_request_id", "status", "contract_value", "start_date", "expected_end_date"]),
-  route("/contractor/proposals", "العروض المقدمة", "contractor_proposals", ["proposal_code", "opportunity_id", "status", "total_amount", "submitted_at", "created_at"]),
-  route("/contractor/reviews", "التقييمات", "contractor_reviews", ["rating", "review_text", "is_visible", "created_at"]),
+  route("/contractor/projects", "المشاريع", "contractor_projects", ["project_code", "name", "status", "project_value", "progress", "start_at", "expected_end_at"]),
+  route("/contractor/proposals", "العروض المقدمة", "contractor_proposals", ["proposal_code", "opportunity_id", "status", "amount", "execution_duration", "submitted_at", "created_at"]),
+  route("/contractor/reviews", "التقييمات", "contractor_reviews", ["rating", "commitment", "quality", "communication", "timeliness", "comment", "created_at"]),
   route("/contractor/services", "الخدمات", "contractor_services", ["name", "description", "status", "created_at", "updated_at"]),
   route("/contractor/support", "تذاكر الدعم", "contractor_support_tickets", ["ticket_code", "subject", "priority", "status", "created_at"]),
   route("/contractor/verification", "المستندات والتحقق", "contractor_documents", ["document_type", "document_number", "status", "expires_at", "created_at"]),
@@ -311,6 +313,7 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
 
   if (pathname === "/driver/change-password") return children;
   if(role==="customer"&&pathname.endsWith("/payment"))return children;
+  if(role==="customer"&&pathname==="/customer")return <CustomerDashboard/>;
   if(role==="customer"&&pathname==="/customer/quote-request/new")return <CustomerRfqForm/>;
   if(role==="provider"&&pathname.startsWith("/merchant/quote-requests/")&&detailId)return <ProviderRfqResponse id={detailId}/>;
   if(role==="customer"&&pathname.startsWith("/customer/quotes/")&&detailId)return <CustomerQuoteDecision id={detailId}/>;
@@ -334,16 +337,28 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
   if(role==="provider"&&pathname==="/merchant/policies")return <ProviderPolicies/>;
   if(role==="admin"&&pathname==="/admin/policies")return <AdminPolicyManager/>;
   if(role==="customer"&&pathname==="/customer/project-requests/new")return <ProjectRequestForm/>;
+  if(role==="customer"&&pathname==="/customer/project-requests")return <CustomerProjectRequests/>;
+  if(role==="customer"&&pathname==="/customer/quote-requests")return <CustomerQuoteRequests/>;
+  if(role==="customer"&&pathname==="/customer/quotes")return <CustomerQuotes/>;
+  if(role==="customer"&&pathname==="/customer/orders")return <CustomerOrders/>;
+  if(role==="customer"&&pathname==="/customer/deliveries")return <CustomerDeliveries/>;
+  if(role==="customer"&&pathname==="/customer/contractors")return <CustomerSavedContractors/>;
+  if(role==="customer"&&pathname==="/customer/billing")return <CustomerBilling/>;
+  if(role==="customer"&&pathname==="/customer/addresses")return <CustomerAddresses/>;
+  if(role==="customer"&&pathname==="/customer/profile")return <CustomerProfile/>;
   if(role==="contractor"&&pathname.startsWith("/contractor/opportunities/")&&detailId)return <OpportunityProposal id={detailId}/>;
   if(role==="customer"&&pathname.startsWith("/customer/project-requests/")&&detailId)return <ProjectProposalDecisions id={detailId}/>;
   if(role==="contractor"&&pathname==="/contractor/services")return <ContractorServicesManager/>;
   if(role==="contractor"&&pathname==="/contractor/portfolio")return <ContractorPortfolioManager/>;
+  if(role==="contractor"&&pathname==="/contractor/profile")return <ContractorProfileEditor/>;
   if(role==="admin"&&pathname==="/admin/contractor-services")return <AdminContractorCatalogReview kind="service"/>;
   if(role==="admin"&&pathname==="/admin/contractor-portfolio")return <AdminContractorCatalogReview kind="portfolio"/>;
   if(pathname.endsWith("/support"))return <SupportCenter admin={role==="admin"}/>;
   if(role==="contractor"&&pathname==="/contractor/finance")return <ContractorFinance/>;
   if(role==="admin"&&(pathname==="/admin/settlements/contractors"||pathname==="/admin/finance"))return <AdminSettlements/>;
-  if(pathname.endsWith("/notifications"))return <NotificationCenter/>;
+  if(role==="customer"&&pathname==="/customer/notifications")return <NotificationCenter source="customer"/>;
+  if(role==="contractor"&&pathname==="/contractor/notifications")return <NotificationCenter source="contractor"/>;
+  if(pathname.endsWith("/notifications"))return <NotificationCenter source="general"/>;
 
   const viewer = identity.profile?.fullName ?? identity.profile?.username ?? "مستخدم بُنية";
   return (

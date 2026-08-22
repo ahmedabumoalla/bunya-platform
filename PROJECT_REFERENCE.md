@@ -164,3 +164,14 @@
 - فحوص TypeScript وESLint وSQL validation وmigration hashes وproduction build وroute smoke وroute audit وworkflow integration وno-operational-mocks ناجحة. فحص HTTP للدومين أعاد `200` لـ`/login` و`/register`، و`307` لـ`/verify-phone` بلا جلسة، و`401` لمساري API بلا جلسة.
 - رفع الكود إلى GitHub في `66b0f32` وتوحيد الصيغة في `31c00a8`. Vercel Production الحالي `dpl_DxoZpB9eYThZbxC5C6W7dxUxiaMQ` بحالة `Ready` ومربوط بـ`https://www.buniahksa.com`.
 - الملفات المحورية: `src/components/PhoneVerificationFlow.tsx`، `src/app/api/auth/phone-verification/request/route.ts`، `src/app/api/auth/phone-verification/complete/route.ts`، `src/lib/auth/phone-verification.ts`، `src/lib/notifications/providers/green-api.ts`، وmigrations `029` و`030`.
+
+### تحويل بوابتي العميل والمقاول من عارض بيانات إلى مساحة تشغيل — 2026-08-22
+
+- أثبت فحص RLS بحساب عميل مؤقت أن جداول العميل ومسار `get_customer_deliveries` قابلة للقراءة ولا يوجد قفل في قاعدة البيانات. السبب كان معماريًا في الواجهة: صفحات المسارات كانت تعيد `null` وتعتمد على `RoleDatabasePortal` كعارض جداول عام للقراءة فقط.
+- أضيفت مساحة عميل تشغيلية تغطي اللوحة الرئيسية، طلبات المشاريع، طلبات الأسعار، العروض، الطلبات، التوصيلات، الفواتير، المقاولين المحفوظين، العناوين والملف الشخصي. تعرض الصفحات حالات فارغة مرتبطة بإجراء حقيقي بدل رسالة عامة، وتوفر روابط إنشاء الطلبات واتخاذ القرار.
+- أصبحت عناوين العميل قابلة للإضافة والتعديل والحذف وتعيين الافتراضي. أضيفت وطُبقت migration `031_customer_workspace_actions.sql` بدالتي `save_customer_address` و`delete_customer_address`؛ التنفيذ ذري ومحكوم بهوية العميل، وأول عنوان يصبح افتراضيًا تلقائيًا.
+- أصلح مسار الإشعارات: العميل يقرأ `customer_notifications` والمقاول يقرأ `contractor_notifications` بدل جدول `notifications` العام، مع دعم `action_url` للعميل و`link` للمقاول وتعليم الإشعار كمقروء.
+- أصبح حفظ المقاول وإزالته من المحفوظات فعليًا من دليل المقاولين للحساب المسجل، وأصبحت صفحة المقاولين المحفوظين تعرض بيانات المقاول وتدير الحذف.
+- أصبح الملف المهني للمقاول قابلًا للتعديل في الحقول غير الإدارية، مع إبقاء الاعتماد والاشتراك والظهور والتقييم محمية. صُححت أسماء حقول مشاريع المقاول وعروضه وتقييماته لتطابق المخطط (`project_value`, `start_at`, `amount`, `comment` وغيرها).
+- المزود كان يملك بالفعل واجهات تشغيل متخصصة للمنتجات والسائقين والطلبات والتسعير والمالية والملف؛ لم يظهر قفل RLS جديد في مساراته ضمن هذا الفحص.
+- تحقق حي بعيد بحساب عميل مؤقت نجح في تهيئة الحساب وحفظ أول عنوان كافتراضي وقراءته وحذفه تحت RLS، ثم حُذف المستخدم المؤقت. نجحت ESLint وTypeScript وSQL validation وworkflow integration وroute smoke وno-operational-mocks وproduction build.
