@@ -86,7 +86,7 @@ export function ContractorProfileEditor() {
         <label><span>المدينة</span><input required value={form.city} onChange={e => setForm({ ...form, city: e.target.value })}/></label>
         <label><span>الشارة أو التخصص المختصر</span><input required value={form.badge} onChange={e => setForm({ ...form, badge: e.target.value })}/></label>
         <label><span>سنوات الخبرة</span><input required type="number" min="0" max="100" value={form.yearsExperience} onChange={e => setForm({ ...form, yearsExperience: e.target.value })}/></label>
-        <label><span>حالة التوفر</span><select value={form.availability} onChange={e => setForm({ ...form, availability: e.target.value })}><option value="available">متاح</option><option value="busy">مشغول</option><option value="unavailable">غير متاح</option></select></label>
+        <label><span>حالة التوفر</span><select value={form.availability} onChange={e => setForm({ ...form, availability: e.target.value })}><option value="available">متاح</option><option value="busy">مشغول</option><option value="temporarily_unavailable">غير متاح مؤقتًا</option></select></label>
         <label className="wide"><span>نبذة مهنية</span><textarea required rows={5} value={form.summary} onChange={e => setForm({ ...form, summary: e.target.value })}/></label>
         <label className="wide"><span>رابط خرائط Google</span><input dir="ltr" type="url" value={form.googleMapsUrl} onChange={e => setForm({ ...form, googleMapsUrl: e.target.value })}/></label>
         <label className="wide"><span>الروابط المهنية — رابط في كل سطر</span><textarea dir="ltr" rows={4} value={form.professionalLinks} onChange={e => setForm({ ...form, professionalLinks: e.target.value })}/></label>

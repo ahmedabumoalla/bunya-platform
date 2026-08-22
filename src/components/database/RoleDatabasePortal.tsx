@@ -18,6 +18,7 @@ import{AdminPolicyManager}from"@/components/admin/AdminPolicies";
 import{AdminUsers}from"@/components/admin/AdminUsers";
 import{CustomerAddresses,CustomerBilling,CustomerDashboard,CustomerDeliveries,CustomerOrders,CustomerProfile,CustomerProjectRequests,CustomerQuoteRequests,CustomerQuotes,CustomerSavedContractors}from"@/components/customer/CustomerWorkspace";
 import{ContractorProfileEditor}from"@/components/contractor/ContractorProfileEditor";
+import{ContractorDashboard,ContractorOpportunities,ContractorProjectComments,ContractorProjectDetail,ContractorProjects,ContractorProposalDetail,ContractorProposals,ContractorReviews,ContractorVerification}from"@/components/contractor/ContractorWorkspace";
 
 type MetricConfig = { label: string; table: string };
 type RouteConfig = {
@@ -348,7 +349,16 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
   if(role==="customer"&&pathname==="/customer/billing")return <CustomerBilling/>;
   if(role==="customer"&&pathname==="/customer/addresses")return <CustomerAddresses/>;
   if(role==="customer"&&pathname==="/customer/profile")return <CustomerProfile/>;
+  if(role==="contractor"&&pathname==="/contractor")return <ContractorDashboard/>;
+  if(role==="contractor"&&pathname==="/contractor/opportunities")return <ContractorOpportunities/>;
   if(role==="contractor"&&pathname.startsWith("/contractor/opportunities/")&&detailId)return <OpportunityProposal id={detailId}/>;
+  if(role==="contractor"&&pathname==="/contractor/projects")return <ContractorProjects/>;
+  if(role==="contractor"&&pathname.startsWith("/contractor/projects/")&&detailId)return <ContractorProjectDetail id={detailId}/>;
+  if(role==="contractor"&&pathname==="/contractor/proposals")return <ContractorProposals/>;
+  if(role==="contractor"&&pathname.startsWith("/contractor/proposals/")&&detailId)return <ContractorProposalDetail id={detailId}/>;
+  if(role==="contractor"&&pathname==="/contractor/project-comments")return <ContractorProjectComments/>;
+  if(role==="contractor"&&pathname==="/contractor/reviews")return <ContractorReviews/>;
+  if(role==="contractor"&&pathname==="/contractor/verification")return <ContractorVerification/>;
   if(role==="customer"&&pathname.startsWith("/customer/project-requests/")&&detailId)return <ProjectProposalDecisions id={detailId}/>;
   if(role==="contractor"&&pathname==="/contractor/services")return <ContractorServicesManager/>;
   if(role==="contractor"&&pathname==="/contractor/portfolio")return <ContractorPortfolioManager/>;
