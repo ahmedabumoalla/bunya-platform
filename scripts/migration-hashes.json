@@ -33,5 +33,7 @@
   "032_product_review_actions.sql": "ac12f65e6b877b002999c2b708a147d4aaa96c0fc4c165c9ec0332b58c0462e2",
   "033_sync_product_base_units.sql": "955113fd23e8fa236893376810248101f724ff6bb372de6cd23150e86b066bb8",
   "034_storefront_quote_drafts.sql": "c12e8a4753f76d29fd2de9d90b9464cd9c8665298fd2c1311f0a087c30aedfb4",
-  "035_allow_direct_quote_verification.sql": "e649ec0d7218e7ff4e57ab796f04a22134edbb3f469561fd47979b0a2a6e7d68"
+  "035_allow_direct_quote_verification.sql": "e649ec0d7218e7ff4e57ab796f04a22134edbb3f469561fd47979b0a2a6e7d68",
+  "036_dynamic_provider_rfq_matching.sql": "f5a1afcb496682bbb1fed29416c0f34a1960cd26972d449913af4e8827d0e0c8",
+  "037_wait_for_all_provider_quotes.sql": "c4838f20475b2d5feece9faad9a07e72db7b19dda500098040317db7ddaf84d8"
 }
