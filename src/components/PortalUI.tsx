@@ -38,6 +38,7 @@ export function AuthCard({ eyebrow, title, description, children }: { eyebrow: s
 
 export function PasswordFieldWithVisibilityCheckbox({
   id,
+  name,
   label,
   value,
   onChange,
@@ -45,6 +46,7 @@ export function PasswordFieldWithVisibilityCheckbox({
   confirm = false,
 }: {
   id: string;
+  name?: string;
   label: string;
   value: string;
   onChange: (value: string) => void;
@@ -55,7 +57,7 @@ export function PasswordFieldWithVisibilityCheckbox({
   return (
     <div className="portal-field">
       <label htmlFor={id}>{label}</label>
-      <input id={id} autoComplete={confirm ? "new-password" : "current-password"} type={visible ? "text" : "password"} value={value} onChange={(event) => onChange(event.target.value)} />
+      <input id={id} name={name} autoComplete={confirm ? "new-password" : "current-password"} type={visible ? "text" : "password"} value={value} onChange={(event) => onChange(event.target.value)} />
       <label className="visibility-check">
         <input type="checkbox" checked={visible} onChange={(event) => setVisible(event.target.checked)} />
         {confirm ? "إظهار تأكيد كلمة المرور" : "إظهار كلمة المرور"}
