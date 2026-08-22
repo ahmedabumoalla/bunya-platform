@@ -257,3 +257,9 @@
 - اعتماد العميل المسجل يمر عبر `/api/customer/quote-requests` ويتحقق خادميًا من الجلسة والمدينة والموقع وGoogle Maps والموعد والمستلم والجوال، ثم يستدعي RPC `submit_storefront_rfq` التي تعتمد على دورة `submit_customer_rfq` الذرية وتضيف رابط الخريطة إلى الطلب. تحمل المسودة مفتاح idempotency ثابتًا عبر رحلة الدخول لمنع إنشاء طلبين عند إعادة المحاولة؛ وبعد النجاح تُحذف المسودة ويُنقل العميل إلى سجل الطلب الحقيقي.
 - أضيفت وطُبقت migration `034_storefront_quote_drafts.sql` على Supabase البعيد، وتطابق سجل migrations المحلي والبعيد حتى `034`. اختبار HTTP الفعلي نجح في حفظ المسودة واستعادتها وحذفها، ومسار الاعتماد أعاد `401` الصحيح بلا جلسة.
 - نجحت TypeScript وESLint وSQL validation وmigration hashes وproduction build وroute smoke وroute audit وworkflow integration وno-operational-mocks. تعذر الفحص البصري فقط لعدم وجود متصفح متصل بجلسة Codex.
+
+### إصلاح رفض اعتماد طلب المتجر — 2026-08-22
+
+- أعاد اختبار RPC الفعلي الخطأ `Invalid quote request status transition: submitted -> verifying`. عند عدم وجود مزود مطابق، تنقل `submit_customer_rfq` الطلب مباشرة إلى التحقق، بينما حارس الحالات القديم كان يسمح بالتحقق بعد `sourcing` فقط.
+- أضيفت وطُبقت migration `035_allow_direct_quote_verification.sql` للسماح بالانتقال المقصود `submitted -> verifying` مع إبقاء بقية انتقالات الحالة كما هي.
+- أُعيد اختبار اعتماد طلب حقيقي مرة واحدة بحساب مؤقت فأعاد `200` ونجح الاعتماد، ثم حُذف الطلب والحساب التجريبيان. لم تُجر مجموعة اختبارات طويلة بناءً على طلب المستخدم بتقليل التجارب.
