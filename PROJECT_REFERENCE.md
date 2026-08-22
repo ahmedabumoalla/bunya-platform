@@ -223,3 +223,10 @@
 - الاعتماد يغيّر الحالة إلى `approved` ويضبط `is_published=true`. طلب التعديلات والرفض يحفظان السبب ويتركان المنتج غير منشور. كل قرار يُسجل في `product_review_decisions` و`audit_logs` ويظهر لاحقًا في سجل المنتج.
 - يولد القرار حدثًا موجهًا للمزوّد (`provider.product_approved` أو `provider.product_needs_changes` أو `provider.product_rejected`)؛ أضيفت معالجته في notification dispatcher لإشعار المزوّد داخل المنصة وعبر واتساب عندما تكون وجهته متاحة.
 - طُبقت migration `032` على Supabase البعيد. نجحت SQL validation وmigration hashes وTypeScript وESLint وproduction build وroute audit وno-operational-mocks. لم يُتخذ قرار على أي منتج حقيقي أثناء الاختبار.
+
+### تشخيص صور المنتجات في المتجر العام — 2026-08-22
+
+- المنتج المنشور «تجربة المنتجات» يملك سجل صورة أساسية حقيقيًا في `product_images` بمسار `storage_path`، والملف موجود في bucket `provider-product-images` ويعيد `200 image/jpeg`؛ الرفع والتخزين سليمان.
+- سبب ظهور الرسم الأزرق أن `loadPublicCatalog` يجلب من `product_images` حقول `id,product_id,label,alt_text,tone,sort_order` فقط ولا يجلب `storage_path` أو ينشئ signed URL، ثم يحول المنتج إلى `ProductImage` بلا رابط صورة.
+- `ProductArtwork` في `HomeStorefrontUi` لا يرسم عنصر صورة أصلًا؛ يستخدم `tone` وطبقات CSS لتوليد الرسم التجريدي الاحتياطي. لذلك تعرض الصفحة الرسم نفسه رغم وجود الملف الحقيقي.
+- لم يُطبق إصلاح في هذا التشخيص؛ الإصلاح المطلوب هو توقيع صور المنتجات المنشورة في الخادم وتمرير URL إلى `ProductArtwork` مع fallback عند غياب الصورة أو فشل تحميلها.
