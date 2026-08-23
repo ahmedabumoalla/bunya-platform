@@ -114,10 +114,14 @@ class AppNotification {
     required this.message,
     required this.createdAt,
     required this.read,
+    this.actionUrl,
+    this.entityType,
+    this.entityId,
   });
   final String id, source, title, message;
   final DateTime createdAt;
   final bool read;
+  final String? actionUrl, entityType, entityId;
 }
 
 class Profile {
@@ -399,7 +403,9 @@ class BunyaRepository {
     if (user == null) return const [];
     final rows = await client
         .from('notifications')
-        .select('id,title,message,created_at,read_at')
+        .select(
+          'id,title,message,created_at,read_at,action_url,entity_type,entity_id',
+        )
         .eq('profile_id', user!.id)
         .order('created_at', ascending: false)
         .limit(80);
@@ -412,6 +418,9 @@ class BunyaRepository {
         message: '${row['message']}',
         createdAt: DateTime.tryParse('${row['created_at']}') ?? DateTime.now(),
         read: row['read_at'] != null,
+        actionUrl: row['action_url'] as String?,
+        entityType: row['entity_type'] as String?,
+        entityId: row['entity_id'] == null ? null : '${row['entity_id']}',
       );
     }).toList();
     final profile = await client
@@ -423,7 +432,7 @@ class BunyaRepository {
     if (role == 'customer') {
       final customerRows = await client
           .from('customer_notifications')
-          .select('id,title,message,created_at,read_at')
+          .select('id,title,message,created_at,read_at,action_url')
           .eq('customer_profile_id', user!.id)
           .order('created_at', ascending: false)
           .limit(80);
@@ -438,6 +447,7 @@ class BunyaRepository {
             createdAt:
                 DateTime.tryParse('${row['created_at']}') ?? DateTime.now(),
             read: row['read_at'] != null,
+            actionUrl: row['action_url'] as String?,
           );
         }),
       );
@@ -450,7 +460,7 @@ class BunyaRepository {
       if (contractor != null) {
         final contractorRows = await client
             .from('contractor_notifications')
-            .select('id,title,message,created_at,read_at')
+            .select('id,title,message,created_at,read_at,link')
             .eq('contractor_profile_id', contractor['id'])
             .order('created_at', ascending: false)
             .limit(80);
@@ -465,6 +475,7 @@ class BunyaRepository {
               createdAt:
                   DateTime.tryParse('${row['created_at']}') ?? DateTime.now(),
               read: row['read_at'] != null,
+              actionUrl: row['link'] as String?,
             );
           }),
         );

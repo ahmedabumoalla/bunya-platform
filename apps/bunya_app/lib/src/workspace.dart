@@ -458,7 +458,11 @@ class _RoleWorkspaceState extends State<RoleWorkspace> {
         else
           _ContractorOpportunities(repository: workspace),
         _RoleModules(repository: workspace, contextData: role),
-        _RoleNotifications(repository: widget.repository),
+        _RoleNotifications(
+          repository: widget.repository,
+          workspace: workspace,
+          contextData: role,
+        ),
         _WorkspaceAccount(
           profile: widget.profile,
           contextData: role,
@@ -1444,8 +1448,14 @@ class ModuleRecordsScreen extends StatelessWidget {
 }
 
 class _RoleNotifications extends StatefulWidget {
-  const _RoleNotifications({required this.repository});
+  const _RoleNotifications({
+    required this.repository,
+    required this.workspace,
+    required this.contextData,
+  });
   final BunyaRepository repository;
+  final WorkspaceRepository workspace;
+  final RoleContext contextData;
   @override
   State<_RoleNotifications> createState() => _RoleNotificationsState();
 }
@@ -1453,6 +1463,34 @@ class _RoleNotifications extends StatefulWidget {
 class _RoleNotificationsState extends State<_RoleNotifications> {
   late Future<List<AppNotification>> rows = widget.repository
       .loadNotifications();
+
+  Future<void> open(AppNotification item) async {
+    await widget.repository.markNotificationRead(item);
+    if (!mounted) return;
+    final match = RegExp(r'/merchant/quote-requests/([^/?#]+)')
+        .firstMatch(item.actionUrl ?? '');
+    final rfqId =
+        match?.group(1) ??
+        (item.entityType?.startsWith('provider.rfq_') == true
+            ? item.entityId
+            : null);
+    if (widget.contextData.role == 'provider' && rfqId != null) {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) =>
+              ProviderPriceScreen(repository: widget.workspace, id: rfqId),
+        ),
+      );
+    } else {
+      await Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => _NotificationDetails(item: item)),
+      );
+    }
+    if (mounted) {
+      setState(() => rows = widget.repository.loadNotifications());
+    }
+  }
+
   @override
   Widget build(BuildContext context) => FutureBuilder<List<AppNotification>>(
     future: rows,
@@ -1474,12 +1512,41 @@ class _RoleNotificationsState extends State<_RoleNotifications> {
               title: item.title,
               subtitle: item.message,
               status: item.read ? 'مقروء' : 'جديد',
-              onTap: () async {
-                await widget.repository.markNotificationRead(item);
-                setState(() => rows = widget.repository.loadNotifications());
-              },
+              onTap: () => open(item),
             ),
           ),
+      ],
+    ),
+  );
+}
+
+class _NotificationDetails extends StatelessWidget {
+  const _NotificationDetails({required this.item});
+  final AppNotification item;
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('تفاصيل الإشعار')),
+    body: ListView(
+      padding: const EdgeInsets.all(18),
+      children: [
+        _DetailHeader(title: item.title, caption: 'تنبيه من منصة بُنية'),
+        const SizedBox(height: 14),
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: _panel(),
+          child: Text(
+            item.message,
+            style: const TextStyle(fontWeight: FontWeight.w700, height: 1.8),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          _date(item.createdAt),
+          style: const TextStyle(
+            color: BunyaColors.muted,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
       ],
     ),
   );
