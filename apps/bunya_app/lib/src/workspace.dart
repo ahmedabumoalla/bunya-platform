@@ -180,13 +180,13 @@ class WorkspaceRepository {
 
   Future<List<Map<String, dynamic>>> loadModule(WorkspaceModule module) async {
     final isProducts = module.table == 'products';
-    dynamic query = client
-        .from(module.table)
-        .select(
-          isProducts
-              ? '*,product_categories(name),product_images(image_url,storage_path,is_primary,sort_order)'
-              : '*',
-        );
+    final isQuoteRequests = module.table == 'quote_requests';
+    final selection = isProducts
+        ? '*,product_categories(name),product_images(image_url,storage_path,is_primary,sort_order)'
+        : isQuoteRequests
+        ? '*,quote_request_items(product_name_snapshot,measurement_label_snapshot,unit_name_snapshot,quantity,notes),bunya_customer_quotes(quote_code,subtotal,vat_amount,delivery_fee,total,valid_until,expected_delivery_at,status,processing_stage)'
+        : '*';
+    dynamic query = client.from(module.table).select(selection);
     if (module.filterField != null && module.filterValue != null) {
       query = query.eq(module.filterField!, module.filterValue!);
     }
@@ -1168,71 +1168,499 @@ class _AdminDecisionSheetState extends State<_AdminDecisionSheet> {
   @override
   Widget build(BuildContext context) {
     final provider = widget.row['_kind'] == 'provider';
+    final row = widget.row;
+    final categories =
+        ((row['provider_application_categories'] as List?) ?? const [])
+            .map((raw) {
+              final item = raw as Map;
+              final category = item['product_categories'];
+              return '${item['custom_category'] ?? (category is Map ? category['name'] : null) ?? ''}'
+                  .trim();
+            })
+            .where((value) => value.isNotEmpty)
+            .toList();
+    final regions =
+        (((provider
+                        ? row['provider_delivery_regions']
+                        : row['contractor_work_regions'])
+                    as List?) ??
+                const [])
+            .map((raw) => '${(raw as Map)['region_name'] ?? ''}'.trim())
+            .where((value) => value.isNotEmpty)
+            .toList();
+    final specialties = ((row['contractor_specialties'] as List?) ?? const [])
+        .map((raw) => '${(raw as Map)['specialty_name'] ?? ''}'.trim())
+        .where((value) => value.isNotEmpty)
+        .toList();
+    final documents = ((row['documents'] as List?) ?? const [])
+        .map((raw) => Map<String, dynamic>.from(raw as Map))
+        .toList();
+    final reviews = ((row['reviews'] as List?) ?? const [])
+        .map((raw) => Map<String, dynamic>.from(raw as Map))
+        .toList();
+    final onboarding = row['onboarding'] is Map
+        ? Map<String, dynamic>.from(row['onboarding'] as Map)
+        : null;
+    final mapsUrl = '${row['google_maps_url'] ?? ''}'.trim();
+    final editable = const {'pending', 'needs_changes'}.contains(row['status']);
     return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          18,
-          18,
-          18,
-          MediaQuery.viewInsetsOf(context).bottom + 18,
+      top: false,
+      child: Container(
+        height: MediaQuery.sizeOf(context).height * .94,
+        decoration: const BoxDecoration(
+          color: BunyaColors.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
         ),
         child: SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+            18,
+            10,
+            18,
+            MediaQuery.viewInsetsOf(context).bottom + 24,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _DetailHeader(
-                title:
-                    '${provider ? widget.row['company_name'] : widget.row['contractor_name']}',
-                caption: provider ? 'طلب انضمام مزود' : 'طلب انضمام مقاول',
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 5,
+                  margin: const EdgeInsets.only(bottom: 14),
+                  decoration: BoxDecoration(
+                    color: BunyaColors.line,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
               ),
-              const SizedBox(height: 12),
-              _Facts(
-                values: {
-                  'البريد': '${widget.row['email']}',
-                  'الجوال': '${widget.row['mobile']}',
-                  'الحالة': _status('${widget.row['status']}'),
-                  'تاريخ الطلب': _date(widget.row['created_at']),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: provider
+                        ? const [BunyaColors.forest, Color(0xFF26745F)]
+                        : const [BunyaColors.copperDark, BunyaColors.copper],
+                  ),
+                  borderRadius: BorderRadius.circular(27),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 46,
+                          height: 46,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: .14),
+                            borderRadius: BorderRadius.circular(15),
+                          ),
+                          child: Icon(
+                            provider
+                                ? Icons.storefront_rounded
+                                : Icons.engineering_rounded,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    Text(
+                      provider ? 'طلب انضمام مزود' : 'طلب انضمام مقاول',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${provider ? row['company_name'] : row['contractor_name']}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 23,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 11),
+                    Wrap(
+                      spacing: 7,
+                      runSpacing: 7,
+                      children: [
+                        _HeroBadge(
+                          text: _status('${row['status']}'),
+                          icon: Icons.verified_outlined,
+                        ),
+                        _HeroBadge(
+                          text: _date(row['created_at']),
+                          icon: Icons.event_outlined,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 22),
+              const _SectionTitle(
+                icon: Icons.badge_outlined,
+                title: 'بيانات مقدم الطلب',
+              ),
+              const SizedBox(height: 10),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final width = (constraints.maxWidth - 9) / 2;
+                  return Wrap(
+                    spacing: 9,
+                    runSpacing: 9,
+                    children: [
+                      if (provider)
+                        SizedBox(
+                          width: width,
+                          child: _RecordFact(
+                            label: 'اسم المسؤول',
+                            value: '${row['contact_name'] ?? 'غير محدد'}',
+                            icon: Icons.person_outline_rounded,
+                            wide: false,
+                          ),
+                        ),
+                      SizedBox(
+                        width: width,
+                        child: _RecordFact(
+                          label: 'رقم الجوال',
+                          value: '${row['mobile'] ?? 'غير محدد'}',
+                          icon: Icons.phone_rounded,
+                          wide: false,
+                        ),
+                      ),
+                      SizedBox(
+                        width: provider ? constraints.maxWidth : width,
+                        child: _RecordFact(
+                          label: 'البريد الإلكتروني',
+                          value: '${row['email'] ?? 'غير محدد'}',
+                          icon: Icons.alternate_email_rounded,
+                          wide: provider,
+                        ),
+                      ),
+                      if (provider)
+                        SizedBox(
+                          width: width,
+                          child: _RecordFact(
+                            label: 'اسم المستخدم المطلوب',
+                            value: '${row['requested_username'] ?? 'غير محدد'}',
+                            icon: Icons.account_circle_outlined,
+                            wide: false,
+                          ),
+                        ),
+                      if (provider)
+                        SizedBox(
+                          width: width,
+                          child: _RecordFact(
+                            label: 'خدمة التوصيل',
+                            value: row['delivery_available'] == true
+                                ? 'متوفرة'
+                                : 'غير متوفرة',
+                            icon: Icons.local_shipping_outlined,
+                            wide: false,
+                          ),
+                        ),
+                    ],
+                  );
                 },
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: reason,
-                maxLines: 3,
-                decoration: const InputDecoration(
-                  labelText: 'سبب الرفض أو طلب التعديل',
+              const SizedBox(height: 22),
+              _SectionTitle(
+                icon: provider
+                    ? Icons.category_outlined
+                    : Icons.handyman_outlined,
+                title: provider ? 'تصنيفات المنتجات' : 'التخصصات',
+              ),
+              const SizedBox(height: 10),
+              _JoinTags(
+                values: provider ? categories : specialties,
+                empty: provider
+                    ? 'لم تُحدد تصنيفات للمنتجات'
+                    : 'لم تُحدد تخصصات',
+              ),
+              const SizedBox(height: 18),
+              const _SectionTitle(
+                icon: Icons.map_outlined,
+                title: 'مناطق العمل والتغطية',
+              ),
+              const SizedBox(height: 10),
+              _JoinTags(values: regions, empty: 'لم تُحدد مناطق تغطية'),
+              if (mapsUrl.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                _RecordFact(
+                  label: 'موقع المنشأة على الخريطة',
+                  value: mapsUrl,
+                  icon: Icons.location_on_outlined,
+                  url: mapsUrl,
+                  wide: true,
                 ),
+              ],
+              const SizedBox(height: 22),
+              const _SectionTitle(
+                icon: Icons.folder_copy_outlined,
+                title: 'المستندات المرفقة',
               ),
-              const SizedBox(height: 12),
-              FilledButton.icon(
-                onPressed: busy ? null : () => action('approve'),
-                icon: const Icon(Icons.verified_rounded),
-                label: const Text('اعتماد وإنشاء الحساب وإرسال كلمة المرور'),
-              ),
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                onPressed: busy ? null : () => action('needs-changes'),
-                icon: const Icon(Icons.edit_note_rounded),
-                label: const Text('طلب تعديل البيانات'),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(50),
+              const SizedBox(height: 10),
+              if (documents.isEmpty)
+                const _Empty(text: 'لا توجد مستندات مرفقة')
+              else
+                ...documents.map(
+                  (document) => Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(14),
+                    decoration: _panel(),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: BunyaColors.sand,
+                            borderRadius: BorderRadius.circular(13),
+                          ),
+                          child: const Icon(
+                            Icons.description_outlined,
+                            color: BunyaColors.copper,
+                          ),
+                        ),
+                        const SizedBox(width: 11),
+                        Expanded(
+                          child: Text(
+                            '${document['name'] ?? 'مستند مرفق'}',
+                            style: const TextStyle(fontWeight: FontWeight.w900),
+                          ),
+                        ),
+                        const Icon(
+                          Icons.verified_rounded,
+                          color: BunyaColors.forest,
+                          size: 19,
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              TextButton.icon(
-                onPressed: busy ? null : () => action('reject'),
-                icon: const Icon(Icons.close_rounded),
-                label: const Text('رفض الطلب'),
-                style: TextButton.styleFrom(
-                  foregroundColor: BunyaColors.danger,
-                  minimumSize: const Size.fromHeight(48),
+              if ('${row['review_notes'] ?? ''}'.trim().isNotEmpty ||
+                  reviews.isNotEmpty) ...[
+                const SizedBox(height: 22),
+                const _SectionTitle(
+                  icon: Icons.history_rounded,
+                  title: 'سجل المراجعة',
                 ),
-              ),
+                const SizedBox(height: 10),
+                if ('${row['review_notes'] ?? ''}'.trim().isNotEmpty)
+                  _JoinReviewCard(
+                    outcome: '${row['status']}',
+                    reason: '${row['review_notes']}',
+                    date: row['reviewed_at'],
+                  ),
+                ...reviews
+                    .take(4)
+                    .map(
+                      (review) => _JoinReviewCard(
+                        outcome: '${review['outcome'] ?? 'pending'}',
+                        reason: '${review['reason'] ?? ''}',
+                        date: review['created_at'],
+                      ),
+                    ),
+              ],
+              if (onboarding != null) ...[
+                const SizedBox(height: 22),
+                const _SectionTitle(
+                  icon: Icons.outgoing_mail,
+                  title: 'تسليم بيانات الدخول',
+                ),
+                const SizedBox(height: 10),
+                _Facts(
+                  values: {
+                    'إنشاء الحساب': _status(
+                      '${onboarding['provisioning_status'] ?? 'pending'}',
+                    ),
+                    'البريد': _status(
+                      '${onboarding['email_delivery_status'] ?? 'pending'}',
+                    ),
+                    'واتساب': _status(
+                      '${onboarding['whatsapp_delivery_status'] ?? 'pending'}',
+                    ),
+                  },
+                ),
+                if ('${onboarding['last_delivery_error'] ?? ''}'
+                    .trim()
+                    .isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'تعذر آخر إرسال، ويمكن إعادة المحاولة من سجل الإشعارات.',
+                    style: const TextStyle(
+                      color: BunyaColors.danger,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ],
+              if (editable) ...[
+                const SizedBox(height: 24),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: BunyaColors.sand,
+                    borderRadius: BorderRadius.circular(23),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'قرار الطلب',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      const Text(
+                        'راجع جميع البيانات والمرفقات قبل اعتماد الحساب.',
+                        style: TextStyle(
+                          color: BunyaColors.muted,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: reason,
+                        maxLines: 3,
+                        decoration: const InputDecoration(
+                          hintText: 'سبب الرفض أو البيانات المطلوب تعديلها',
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      FilledButton.icon(
+                        onPressed: busy ? null : () => action('approve'),
+                        icon: const Icon(Icons.verified_rounded),
+                        label: const Text('اعتماد الحساب وإرسال بيانات الدخول'),
+                      ),
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: busy ? null : () => action('needs-changes'),
+                        icon: const Icon(Icons.edit_note_rounded),
+                        label: const Text('طلب تعديل البيانات'),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(50),
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: busy ? null : () => action('reject'),
+                        icon: const Icon(Icons.close_rounded),
+                        label: const Text('رفض الطلب'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: BunyaColors.danger,
+                          minimumSize: const Size.fromHeight(48),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ),
       ),
     );
   }
+}
+
+class _JoinTags extends StatelessWidget {
+  const _JoinTags({required this.values, required this.empty});
+  final List<String> values;
+  final String empty;
+  @override
+  Widget build(BuildContext context) => values.isEmpty
+      ? _Empty(text: empty)
+      : Wrap(
+          spacing: 7,
+          runSpacing: 7,
+          children: values
+              .map(
+                (value) => Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: BunyaColors.mint,
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  child: Text(
+                    value,
+                    style: const TextStyle(
+                      color: BunyaColors.forest,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              )
+              .toList(),
+        );
+}
+
+class _JoinReviewCard extends StatelessWidget {
+  const _JoinReviewCard({
+    required this.outcome,
+    required this.reason,
+    required this.date,
+  });
+  final String outcome, reason;
+  final Object? date;
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    margin: const EdgeInsets.only(bottom: 8),
+    padding: const EdgeInsets.all(14),
+    decoration: _panel(),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              _status(outcome),
+              style: const TextStyle(
+                color: BunyaColors.forest,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const Spacer(),
+            Text(
+              _date(date),
+              style: const TextStyle(
+                color: BunyaColors.muted,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+        if (reason.trim().isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Text(
+            reason,
+            style: const TextStyle(
+              color: BunyaColors.muted,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ],
+    ),
+  );
 }
 
 class _RoleModules extends StatelessWidget {
@@ -1512,6 +1940,8 @@ class ModuleRecordsScreen extends StatelessWidget {
                   module: module,
                   repository: repository,
                 )
+              : module.table == 'quote_requests'
+              ? _QuoteRequestDetails(row: row)
               : _RecordDetails(
                   row: row,
                   module: module,
@@ -2052,6 +2482,486 @@ class _Facts extends StatelessWidget {
           ),
         )
         .toList(),
+  );
+}
+
+class _QuoteRequestDetails extends StatelessWidget {
+  const _QuoteRequestDetails({required this.row});
+  final Map<String, dynamic> row;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = ((row['quote_request_items'] as List?) ?? const [])
+        .map((item) => Map<String, dynamic>.from(item as Map))
+        .toList();
+    final quoteRaw = row['bunya_customer_quotes'];
+    final quote = quoteRaw is Map
+        ? Map<String, dynamic>.from(quoteRaw)
+        : quoteRaw is List && quoteRaw.isNotEmpty
+        ? Map<String, dynamic>.from(quoteRaw.first as Map)
+        : null;
+    final project = '${row['project_name'] ?? ''}'.trim();
+    final requestCode = '${row['request_code'] ?? 'طلب عرض سعر'}';
+    final mapsUrl = '${row['google_maps_url'] ?? ''}'.trim();
+
+    return SafeArea(
+      top: false,
+      child: Container(
+        height: MediaQuery.sizeOf(context).height * .94,
+        decoration: const BoxDecoration(
+          color: BunyaColors.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(18, 10, 18, 28),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 5,
+                  margin: const EdgeInsets.only(bottom: 14),
+                  decoration: BoxDecoration(
+                    color: BunyaColors.line,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+              ),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [BunyaColors.copperDark, BunyaColors.copper],
+                  ),
+                  borderRadius: BorderRadius.circular(27),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: .15),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Icon(
+                            Icons.receipt_long_rounded,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      requestCode,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      project.isEmpty ? 'طلب مواد بناء' : project,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 23,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 7,
+                      runSpacing: 7,
+                      children: [
+                        _HeroBadge(
+                          text: _status('${row['status'] ?? 'submitted'}'),
+                          icon: Icons.track_changes_rounded,
+                        ),
+                        _HeroBadge(
+                          text: _status(
+                            '${row['payment_status'] ?? 'pending'}',
+                          ),
+                          icon: Icons.payments_outlined,
+                        ),
+                        _HeroBadge(
+                          text: '${items.length} منتجات',
+                          icon: Icons.inventory_2_outlined,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 22),
+              const _SectionTitle(
+                icon: Icons.person_pin_circle_outlined,
+                title: 'المستلم والتسليم',
+              ),
+              const SizedBox(height: 10),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final width = (constraints.maxWidth - 9) / 2;
+                  return Wrap(
+                    spacing: 9,
+                    runSpacing: 9,
+                    children: [
+                      SizedBox(
+                        width: width,
+                        child: _RecordFact(
+                          label: 'اسم المستلم',
+                          value: '${row['recipient_name'] ?? 'غير محدد'}',
+                          icon: Icons.person_outline_rounded,
+                          wide: false,
+                        ),
+                      ),
+                      SizedBox(
+                        width: width,
+                        child: _RecordFact(
+                          label: 'رقم الجوال',
+                          value: '${row['recipient_mobile'] ?? 'غير محدد'}',
+                          icon: Icons.phone_rounded,
+                          wide: false,
+                        ),
+                      ),
+                      SizedBox(
+                        width: width,
+                        child: _RecordFact(
+                          label: 'المدينة',
+                          value: '${row['city'] ?? 'غير محددة'}',
+                          icon: Icons.location_city_outlined,
+                          wide: false,
+                        ),
+                      ),
+                      SizedBox(
+                        width: width,
+                        child: _RecordFact(
+                          label: 'طريقة الاستلام',
+                          value: _displayValue(
+                            'delivery_mode',
+                            row['delivery_mode'] ?? 'delivery',
+                          ),
+                          icon: Icons.local_shipping_outlined,
+                          wide: false,
+                        ),
+                      ),
+                      SizedBox(
+                        width: width,
+                        child: _RecordFact(
+                          label: 'موعد الاستلام',
+                          value: _date(row['desired_receipt_at']),
+                          icon: Icons.event_available_outlined,
+                          wide: false,
+                        ),
+                      ),
+                      SizedBox(
+                        width: width,
+                        child: _RecordFact(
+                          label: 'مهلة التسعير',
+                          value: _date(row['quote_deadline']),
+                          icon: Icons.timer_outlined,
+                          wide: false,
+                        ),
+                      ),
+                      SizedBox(
+                        width: constraints.maxWidth,
+                        child: _RecordFact(
+                          label: 'وصف الموقع',
+                          value: '${row['location_hint'] ?? 'غير محدد'}',
+                          icon: Icons.pin_drop_outlined,
+                          wide: true,
+                        ),
+                      ),
+                      if (mapsUrl.isNotEmpty)
+                        SizedBox(
+                          width: constraints.maxWidth,
+                          child: _RecordFact(
+                            label: 'الموقع الجغرافي',
+                            value: mapsUrl,
+                            icon: Icons.map_outlined,
+                            url: mapsUrl,
+                            wide: true,
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 24),
+              _SectionTitle(
+                icon: Icons.inventory_2_outlined,
+                title: 'المنتجات المطلوبة (${items.length})',
+              ),
+              const SizedBox(height: 10),
+              if (items.isEmpty)
+                const _Empty(text: 'لا توجد منتجات مضافة للطلب')
+              else
+                ...items.asMap().entries.map(
+                  (entry) =>
+                      _QuoteItemCard(index: entry.key + 1, item: entry.value),
+                ),
+              if ('${row['notes'] ?? ''}'.trim().isNotEmpty) ...[
+                const SizedBox(height: 16),
+                const _SectionTitle(
+                  icon: Icons.notes_rounded,
+                  title: 'ملاحظات العميل',
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(17),
+                  decoration: _panel(),
+                  child: Text(
+                    '${row['notes']}',
+                    style: const TextStyle(
+                      height: 1.7,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 24),
+              const _SectionTitle(
+                icon: Icons.request_quote_outlined,
+                title: 'عرض بُنية للعميل',
+              ),
+              const SizedBox(height: 10),
+              if (quote == null)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(17),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF2DF),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    'يجري جمع عروض المزودين وتجهيز أفضل عرض للعميل.',
+                    style: TextStyle(
+                      color: BunyaColors.copperDark,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                )
+              else
+                _CustomerQuoteSummary(quote: quote),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HeroBadge extends StatelessWidget {
+  const _HeroBadge({required this.text, required this.icon});
+  final String text;
+  final IconData icon;
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+    decoration: BoxDecoration(
+      color: Colors.white.withValues(alpha: .15),
+      borderRadius: BorderRadius.circular(30),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 15, color: Colors.white),
+        const SizedBox(width: 5),
+        Text(
+          text,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 10,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle({required this.icon, required this.title});
+  final IconData icon;
+  final String title;
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Container(
+        width: 34,
+        height: 34,
+        decoration: BoxDecoration(
+          color: BunyaColors.mint,
+          borderRadius: BorderRadius.circular(11),
+        ),
+        child: Icon(icon, size: 19, color: BunyaColors.forest),
+      ),
+      const SizedBox(width: 9),
+      Text(
+        title,
+        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+      ),
+    ],
+  );
+}
+
+class _QuoteItemCard extends StatelessWidget {
+  const _QuoteItemCard({required this.index, required this.item});
+  final int index;
+  final Map<String, dynamic> item;
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    margin: const EdgeInsets.only(bottom: 9),
+    padding: const EdgeInsets.all(15),
+    decoration: _panel(),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        CircleAvatar(
+          radius: 20,
+          backgroundColor: BunyaColors.sand,
+          foregroundColor: BunyaColors.copper,
+          child: Text(
+            '$index',
+            style: const TextStyle(fontWeight: FontWeight.w900),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${item['product_name_snapshot'] ?? 'منتج'}',
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '${item['quantity'] ?? '—'} ${item['unit_name_snapshot'] ?? 'وحدة'}${item['measurement_label_snapshot'] == null ? '' : ' · ${item['measurement_label_snapshot']}'}',
+                style: const TextStyle(
+                  color: BunyaColors.forest,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              if ('${item['notes'] ?? ''}'.trim().isNotEmpty) ...[
+                const SizedBox(height: 5),
+                Text(
+                  '${item['notes']}',
+                  style: const TextStyle(
+                    color: BunyaColors.muted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _CustomerQuoteSummary extends StatelessWidget {
+  const _CustomerQuoteSummary({required this.quote});
+  final Map<String, dynamic> quote;
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(17),
+    decoration: BoxDecoration(
+      color: BunyaColors.forest,
+      borderRadius: BorderRadius.circular(24),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                '${quote['quote_code'] ?? 'عرض بُنية'}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            _HeroBadge(
+              text: _status('${quote['status'] ?? 'preparing'}'),
+              icon: Icons.verified_outlined,
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        _QuoteAmountRow(label: 'قيمة المنتجات', value: quote['subtotal']),
+        _QuoteAmountRow(label: 'الضريبة', value: quote['vat_amount']),
+        _QuoteAmountRow(label: 'التوصيل', value: quote['delivery_fee']),
+        const Divider(color: Colors.white24, height: 24),
+        _QuoteAmountRow(label: 'الإجمالي', value: quote['total'], strong: true),
+        const SizedBox(height: 12),
+        Text(
+          'صالح حتى ${_date(quote['valid_until'])} · التسليم المتوقع ${_date(quote['expected_delivery_at'])}',
+          style: const TextStyle(
+            color: Colors.white70,
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _QuoteAmountRow extends StatelessWidget {
+  const _QuoteAmountRow({
+    required this.label,
+    required this.value,
+    this.strong = false,
+  });
+  final String label;
+  final Object? value;
+  final bool strong;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 3),
+    child: Row(
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: strong ? Colors.white : Colors.white70,
+            fontWeight: strong ? FontWeight.w900 : FontWeight.w700,
+          ),
+        ),
+        const Spacer(),
+        Text(
+          '${value ?? 0} ر.س',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: strong ? 18 : 13,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ],
+    ),
   );
 }
 
@@ -2824,6 +3734,15 @@ String _status(String value) =>
       'suspended': 'موقوف',
       'won': 'فائز',
       'lost': 'غير فائز',
+      'verifying': 'جاري التحقق',
+      'quoting': 'جاري التسعير',
+      'preparing_quote': 'تجهيز العرض',
+      'ready_for_customer': 'جاهز للعميل',
+      'evaluating': 'قيد التقييم',
+      'selected': 'تم الاختيار',
+      'sent': 'تم الإرسال',
+      'failed': 'تعذر الإرسال',
+      'provisioned': 'تم إنشاء الحساب',
     }[value] ??
     value;
 String _roleLabel(String role) =>
