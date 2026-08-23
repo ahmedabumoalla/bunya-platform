@@ -4,7 +4,9 @@ import "./bunya-design-system.css";
 import "./glass-theme.css";
 import "./brand-experience.css";
 import "./database.css";
+import "./native-mobile.css";
 import {PwaRuntime} from "@/components/PwaRuntime";
+import {NativePushRuntime} from "@/components/NativePushRuntime";
 import {BunyaVisualRuntime} from "@/components/BunyaVisualRuntime";
 
 export const metadata: Metadata = {
@@ -25,7 +27,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ar" dir="rtl">
-      <body><PwaRuntime/><BunyaVisualRuntime/>{children}</body>
+      <body><PwaRuntime/><NativePushRuntime/><BunyaVisualRuntime/>{children}</body>
     </html>
   );
 }

@@ -2,6 +2,7 @@
   "name": "bunya-platform",
   "version": "0.1.0",
   "private": true,
+  "engines": { "node": ">=22.0.0" },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -13,9 +14,16 @@
     "test:integration": "node tests/workflow-integration.mjs",
     "test:routes": "node scripts/route-smoke.mjs",
     "test:route-audit": "node scripts/audit-routes.mjs",
-    "test:migration-hashes": "node scripts/check-migration-hashes.mjs"
+    "test:migration-hashes": "node scripts/check-migration-hashes.mjs",
+    "mobile:sync": "node scripts/sync-mobile-assets.mjs && cap sync",
+    "mobile:android": "cap open android",
+    "mobile:ios": "cap open ios"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/ios": "^8.5.0",
+    "@capacitor/push-notifications": "^8.1.2",
     "@gsap/react": "^2.1.2",
     "@supabase/ssr": "^0.12.3",
     "@supabase/supabase-js": "^2.110.8",
@@ -29,6 +37,7 @@
     "ws": "^8.21.3"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.0",
     "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
     "@types/ffmpeg-static": "^3.0.3",

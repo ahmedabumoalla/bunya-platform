@@ -37,5 +37,6 @@
   "036_dynamic_provider_rfq_matching.sql": "f5a1afcb496682bbb1fed29416c0f34a1960cd26972d449913af4e8827d0e0c8",
   "037_wait_for_all_provider_quotes.sql": "c4838f20475b2d5feece9faad9a07e72db7b19dda500098040317db7ddaf84d8",
   "038_provider_rfq_product_media.sql": "a256a12697754cf160a3d96341c9e4f39d61ba25c9d96ad4f2646f9ad87ba6dd",
-  "039_provider_rfq_existing_response.sql": "7a1c3ef35c4ce8e3c2b1af23a33845aa6f395908f76804b1b7c27fbccd2605c0"
+  "039_provider_rfq_existing_response.sql": "7a1c3ef35c4ce8e3c2b1af23a33845aa6f395908f76804b1b7c27fbccd2605c0",
+  "040_mobile_push_subscriptions.sql": "b5dae33f23eccce450b468006c8f7d13c685826bd6d47210ea81c9f937c8bf11"
 }

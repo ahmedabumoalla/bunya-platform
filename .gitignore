@@ -19,6 +19,7 @@
 
 # production
 /build
+/.jdk21/
 
 # misc
 .DS_Store

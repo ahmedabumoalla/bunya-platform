@@ -323,3 +323,11 @@
 
 - استبدلت قائمة `/admin/catalog` الجدول العام بواجهة بطاقات متجاوبة تعرض اسم التصنيف والرابط والحالة والترتيب وتاريخ الإضافة ورابط التفاصيل، مع ملخص النشط وإجمالي التصنيفات.
 - أضيفت روابط مباشرة إلى مراجعة المنتجات والأسعار والتوفر، مع إبقاء جلب البيانات والصلاحيات ومسار التفاصيل كما هي.
+### تطبيقات Android وiOS وإشعارات الجوال — 2026-08-23
+
+- اعتمدت تطبيقات الجوال غلاف Capacitor بالمعرّف `com.buniahksa.app` فوق `https://www.buniahksa.com`، وبذلك تستخدم Android وiOS نفس المنصة الحية والجلسات والتوجيه والصلاحيات والخدمات من دون نسخة منطق منفصلة قابلة للتعارض.
+- أضيف مشروعا `android/` و`ios/` مع هوية بُنية، وأيقونات التطبيقات من أصول PWA الحالية، وملف احتياطي عند انقطاع الاتصال، وأوامر `mobile:sync` و`mobile:android` و`mobile:ios`.
+- أضيفت طبقة `native-mobile.css` العامة لمساحات الأمان وأهداف اللمس والنماذج والبطاقات والجداول على الجوال، مع إبقاء الويب القابل للتثبيت عبر manifest وservice worker الحاليين على الرابط الرسمي نفسه.
+- أضيف تسجيل Push Notification من التطبيق بعد تسجيل الدخول إلى `/api/push/subscriptions`، وmigration `040_mobile_push_subscriptions.sql` بحماية RLS، وإرسال Android عبر FCM HTTP v1 وiOS عبر APNs HTTP/2 من دورة الإشعارات الحالية.
+- تفعيل الإرسال الفعلي في الإنتاج يتطلب وضع `FIREBASE_SERVICE_ACCOUNT_JSON` وملف Android `google-services.json`، ومفاتيح `APNS_KEY_ID/APNS_TEAM_ID/APNS_PRIVATE_KEY/APNS_BUNDLE_ID` من حسابات Firebase وApple. لا تحفظ هذه الأسرار في المستودع.
+- طبقت migration `040` على Supabase البعيد ونجح بناء Next.js الإنتاجي. استخرجت نسخة Android تجريبية موقعة للتجربة إلى `public/downloads/bunya-android-debug.apk` بعد بناء Gradle ناجح؛ مشروع iOS كامل، لكن إخراج IPA وتوقيعه يتطلبان macOS/Xcode وعضوية Apple Developer.

@@ -1,0 +1,15 @@
+html[data-native-app] body { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+html[data-native-app] :where(button,a,input,select,textarea) { min-height: 44px; }
+html[data-native-app] :where(.customer-topbar,.provider-topbar,.contractor-topbar,.admin-topbar,.driver-top) { padding-top: max(10px,env(safe-area-inset-top)); }
+html[data-native-app] :where(.customer-sidebar,.provider-sidebar,.contractor-sidebar,.admin-sidebar) { padding-bottom: max(14px,env(safe-area-inset-bottom)) !important; }
+
+@media (max-width: 760px) {
+  :where(.customer-content,.provider-content,.contractor-content,.admin-content,.driver-content) { width: 100% !important; max-width: 100% !important; overflow-x: clip; }
+  :where(.database-page,.customer-page-stack,.provider-page-stack,.contractor-page-stack,.admin-page-stack) { min-width: 0; max-width: 100%; }
+  :where(.database-page-header,.customer-page-header,.provider-page-header,.contractor-page-header,.admin-page-header) { min-height: 0 !important; padding: 16px !important; }
+  :where(.database-panel,.customer-panel,.provider-panel,.contractor-panel,.admin-panel) { min-width: 0; max-width: 100%; border-radius: 16px !important; }
+  :where(.database-table-wrap,.admin-table-wrap) { max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; }
+  :where(.database-form-grid,.ops-form,.customer-form-grid,.provider-form-grid,.contractor-form-grid) { grid-template-columns: 1fr !important; }
+  :where(.database-record-grid,.customer-cards,.admin-record-grid) { grid-template-columns: 1fr !important; }
+  :where(input,select,textarea) { font-size: 16px !important; }
+}
