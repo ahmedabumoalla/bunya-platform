@@ -426,10 +426,23 @@ export function HomeStorefront({ categories, products, dataError }: HomeStorefro
   };
 
   return (
-    <main className="store-home min-h-screen overflow-hidden" ref={storefrontRef}>
+    <main className="store-home min-h-screen overflow-hidden" id="top" ref={storefrontRef}>
       <BunyaLogoIntro />
       <BunyaHomeMotion detailOpen={Boolean(selectedProduct || quoteDrawerOpen)} filterKey={`${activeCategory}:${query}`} scope={storefrontRef} />
       <StoreHeader compact={headerCompact} menuOpen={mobileMenuOpen} onMenuToggle={() => setMobileMenuOpen((current) => !current)} onNavigate={() => setMobileMenuOpen(false)} onQuoteOpen={() => void openQuoteDrawer()} quoteCount={quoteItems.length} quoteOpen={quoteDrawerOpen} />
+
+      <section aria-label="واجهة تطبيق بُنية" className="native-home-dashboard">
+        <div className="native-home-welcome">
+          <span>منصة بُنية</span>
+          <h1>ماذا يحتاج مشروعك اليوم؟</h1>
+          <p>اطلب مواد البناء أو اعثر على المقاول المناسب بخطوات واضحة.</p>
+        </div>
+        <div className="native-home-actions" aria-label="الخدمات الرئيسية">
+          <a href="#products"><Icon name="grid" /><strong>مواد البناء</strong><small>تصفح المنتجات واطلب التسعير</small></a>
+          <Link href="/contractors"><Icon name="search" /><strong>المقاولون</strong><small>اعثر على مقاول حسب تخصصه</small></Link>
+          <button onClick={() => void openQuoteDrawer()} type="button"><Icon name="quote" /><span><strong>طلب عرض السعر</strong><small>{quoteItems.length ? `${quoteItems.length.toLocaleString("ar-SA")} منتج في طلبك الحالي` : "راجع منتجاتك واعتمد الطلب"}</small></span></button>
+        </div>
+      </section>
 
       <section className="store-intro px-4" data-store-reveal>
         <div className="store-intro-copy mx-auto">
@@ -520,6 +533,13 @@ export function HomeStorefront({ categories, products, dataError }: HomeStorefro
       </section>
 
       <PwaInstallPrompt />
+
+      <nav aria-label="التنقل الرئيسي في التطبيق" className="native-home-tabs">
+        <a aria-current="page" href="#top"><Icon name="spark" /><span>الرئيسية</span></a>
+        <a href="#products"><Icon name="grid" /><span>المنتجات</span></a>
+        <button aria-label="فتح طلب عرض السعر" onClick={() => void openQuoteDrawer()} type="button"><span className="native-home-tabs-quote"><Icon name="quote" />{quoteItems.length ? <b>{quoteItems.length.toLocaleString("ar-SA")}</b> : null}</span><span>طلب السعر</span></button>
+        <Link href="/contractors"><Icon name="search" /><span>المقاولون</span></Link>
+      </nav>
 
       {storefrontNotice ? (
         <div aria-live="polite" className="store-cart-toast" role="status">

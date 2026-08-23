@@ -331,3 +331,9 @@
 - أضيف تسجيل Push Notification من التطبيق بعد تسجيل الدخول إلى `/api/push/subscriptions`، وmigration `040_mobile_push_subscriptions.sql` بحماية RLS، وإرسال Android عبر FCM HTTP v1 وiOS عبر APNs HTTP/2 من دورة الإشعارات الحالية.
 - تفعيل الإرسال الفعلي في الإنتاج يتطلب وضع `FIREBASE_SERVICE_ACCOUNT_JSON` وملف Android `google-services.json`، ومفاتيح `APNS_KEY_ID/APNS_TEAM_ID/APNS_PRIVATE_KEY/APNS_BUNDLE_ID` من حسابات Firebase وApple. لا تحفظ هذه الأسرار في المستودع.
 - طبقت migration `040` على Supabase البعيد ونجح بناء Next.js الإنتاجي. استخرجت نسخة Android تجريبية موقعة للتجربة إلى `public/downloads/bunya-android-debug.apk` بعد بناء Gradle ناجح؛ مشروع iOS كامل، لكن إخراج IPA وتوقيعه يتطلبان macOS/Xcode وعضوية Apple Developer.
+
+### واجهة رئيسية تطبيقية مستقلة — 2026-08-23
+
+- أصبحت الصفحة الرئيسية داخل تطبيق Capacitor تجربة جوال مخصصة بهوية بُنية بدل تكرار واجهة الويب: رأس مختصر، بطاقة ترحيب، اختصارات للمنتجات والمقاولين وطلب السعر، شبكة منتجات محسنة، وشريط تنقل سفلي ثابت.
+- بقي تصميم الويب دون تغيير، وأضيف وضع معاينة للواجهة التطبيقية على المتصفح باستخدام `?app=1`. يعتمد التطبيق الحقيقي الوضع نفسه تلقائيًا عبر `data-native-app`.
+- نجح بناء Next.js الإنتاجي الكامل بعد التعديل؛ التحذير الوحيد المعروف هو طلب Supabase ترقية Node.js من 20 إلى 22 مستقبلًا.

@@ -7,6 +7,10 @@ export function NativePushRuntime() {
     let disposed = false;
     const handles: Array<{ remove: () => Promise<void> }> = [];
     const start = async () => {
+      const preview = new URLSearchParams(window.location.search).get("app") === "1";
+      if (preview) {
+        document.documentElement.dataset.nativeApp = "preview";
+      }
       const [{ Capacitor }, { PushNotifications }] = await Promise.all([
         import("@capacitor/core"),
         import("@capacitor/push-notifications"),

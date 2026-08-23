@@ -13,3 +13,255 @@ html[data-native-app] :where(.customer-sidebar,.provider-sidebar,.contractor-sid
   :where(.database-record-grid,.customer-cards,.admin-record-grid) { grid-template-columns: 1fr !important; }
   :where(input,select,textarea) { font-size: 16px !important; }
 }
+
+.native-home-dashboard,
+.native-home-tabs { display: none; }
+
+@media (max-width: 760px) {
+  html[data-native-app] body:has(.store-home) {
+    padding-bottom: calc(82px + env(safe-area-inset-bottom));
+    background: #f6efe5;
+  }
+
+  html[data-native-app] .store-home {
+    min-height: 100dvh;
+    overflow: visible;
+    background:
+      radial-gradient(circle at 100% 0, rgb(185 113 73 / 0.15), transparent 32%),
+      #f6efe5 !important;
+  }
+
+  html[data-native-app] .store-home .store-header {
+    position: sticky;
+    top: 0;
+    z-index: 60;
+    border-bottom: 1px solid rgb(103 73 51 / 0.1) !important;
+    background: rgb(255 252 247 / 0.94) !important;
+    box-shadow: 0 8px 26px rgb(62 43 30 / 0.08) !important;
+    backdrop-filter: blur(18px) saturate(135%);
+  }
+
+  html[data-native-app] .store-home .store-header-layout {
+    grid-template-columns: 1fr auto auto;
+    min-height: 64px;
+    padding: 7px 14px;
+  }
+
+  html[data-native-app] .store-home .store-brand {
+    width: fit-content;
+    justify-self: start;
+  }
+
+  html[data-native-app] .store-home .store-brand .bunya-logo {
+    width: 102px;
+    height: 42px;
+  }
+
+  html[data-native-app] .store-home .store-header-quote,
+  html[data-native-app] .store-home .store-menu-button {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    padding: 0;
+    place-self: center;
+    border-radius: 14px;
+  }
+
+  html[data-native-app] .store-home .store-header-quote { grid-column: 2; }
+  html[data-native-app] .store-home .store-menu-button { grid-column: 3; }
+
+  html[data-native-app] .store-home .store-mobile-menu {
+    position: fixed;
+    inset: auto 12px calc(82px + env(safe-area-inset-bottom));
+    z-index: 70;
+    max-height: min(70dvh, 520px);
+    overflow-y: auto;
+    border: 1px solid rgb(103 73 51 / 0.14);
+    border-radius: 22px;
+    box-shadow: 0 24px 70px rgb(45 31 22 / 0.24);
+  }
+
+  html[data-native-app] .store-home .store-intro,
+  html[data-native-app] .store-home .bunya-hero-3d { display: none !important; }
+
+  html[data-native-app] .native-home-dashboard {
+    display: grid;
+    gap: 14px;
+    padding: 18px 16px 12px;
+  }
+
+  html[data-native-app] .native-home-welcome {
+    position: relative;
+    overflow: hidden;
+    padding: 22px 20px;
+    border: 1px solid rgb(255 255 255 / 0.2);
+    border-radius: 26px;
+    background:
+      radial-gradient(circle at 8% 18%, rgb(255 211 178 / 0.28), transparent 30%),
+      linear-gradient(145deg, #9d4f2d, #713822);
+    box-shadow: 0 18px 42px rgb(101 54 33 / 0.23);
+    color: #fffaf5;
+  }
+
+  html[data-native-app] .native-home-welcome::after {
+    position: absolute;
+    inset: auto -28px -46px auto;
+    width: 132px;
+    height: 132px;
+    border: 22px solid rgb(255 255 255 / 0.08);
+    border-radius: 36px;
+    content: "";
+    transform: rotate(24deg);
+  }
+
+  html[data-native-app] .native-home-welcome span {
+    display: block;
+    margin-bottom: 7px;
+    color: #ffd6bc;
+    font-size: 0.78rem;
+    font-weight: 900;
+  }
+
+  html[data-native-app] .native-home-welcome h1 {
+    position: relative;
+    z-index: 1;
+    margin: 0;
+    color: #fff;
+    font-size: clamp(1.7rem, 7vw, 2.15rem);
+    line-height: 1.22;
+    letter-spacing: -0.035em;
+  }
+
+  html[data-native-app] .native-home-welcome p {
+    position: relative;
+    z-index: 1;
+    max-width: 30ch;
+    margin: 9px 0 0;
+    color: rgb(255 246 238 / 0.82);
+    font-size: 0.88rem;
+    font-weight: 700;
+    line-height: 1.7;
+  }
+
+  html[data-native-app] .native-home-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  html[data-native-app] .native-home-actions > :where(a, button) {
+    display: grid;
+    min-width: 0;
+    min-height: 118px;
+    align-content: start;
+    gap: 6px;
+    padding: 14px;
+    border: 1px solid rgb(103 73 51 / 0.12);
+    border-radius: 20px;
+    background: #fffdf9;
+    box-shadow: 0 9px 24px rgb(70 45 28 / 0.07);
+    color: #312820;
+    text-align: right;
+  }
+
+  html[data-native-app] .native-home-actions svg { color: #ae5d38; }
+  html[data-native-app] .native-home-actions strong { display: block; font-size: 1rem; }
+  html[data-native-app] .native-home-actions small { color: #76675d; font-size: 0.72rem; font-weight: 700; line-height: 1.5; }
+
+  html[data-native-app] .native-home-actions button {
+    grid-column: 1 / -1;
+    min-height: 76px;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    align-content: center;
+    background: #173d32;
+    color: #fff;
+  }
+
+  html[data-native-app] .native-home-actions button svg { color: #a9e1ca; }
+  html[data-native-app] .native-home-actions button small { color: rgb(255 255 255 / 0.68); }
+
+  html[data-native-app] .store-home .store-search-section {
+    margin: 0 !important;
+    padding: 2px 16px 12px !important;
+  }
+
+  html[data-native-app] .store-home .store-search {
+    border-radius: 18px !important;
+    box-shadow: 0 8px 22px rgb(70 45 28 / 0.08) !important;
+  }
+
+  html[data-native-app] .store-home .store-search input { min-height: 54px; }
+
+  html[data-native-app] .store-home-section {
+    padding-inline: 16px !important;
+    padding-block: 12px !important;
+  }
+
+  html[data-native-app] .store-home .store-category-heading,
+  html[data-native-app] .store-home .store-section-heading { margin-bottom: 12px; }
+
+  html[data-native-app] .store-home .store-section-heading h2,
+  html[data-native-app] .store-home .store-category-heading h2 { font-size: 1.35rem !important; }
+
+  html[data-native-app] .store-home .store-category-row {
+    display: flex;
+    margin-inline: -16px;
+    padding-inline: 16px;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+  }
+
+  html[data-native-app] .store-home .store-category-chip { flex: 0 0 auto; scroll-snap-align: start; }
+
+  html[data-native-app] .store-home .store-latest-grid,
+  html[data-native-app] .store-home .store-product-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  html[data-native-app] .store-home :where(.store-latest-card, .store-product-card) {
+    min-width: 0;
+    border-radius: 18px;
+    box-shadow: 0 8px 22px rgb(70 45 28 / 0.07);
+  }
+
+  html[data-native-app] .store-home .store-product-art { aspect-ratio: 1.2; }
+  html[data-native-app] .store-home .pwa-install-prompt { display: none !important; }
+
+  html[data-native-app] .native-home-tabs {
+    position: fixed;
+    inset: auto 10px max(8px, env(safe-area-inset-bottom));
+    z-index: 80;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    min-height: 66px;
+    padding: 7px;
+    border: 1px solid rgb(103 73 51 / 0.14);
+    border-radius: 23px;
+    background: rgb(255 252 247 / 0.96);
+    box-shadow: 0 18px 48px rgb(46 31 21 / 0.22);
+    backdrop-filter: blur(20px) saturate(140%);
+  }
+
+  html[data-native-app] .native-home-tabs > :where(a, button) {
+    display: flex;
+    min-width: 0;
+    min-height: 52px;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 3px;
+    border: 0;
+    border-radius: 16px;
+    background: transparent;
+    color: #75665c;
+    font-size: 0.65rem;
+    font-weight: 900;
+  }
+
+  html[data-native-app] .native-home-tabs > [aria-current="page"] { color: #9e4f2d; }
+  html[data-native-app] .native-home-tabs svg { width: 20px; height: 20px; }
+  html[data-native-app] .native-home-tabs-quote { position: relative; display: grid; width: 34px; height: 34px; place-items: center; border-radius: 12px; background: #173d32; color: white; }
+  html[data-native-app] .native-home-tabs-quote b { position: absolute; top: -7px; left: -7px; display: grid; min-width: 18px; height: 18px; place-items: center; border-radius: 999px; background: #bd633d; color: white; font-size: 0.62rem; }
+}
