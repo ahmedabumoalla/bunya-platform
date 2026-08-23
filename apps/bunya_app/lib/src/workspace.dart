@@ -183,7 +183,7 @@ class WorkspaceRepository {
         .from(module.table)
         .select(
           isProducts
-              ? '*,product_images(image_url,storage_path,is_primary,sort_order)'
+              ? '*,product_categories(name),product_images(image_url,storage_path,is_primary,sort_order)'
               : '*',
         );
     if (module.filterField != null && module.filterValue != null) {
@@ -1418,8 +1418,14 @@ class ModuleRecordsScreen extends StatelessWidget {
         void openDetails() => showModalBottomSheet<void>(
           context: context,
           isScrollControlled: true,
-          builder: (_) =>
-              _RawRecord(row: row, module: module, repository: repository),
+          backgroundColor: Colors.transparent,
+          builder: (_) => module.table == 'products'
+              ? _ProductRecordDetails(
+                  row: row,
+                  module: module,
+                  repository: repository,
+                )
+              : _RawRecord(row: row, module: module, repository: repository),
         );
         final status = _status(
           '${row['status'] ?? row['review_status'] ?? row['approval_status'] ?? 'سجل'}',
@@ -1877,6 +1883,359 @@ class _Facts extends StatelessWidget {
           ),
         )
         .toList(),
+  );
+}
+
+class _ProductRecordDetails extends StatefulWidget {
+  const _ProductRecordDetails({
+    required this.row,
+    required this.module,
+    required this.repository,
+  });
+  final Map<String, dynamic> row;
+  final WorkspaceModule module;
+  final WorkspaceRepository repository;
+
+  @override
+  State<_ProductRecordDetails> createState() => _ProductRecordDetailsState();
+}
+
+class _ProductRecordDetailsState extends State<_ProductRecordDetails> {
+  final note = TextEditingController();
+  bool busy = false;
+
+  @override
+  void dispose() {
+    note.dispose();
+    super.dispose();
+  }
+
+  Future<void> decide(String decision) async {
+    if (decision != 'approved' && note.text.trim().length < 5) {
+      return _notice(context, 'اكتب ملاحظة واضحة للقرار');
+    }
+    setState(() => busy = true);
+    try {
+      await widget.repository.reviewProduct(
+        '${widget.row['id']}',
+        decision,
+        note.text.trim().isEmpty ? 'تمت المراجعة من تطبيق بُنية' : note.text,
+      );
+      if (!mounted) return;
+      _notice(context, 'تم حفظ قرار المنتج');
+      Navigator.pop(context);
+    } catch (error) {
+      if (mounted) _notice(context, _clean(error));
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final row = widget.row;
+    final imageUrl = '${row['_image_url'] ?? ''}'.trim();
+    final categoryRaw = row['product_categories'];
+    final category = '${row['custom_category'] ?? ''}'.trim().isNotEmpty
+        ? '${row['custom_category']}'
+        : categoryRaw is Map
+        ? '${categoryRaw['name'] ?? 'غير مصنف'}'
+        : 'غير مصنف';
+    final status = _status('${row['review_status'] ?? 'سجل'}');
+    final description =
+        '${row['full_description'] ?? row['description'] ?? row['short_description'] ?? ''}'
+            .trim();
+    final canReview =
+        widget.module.action == 'product_review' &&
+        row['review_status'] == 'pending_review';
+
+    return SafeArea(
+      top: false,
+      child: Container(
+        height: MediaQuery.sizeOf(context).height * .92,
+        decoration: const BoxDecoration(
+          color: BunyaColors.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+        ),
+        child: SingleChildScrollView(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.viewInsetsOf(context).bottom + 24,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(30),
+                    ),
+                    child: SizedBox(
+                      height: 285,
+                      width: double.infinity,
+                      child: imageUrl.isEmpty
+                          ? const ColoredBox(
+                              color: Color(0xFFEDE4D8),
+                              child: Icon(
+                                Icons.inventory_2_outlined,
+                                size: 72,
+                                color: BunyaColors.copper,
+                              ),
+                            )
+                          : CachedNetworkImage(
+                              imageUrl: imageUrl,
+                              cacheKey:
+                                  '${row['_image_cache_key'] ?? imageUrl}',
+                              fit: BoxFit.cover,
+                              memCacheWidth: 900,
+                              maxWidthDiskCache: 1200,
+                              placeholder: (_, _) => const ColoredBox(
+                                color: Color(0xFFEDE4D8),
+                                child: Center(
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              ),
+                              errorWidget: (_, _, _) => const ColoredBox(
+                                color: Color(0xFFEDE4D8),
+                                child: Icon(
+                                  Icons.broken_image_outlined,
+                                  size: 58,
+                                  color: BunyaColors.copper,
+                                ),
+                              ),
+                            ),
+                    ),
+                  ),
+                  PositionedDirectional(
+                    top: 14,
+                    end: 14,
+                    child: IconButton.filled(
+                      onPressed: () => Navigator.pop(context),
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.white.withValues(alpha: .92),
+                        foregroundColor: BunyaColors.ink,
+                      ),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ),
+                  PositionedDirectional(
+                    bottom: 14,
+                    start: 16,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: BunyaColors.forest,
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      child: Text(
+                        status,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _recordTitle(row),
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        height: 1.25,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      '${row['short_description'] ?? category}',
+                      style: const TextStyle(
+                        color: BunyaColors.muted,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _ProductFact(
+                            icon: Icons.straighten_rounded,
+                            label: 'الوحدة',
+                            value: '${row['base_unit'] ?? 'غير محددة'}',
+                          ),
+                        ),
+                        const SizedBox(width: 9),
+                        Expanded(
+                          child: _ProductFact(
+                            icon: Icons.category_outlined,
+                            label: 'التصنيف',
+                            value: category,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 9),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _ProductFact(
+                            icon: Icons.inventory_outlined,
+                            label: 'التوفر',
+                            value:
+                                '${row['availability_summary'] ?? 'حسب التوفر'}',
+                          ),
+                        ),
+                        const SizedBox(width: 9),
+                        Expanded(
+                          child: _ProductFact(
+                            icon: Icons.local_shipping_outlined,
+                            label: 'التوصيل',
+                            value:
+                                '${row['delivery_window'] ?? 'يحدد بعد الطلب'}',
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (description.isNotEmpty) ...[
+                      const SizedBox(height: 22),
+                      const Text(
+                        'عن المنتج',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 7),
+                      Text(
+                        description,
+                        style: const TextStyle(
+                          color: BunyaColors.muted,
+                          height: 1.8,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                    if (canReview) ...[
+                      const SizedBox(height: 24),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: BunyaColors.sand,
+                          borderRadius: BorderRadius.circular(22),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'قرار المراجعة',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            TextField(
+                              controller: note,
+                              maxLines: 3,
+                              decoration: const InputDecoration(
+                                hintText: 'ملاحظة القرار عند طلب تعديل أو رفض',
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            FilledButton.icon(
+                              onPressed: busy ? null : () => decide('approved'),
+                              icon: const Icon(Icons.check_rounded),
+                              label: const Text('اعتماد المنتج'),
+                            ),
+                            const SizedBox(height: 7),
+                            OutlinedButton.icon(
+                              onPressed: busy
+                                  ? null
+                                  : () => decide('needs_changes'),
+                              icon: const Icon(Icons.edit_note_rounded),
+                              label: const Text('إعادته للتعديل'),
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size.fromHeight(50),
+                              ),
+                            ),
+                            TextButton.icon(
+                              onPressed: busy ? null : () => decide('rejected'),
+                              icon: const Icon(Icons.close_rounded),
+                              label: const Text('رفض المنتج'),
+                              style: TextButton.styleFrom(
+                                foregroundColor: BunyaColors.danger,
+                                minimumSize: const Size.fromHeight(48),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProductFact extends StatelessWidget {
+  const _ProductFact({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+  final IconData icon;
+  final String label, value;
+  @override
+  Widget build(BuildContext context) => Container(
+    constraints: const BoxConstraints(minHeight: 90),
+    padding: const EdgeInsets.all(13),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(19),
+      border: Border.all(color: BunyaColors.line),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 17, color: BunyaColors.copper),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: const TextStyle(
+                color: BunyaColors.muted,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          value,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.w900),
+        ),
+      ],
+    ),
   );
 }
 
