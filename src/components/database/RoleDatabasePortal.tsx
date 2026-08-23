@@ -76,7 +76,7 @@ const adminRoutes: RouteConfig[] = [
   route("/admin/join-requests/contractors", "طلبات انضمام المقاولين", "contractor_applications", ["contractor_name", "mobile", "email", "status", "created_at"]),
   route("/admin/drivers", "السائقون", "provider_drivers", ["full_name", "mobile", "email", "status", "must_change_password", "created_at"]),
   route("/admin/admins", "المدراء", "admin_users", ["profile_id", "role_id", "is_active", "last_active_at", "created_at"]),
-  route("/admin/catalog", "التصنيفات", "product_categories", ["name", "slug", "is_active", "sort_order", "created_at"]),
+  route("/admin/catalog", "التصنيفات", "product_categories", ["name", "slug", "is_active", "sort_order", "created_at"], "إدارة تصنيفات مواد البناء وتنظيم ظهورها في كتالوج المنتجات."),
   route("/admin/products/review", "مراجعة المنتجات", "products", ["name", "sku", "review_status", "is_published", "provider_id", "created_at"]),
   route("/admin/pricing", "الأسعار والتوفر", "provider_product_prices", ["provider_id", "product_id", "unit_price", "vat_inclusive", "expires_at", "freshness_status"]),
   route("/admin/sourcing", "محرك التوريد", "internal_sourcing_requests", ["request_code", "status", "created_at", "completed_at"]),
@@ -420,6 +420,8 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
         )
       ) : detailId ? (
         <DetailView row={state.rows[0]} />
+      ) : pathname === "/admin/catalog" ? (
+        <CatalogGrid rows={state.rows} />
       ) : (
         <RowsTable config={config} rows={state.rows} />
       )}
@@ -477,6 +479,22 @@ function ProviderOperationsEmpty() {
       </div>
     </section>
   );
+}
+
+function CatalogGrid({ rows }: { rows: DataRow[] }) {
+  const active = rows.filter((row) => row.is_active === true).length;
+  return <section className="admin-catalog-panel">
+    <header>
+      <div><p>هيكلة الكتالوج</p><h2>تصنيفات المنتجات</h2><span>{rows.length.toLocaleString("ar-SA")} تصنيف · {active.toLocaleString("ar-SA")} نشط</span></div>
+      <nav><Link href="/admin/products/review">مراجعة المنتجات</Link><Link href="/admin/pricing">الأسعار والتوفر</Link></nav>
+    </header>
+    <div className="admin-catalog-grid">{rows.map((row, index) => <article key={String(row.id ?? index)}>
+      <div className="admin-catalog-icon" aria-hidden>{String(row.name ?? "ت").slice(0, 1)}</div>
+      <div className="admin-catalog-copy"><small>ترتيب {formatValue(row.sort_order)}</small><h3>{formatValue(row.name)}</h3><code dir="ltr">{formatValue(row.slug)}</code></div>
+      <span className="admin-catalog-status" data-active={row.is_active === true}>{row.is_active === true ? "نشط" : "غير نشط"}</span>
+      <footer><small>أضيف {formatValue(row.created_at)}</small>{row.id ? <Link href={`/admin/catalog/${encodeURIComponent(String(row.id))}`}>عرض التفاصيل</Link> : null}</footer>
+    </article>)}</div>
+  </section>;
 }
 
 function RowsTable({ config, rows }: { config: RouteConfig; rows: DataRow[] }) {
