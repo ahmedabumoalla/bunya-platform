@@ -278,11 +278,23 @@ class WorkspaceRepository {
   }
 
   Future<Map<String, dynamic>> providerRfq(String id) async {
-    final result = await client.rpc(
-      'get_provider_rfq_context',
-      params: {'p_sourcing_item_id': id},
-    );
-    return Map<String, dynamic>.from(result as Map);
+    final results = await Future.wait([
+      client.rpc(
+        'get_provider_rfq_context',
+        params: {'p_sourcing_item_id': id},
+      ),
+      client.rpc(
+        'get_my_provider_rfq_response',
+        params: {'p_sourcing_item_id': id},
+      ),
+    ]);
+    final target = Map<String, dynamic>.from(results[0] as Map);
+    if (results[1] is Map) {
+      target['existing_response'] = Map<String, dynamic>.from(
+        results[1] as Map,
+      );
+    }
+    return target;
   }
 
   Future<void> submitProviderPrice({
@@ -768,7 +780,7 @@ class _ProviderPriceScreenState extends State<ProviderPriceScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('تقديم عرض السعر')),
+    appBar: AppBar(title: const Text('طلب التسعير')),
     body: FutureBuilder<Map<String, dynamic>>(
       future: target,
       builder: (_, snapshot) {
@@ -776,6 +788,13 @@ class _ProviderPriceScreenState extends State<ProviderPriceScreen> {
           return const Center(child: CircularProgressIndicator());
         final row = snapshot.data!;
         final quantity = (row['quantity'] as num? ?? 0).toDouble();
+        final existing = row['existing_response'] is Map
+            ? Map<String, dynamic>.from(row['existing_response'] as Map)
+            : null;
+        final unitPrice = (existing?['unit_price'] as num? ?? 0).toDouble();
+        final deliveryFee = (existing?['delivery_fee'] as num? ?? 0).toDouble();
+        final subtotal = unitPrice * quantity;
+        final vat = existing?['vat_inclusive'] == true ? 0.0 : subtotal * .15;
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -795,77 +814,140 @@ class _ProviderPriceScreenState extends State<ProviderPriceScreen> {
               },
             ),
             const SizedBox(height: 14),
-            TextField(
-              controller: price,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'سعر الوحدة (ر.س)'),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: delivery,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'تكلفة التوصيل'),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: preparation,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'ساعات التجهيز',
-                    ),
-                  ),
+            if (existing != null) ...[
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: BunyaColors.mint,
+                  borderRadius: BorderRadius.circular(20),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    controller: deliveryHours,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'ساعات التوصيل',
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.check_circle_rounded,
+                      color: BunyaColors.forest,
                     ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'تم تقديم عرضك ${existing['response_code'] ?? ''} وهو محفوظ للقراءة فقط.',
+                        style: const TextStyle(
+                          color: BunyaColors.forest,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              _Facts(
+                values: {
+                  'سعر الوحدة': '$unitPrice ر.س',
+                  'الكمية المتوفرة':
+                      '${existing['available_quantity'] ?? '—'} ${row['unit_snapshot'] ?? ''}',
+                  'تكلفة التوصيل': '$deliveryFee ر.س',
+                  'إجمالي العرض': '${subtotal + vat + deliveryFee} ر.س',
+                  'التجهيز': '${existing['preparation_hours'] ?? 0} ساعة',
+                  'التوصيل': '${existing['delivery_hours'] ?? 0} ساعة',
+                  'الضريبة': existing['vat_inclusive'] == true
+                      ? 'شامل الضريبة'
+                      : 'تضاف 15%',
+                  'الحالة': _status('${existing['status'] ?? 'proposed'}'),
+                },
+              ),
+              if ('${existing['notes'] ?? ''}'.trim().isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: _panel(),
+                  child: Text(
+                    '${existing['notes']}',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
               ],
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: notes,
-              maxLines: 3,
-              decoration: const InputDecoration(labelText: 'ملاحظات العرض'),
-            ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: busy
-                  ? null
-                  : () async {
-                      if ((double.tryParse(price.text) ?? 0) <= 0)
-                        return _notice(context, 'أدخل سعرًا صحيحًا');
-                      setState(() => busy = true);
-                      try {
-                        await widget.repository.submitProviderPrice(
-                          id: widget.id,
-                          price: double.parse(price.text),
-                          quantity: quantity,
-                          deliveryFee: double.tryParse(delivery.text) ?? 0,
-                          preparationHours: int.tryParse(preparation.text) ?? 0,
-                          deliveryHours: int.tryParse(deliveryHours.text) ?? 0,
-                          notes: notes.text,
-                        );
-                        if (context.mounted) {
-                          _notice(context, 'تم استلام عرض السعر');
-                          Navigator.pop(context);
+            ] else ...[
+              TextField(
+                controller: price,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'سعر الوحدة (ر.س)',
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: delivery,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'تكلفة التوصيل'),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: preparation,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'ساعات التجهيز',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: deliveryHours,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'ساعات التوصيل',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: notes,
+                maxLines: 3,
+                decoration: const InputDecoration(labelText: 'ملاحظات العرض'),
+              ),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: busy
+                    ? null
+                    : () async {
+                        if ((double.tryParse(price.text) ?? 0) <= 0) {
+                          return _notice(context, 'أدخل سعرًا صحيحًا');
                         }
-                      } catch (error) {
-                        if (context.mounted) _notice(context, _clean(error));
-                      }
-                      if (mounted) setState(() => busy = false);
-                    },
-              icon: const Icon(Icons.send_rounded),
-              label: const Text('تأكيد وإرسال العرض'),
-            ),
+                        setState(() => busy = true);
+                        try {
+                          await widget.repository.submitProviderPrice(
+                            id: widget.id,
+                            price: double.parse(price.text),
+                            quantity: quantity,
+                            deliveryFee: double.tryParse(delivery.text) ?? 0,
+                            preparationHours:
+                                int.tryParse(preparation.text) ?? 0,
+                            deliveryHours:
+                                int.tryParse(deliveryHours.text) ?? 0,
+                            notes: notes.text,
+                          );
+                          if (context.mounted) {
+                            _notice(context, 'تم استلام عرض السعر');
+                            Navigator.pop(context);
+                          }
+                        } catch (error) {
+                          if (context.mounted) {
+                            _notice(context, _clean(error));
+                          }
+                        }
+                        if (mounted) setState(() => busy = false);
+                      },
+                icon: const Icon(Icons.send_rounded),
+                label: const Text('تأكيد وإرسال العرض'),
+              ),
+            ],
           ],
         );
       },
