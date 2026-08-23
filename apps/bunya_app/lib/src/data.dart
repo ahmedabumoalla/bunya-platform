@@ -1,4 +1,13 @@
+import 'dart:convert';
+import 'dart:math';
+
+import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+const _appUrl = String.fromEnvironment(
+  'APP_URL',
+  defaultValue: 'https://www.buniahksa.com',
+);
 
 class Product {
   const Product({
@@ -42,6 +51,59 @@ class QuoteSummary {
   final DateTime createdAt, requiredAt;
 }
 
+class QuoteItemDetail {
+  const QuoteItemDetail({
+    required this.name,
+    required this.quantity,
+    required this.unit,
+    required this.measurement,
+    required this.notes,
+  });
+  final String name, unit, measurement, notes;
+  final double quantity;
+}
+
+class QuoteOfferDetail {
+  const QuoteOfferDetail({
+    required this.code,
+    required this.status,
+    required this.subtotal,
+    required this.vat,
+    required this.delivery,
+    required this.total,
+    required this.validUntil,
+    required this.expectedDelivery,
+  });
+  final String code, status;
+  final double subtotal, vat, delivery, total;
+  final DateTime validUntil, expectedDelivery;
+}
+
+class QuoteDetail {
+  const QuoteDetail({
+    required this.summary,
+    required this.location,
+    required this.mapsUrl,
+    required this.deliveryMode,
+    required this.notes,
+    required this.deadline,
+    required this.recipientName,
+    required this.recipientMobile,
+    required this.items,
+    required this.offer,
+  });
+  final QuoteSummary summary;
+  final String location,
+      mapsUrl,
+      deliveryMode,
+      notes,
+      recipientName,
+      recipientMobile;
+  final DateTime deadline;
+  final List<QuoteItemDetail> items;
+  final QuoteOfferDetail? offer;
+}
+
 class AppNotification {
   const AppNotification({
     required this.id,
@@ -62,8 +124,15 @@ class Profile {
     required this.email,
     required this.mobile,
     required this.role,
+    required this.mustChangePassword,
   });
   final String name, email, mobile, role;
+  final bool mustChangePassword;
+}
+
+class JoinSubmission {
+  const JoinSubmission({required this.id, required this.status});
+  final String id, status;
 }
 
 class BunyaRepository {
@@ -153,7 +222,7 @@ class BunyaRepository {
     if (user == null) return null;
     final row = await client
         .from('profiles')
-        .select('full_name,email,mobile,role')
+        .select('full_name,email,mobile,role,must_change_password')
         .eq('id', user!.id)
         .maybeSingle();
     if (row == null) return null;
@@ -162,6 +231,45 @@ class BunyaRepository {
       email: '${row['email'] ?? user!.email ?? ''}',
       mobile: '${row['mobile'] ?? ''}',
       role: '${row['role'] ?? 'customer'}',
+      mustChangePassword: row['must_change_password'] == true,
+    );
+  }
+
+  Future<void> changeTemporaryPassword(String password) async {
+    await client.auth.updateUser(UserAttributes(password: password));
+    await client.rpc('complete_temporary_password_change');
+  }
+
+  Future<JoinSubmission> submitJoinApplication({
+    required String kind,
+    required Map<String, String> fields,
+    required List<String> regions,
+    List<String> categories = const [],
+    List<String> specialties = const [],
+  }) async {
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse(
+        '${_appUrl.replaceFirst(RegExp(r'/$'), '')}/api/public/join/$kind',
+      ),
+    );
+    request.headers['Idempotency-Key'] =
+        'app${DateTime.now().microsecondsSinceEpoch}${Random.secure().nextInt(999999)}';
+    request.fields
+      ..addAll(fields)
+      ..['regions'] = jsonEncode(regions)
+      ..['categories'] = jsonEncode(categories)
+      ..['specialties'] = jsonEncode(specialties)
+      ..['website'] = '';
+    final streamed = await request.send();
+    final response = await http.Response.fromStream(streamed);
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('${body['message'] ?? 'تعذر إرسال طلب الانضمام'}');
+    }
+    return JoinSubmission(
+      id: '${body['applicationId']}',
+      status: '${body['status']}',
     );
   }
 
@@ -185,6 +293,70 @@ class BunyaRepository {
             DateTime.tryParse('${row['desired_receipt_at']}') ?? DateTime.now(),
       );
     }).toList();
+  }
+
+  Future<QuoteDetail> loadQuoteDetail(QuoteSummary summary) async {
+    final request = await client
+        .from('quote_requests')
+        .select(
+          'location_hint,google_maps_url,delivery_mode,notes,quote_deadline,recipient_name,recipient_mobile',
+        )
+        .eq('id', summary.id)
+        .single();
+    final itemRows = await client
+        .from('quote_request_items')
+        .select(
+          'product_name_snapshot,measurement_label_snapshot,unit_name_snapshot,quantity,notes',
+        )
+        .eq('request_id', summary.id)
+        .order('created_at');
+    final offerRow = await client
+        .from('bunya_customer_quotes')
+        .select(
+          'quote_code,status,subtotal,vat_amount,delivery_fee,total,valid_until,expected_delivery_at',
+        )
+        .eq('customer_request_id', summary.id)
+        .maybeSingle();
+    final items = (itemRows as List).map((raw) {
+      final row = raw as Map;
+      return QuoteItemDetail(
+        name: '${row['product_name_snapshot']}',
+        quantity: (row['quantity'] as num).toDouble(),
+        unit: '${row['unit_name_snapshot']}',
+        measurement: '${row['measurement_label_snapshot'] ?? ''}',
+        notes: '${row['notes'] ?? ''}',
+      );
+    }).toList();
+    final offer = offerRow == null
+        ? null
+        : QuoteOfferDetail(
+            code: '${offerRow['quote_code']}',
+            status: '${offerRow['status']}',
+            subtotal: (offerRow['subtotal'] as num).toDouble(),
+            vat: (offerRow['vat_amount'] as num).toDouble(),
+            delivery: (offerRow['delivery_fee'] as num).toDouble(),
+            total: (offerRow['total'] as num).toDouble(),
+            validUntil:
+                DateTime.tryParse('${offerRow['valid_until']}') ??
+                DateTime.now(),
+            expectedDelivery:
+                DateTime.tryParse('${offerRow['expected_delivery_at']}') ??
+                summary.requiredAt,
+          );
+    return QuoteDetail(
+      summary: summary,
+      location: '${request['location_hint'] ?? summary.city}',
+      mapsUrl: '${request['google_maps_url'] ?? ''}',
+      deliveryMode: '${request['delivery_mode'] ?? 'delivery'}',
+      notes: '${request['notes'] ?? ''}',
+      deadline:
+          DateTime.tryParse('${request['quote_deadline']}') ??
+          summary.createdAt,
+      recipientName: '${request['recipient_name'] ?? ''}',
+      recipientMobile: '${request['recipient_mobile'] ?? ''}',
+      items: items,
+      offer: offer,
+    );
   }
 
   Future<List<AppNotification>> loadNotifications() async {

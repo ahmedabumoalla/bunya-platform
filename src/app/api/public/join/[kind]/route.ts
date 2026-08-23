@@ -8,10 +8,35 @@ import { prepareUpload } from "@/lib/uploads/server";
 
 export const runtime = "nodejs";
 
+function isLocalAppOrigin(request: NextRequest) {
+  const origin = request.headers.get("origin");
+  if (!origin) return false;
+  try {
+    const host = new URL(origin).hostname;
+    return host === "127.0.0.1" || host === "localhost";
+  } catch { return false; }
+}
+
+function corsHeaders(request: NextRequest) {
+  const origin = request.headers.get("origin");
+  if (!origin || (origin !== request.nextUrl.origin && !isLocalAppOrigin(request))) return {};
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Idempotency-Key",
+    Vary: "Origin",
+  };
+}
+
+export async function OPTIONS(request: NextRequest) {
+  const headers = corsHeaders(request);
+  return new Response(null, { status: Object.keys(headers).length ? 204 : 403, headers });
+}
+
 export async function POST(request: NextRequest, context: { params: Promise<{ kind: string }> }) {
   const uploaded: string[] = [];
   try {
-    assertSameOrigin(request);
+    if (!isLocalAppOrigin(request)) assertSameOrigin(request);
     const { kind } = await context.params;
     if (kind !== "provider" && kind !== "contractor") throw new PublicJoinError("نوع الطلب غير صالح.", 404);
     const data = await request.formData();
@@ -90,11 +115,11 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ki
           { label: "التخصصات", value: specialties.join("، ") },
         ];
     await notifyJoinReviewers({ kind, applicationId, applicantEmail: email, applicantName, submittedAt: String(inserted.data.created_at), details: notificationDetails }).catch(() => undefined);
-    return NextResponse.json({ applicationId, status: inserted.data.status, submittedAt: inserted.data.created_at }, { status: 201 });
+    return NextResponse.json({ applicationId, status: inserted.data.status, submittedAt: inserted.data.created_at }, { status: 201, headers: corsHeaders(request) });
   } catch (error) {
     if (uploaded.length) { try { await createAdminClient().storage.from("join-applications").remove(uploaded); } catch {} }
-    if (error instanceof PublicJoinError) return NextResponse.json({ message: error.message }, { status: error.status });
-    return NextResponse.json({ message: "تعذر حفظ الطلب حاليًا. حاول مرة أخرى لاحقًا." }, { status: 500 });
+    if (error instanceof PublicJoinError) return NextResponse.json({ message: error.message }, { status: error.status, headers: corsHeaders(request) });
+    return NextResponse.json({ message: "تعذر حفظ الطلب حاليًا. حاول مرة أخرى لاحقًا." }, { status: 500, headers: corsHeaders(request) });
   }
 }
 

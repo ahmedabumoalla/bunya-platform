@@ -4,8 +4,10 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'data.dart';
+import 'join_screen.dart';
 import 'push_service.dart';
 import 'theme.dart';
 
@@ -101,6 +103,8 @@ class _BunyaShellState extends State<BunyaShell> {
         onQuotes: () => setState(() => index = 2),
         onProduct: openProduct,
         onRefresh: refreshCatalog,
+        onJoinProvider: () => openJoin(JoinKind.provider),
+        onJoinContractor: () => openJoin(JoinKind.contractor),
       ),
       CatalogTab(
         catalog: catalog,
@@ -177,6 +181,12 @@ class _BunyaShellState extends State<BunyaShell> {
     );
     if (submitted == true && mounted) setState(() => index = 2);
   }
+
+  Future<void> openJoin(JoinKind kind) => Navigator.of(context).push(
+    MaterialPageRoute(
+      builder: (_) => JoinApplicationScreen(kind: kind, repository: repo),
+    ),
+  );
 }
 
 class BunyaWordmark extends StatelessWidget {
@@ -228,9 +238,15 @@ class HomeTab extends StatelessWidget {
     required this.onQuotes,
     required this.onProduct,
     required this.onRefresh,
+    required this.onJoinProvider,
+    required this.onJoinContractor,
   });
   final Future<CatalogData> catalog;
-  final VoidCallback onCatalog, onQuotes, onRefresh;
+  final VoidCallback onCatalog,
+      onQuotes,
+      onRefresh,
+      onJoinProvider,
+      onJoinContractor;
   final ValueChanged<Product> onProduct;
 
   @override
@@ -310,6 +326,35 @@ class HomeTab extends StatelessWidget {
                         context,
                         'دليل المقاولين قيد التجهيز داخل التطبيق',
                       ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 25),
+              const _SectionTitle(
+                title: 'انضم إلى شركاء بُنية',
+                caption: 'ابدأ نشاطك واستقبل الفرص من التطبيق',
+              ),
+              const SizedBox(height: 11),
+              Row(
+                children: [
+                  Expanded(
+                    child: _JoinAction(
+                      icon: Icons.storefront_rounded,
+                      title: 'انضم كمزود',
+                      caption: 'منتجات وتسعير',
+                      color: BunyaColors.copper,
+                      onTap: onJoinProvider,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _JoinAction(
+                      icon: Icons.engineering_rounded,
+                      title: 'انضم كمقاول',
+                      caption: 'مشاريع وفرص',
+                      color: BunyaColors.forest,
+                      onTap: onJoinContractor,
                     ),
                   ),
                 ],
@@ -491,6 +536,70 @@ class _QuickAction extends StatelessWidget {
             style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
           ),
         ],
+      ),
+    ),
+  );
+}
+
+class _JoinAction extends StatelessWidget {
+  const _JoinAction({
+    required this.icon,
+    required this.title,
+    required this.caption,
+    required this.color,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String title, caption;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: color,
+    borderRadius: BorderRadius.circular(22),
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(22),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: .14),
+                borderRadius: BorderRadius.circular(15),
+              ),
+              child: Icon(icon, color: Colors.white),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  Text(
+                    caption,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     ),
   );
@@ -1201,7 +1310,19 @@ class _QuotesTabState extends State<QuotesTab> {
                   ),
                 )
               else
-                ...rows.map((quote) => _QuoteCard(quote: quote)),
+                ...rows.map(
+                  (quote) => _QuoteCard(
+                    quote: quote,
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => QuoteDetailScreen(
+                          repository: widget.repository,
+                          quote: quote,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         );
@@ -1211,79 +1332,760 @@ class _QuotesTabState extends State<QuotesTab> {
 }
 
 class _QuoteCard extends StatelessWidget {
-  const _QuoteCard({required this.quote});
+  const _QuoteCard({required this.quote, required this.onTap});
   final QuoteSummary quote;
+  final VoidCallback onTap;
   @override
   Widget build(BuildContext context) {
     final state = _status(quote.status);
-    return Container(
-      margin: const EdgeInsets.only(bottom: 11),
-      padding: const EdgeInsets.all(17),
-      decoration: _whiteCard(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  quote.code,
-                  style: const TextStyle(fontWeight: FontWeight.w900),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 11),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.all(17),
+            decoration: _whiteCard(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        quote.code,
+                        style: const TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: state.$2,
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      child: Text(
+                        state.$1,
+                        style: TextStyle(
+                          color: state.$3,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const Divider(height: 24, color: BunyaColors.line),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.location_on_outlined,
+                      size: 18,
+                      color: BunyaColors.copper,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      quote.city,
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    const Spacer(),
+                    const Icon(
+                      Icons.event_outlined,
+                      size: 17,
+                      color: BunyaColors.muted,
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      '${quote.requiredAt.day}/${quote.requiredAt.month}',
+                      style: const TextStyle(
+                        color: BunyaColors.muted,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      size: 15,
+                      color: BunyaColors.copper,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class QuoteDetailScreen extends StatelessWidget {
+  const QuoteDetailScreen({
+    super.key,
+    required this.repository,
+    required this.quote,
+  });
+  final BunyaRepository repository;
+  final QuoteSummary quote;
+
+  Future<void> _openMap(BuildContext context, String value) async {
+    final uri = Uri.tryParse(value.trim());
+    if (uri == null ||
+        !await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('تعذر فتح موقع التسليم')));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('تفاصيل الطلب')),
+    body: FutureBuilder<QuoteDetail>(
+      future: repository.loadQuoteDetail(quote),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return _ErrorCard(
+            onRetry: () => Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (_) =>
+                    QuoteDetailScreen(repository: repository, quote: quote),
+              ),
+            ),
+          );
+        }
+        final detail = snapshot.data!;
+        final state = _status(detail.summary.status);
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 30),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(21),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [BunyaColors.forest, Color(0xFF276A58)],
+                ),
+                borderRadius: BorderRadius.circular(26),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x28123F33),
+                    blurRadius: 28,
+                    offset: Offset(0, 14),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          detail.summary.code,
+                          textDirection: TextDirection.ltr,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 11,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: state.$2,
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        child: Text(
+                          state.$1,
+                          style: TextStyle(
+                            color: state.$3,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    'طلب عرض السعر',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    'أُرسل ${_date(detail.summary.createdAt)} · آخر موعد للتسعير ${_dateTime(detail.deadline)}',
+                    style: const TextStyle(
+                      color: Color(0xFFBFE2D6),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            _QuoteProgress(status: detail.summary.status),
+            const SizedBox(height: 18),
+            _DetailSection(
+              title: 'المنتجات المطلوبة',
+              icon: Icons.inventory_2_outlined,
+              child: Column(
+                children: detail.items.asMap().entries.map((entry) {
+                  final item = entry.value;
+                  return Container(
+                    margin: EdgeInsets.only(
+                      bottom: entry.key == detail.items.length - 1 ? 0 : 10,
+                    ),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: BunyaColors.sand,
+                      borderRadius: BorderRadius.circular(17),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF0DDCF),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Icon(
+                            Icons.domain_rounded,
+                            color: BunyaColors.copperDark,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item.name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              if (item.measurement.isNotEmpty)
+                                Text(
+                                  item.measurement,
+                                  style: const TextStyle(
+                                    color: BunyaColors.muted,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              if (item.notes.isNotEmpty)
+                                Text(
+                                  item.notes,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: BunyaColors.muted,
+                                    fontSize: 10,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              _quantity(item.quantity),
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            Text(
+                              item.unit,
+                              style: const TextStyle(
+                                color: BunyaColors.muted,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            _DetailSection(
+              title: 'التسليم والموقع',
+              icon: Icons.local_shipping_outlined,
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _DetailFact(
+                          label: 'المدينة',
+                          value: detail.summary.city,
+                          icon: Icons.location_city_outlined,
+                        ),
+                      ),
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: _DetailFact(
+                          label: 'طريقة الاستلام',
+                          value: detail.deliveryMode == 'pickup'
+                              ? 'استلام من المورد'
+                              : 'توصيل للموقع',
+                          icon: detail.deliveryMode == 'pickup'
+                              ? Icons.storefront_outlined
+                              : Icons.local_shipping_outlined,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 9),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _DetailFact(
+                          label: 'موعد الاستلام',
+                          value: _date(detail.summary.requiredAt),
+                          icon: Icons.event_outlined,
+                        ),
+                      ),
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: _DetailFact(
+                          label: 'وصف الموقع',
+                          value: detail.location,
+                          icon: Icons.pin_drop_outlined,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (detail.mapsUrl.isNotEmpty) ...[
+                    const SizedBox(height: 9),
+                    Material(
+                      color: BunyaColors.mint,
+                      borderRadius: BorderRadius.circular(15),
+                      child: InkWell(
+                        onTap: () => _openMap(context, detail.mapsUrl),
+                        borderRadius: BorderRadius.circular(15),
+                        child: const Padding(
+                          padding: EdgeInsets.all(13),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.map_outlined,
+                                color: BunyaColors.forest,
+                              ),
+                              SizedBox(width: 9),
+                              Expanded(
+                                child: Text(
+                                  'فتح موقع التسليم في Google Maps',
+                                  style: TextStyle(
+                                    color: BunyaColors.forest,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+                              Icon(
+                                Icons.open_in_new_rounded,
+                                color: BunyaColors.forest,
+                                size: 18,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (detail.recipientName.isNotEmpty ||
+                detail.recipientMobile.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _DetailSection(
+                title: 'بيانات المستلم',
+                icon: Icons.person_pin_circle_outlined,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _DetailFact(
+                        label: 'الاسم',
+                        value: detail.recipientName.isEmpty
+                            ? '—'
+                            : detail.recipientName,
+                        icon: Icons.person_outline,
+                      ),
+                    ),
+                    const SizedBox(width: 9),
+                    Expanded(
+                      child: _DetailFact(
+                        label: 'الجوال',
+                        value: detail.recipientMobile.isEmpty
+                            ? '—'
+                            : detail.recipientMobile,
+                        icon: Icons.phone_outlined,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 5,
-                ),
-                decoration: BoxDecoration(
-                  color: state.$2,
-                  borderRadius: BorderRadius.circular(30),
-                ),
+            ],
+            if (detail.notes.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _DetailSection(
+                title: 'ملاحظات الطلب',
+                icon: Icons.notes_rounded,
                 child: Text(
-                  state.$1,
-                  style: TextStyle(
-                    color: state.$3,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w900,
+                  detail.notes,
+                  style: const TextStyle(
+                    color: BunyaColors.muted,
+                    height: 1.7,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
             ],
-          ),
-          const Divider(height: 24, color: BunyaColors.line),
-          Row(
-            children: [
-              const Icon(
-                Icons.location_on_outlined,
-                size: 18,
-                color: BunyaColors.copper,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                quote.city,
-                style: const TextStyle(fontWeight: FontWeight.w800),
-              ),
-              const Spacer(),
-              const Icon(
-                Icons.event_outlined,
-                size: 17,
-                color: BunyaColors.muted,
-              ),
-              const SizedBox(width: 5),
-              Text(
-                '${quote.requiredAt.day}/${quote.requiredAt.month}',
-                style: const TextStyle(
-                  color: BunyaColors.muted,
-                  fontWeight: FontWeight.w700,
+            const SizedBox(height: 12),
+            detail.offer == null
+                ? Container(
+                    padding: const EdgeInsets.all(17),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF2DF),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFFF0D2A9)),
+                    ),
+                    child: const Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.hourglass_top_rounded,
+                          color: Color(0xFF9B651E),
+                        ),
+                        SizedBox(width: 11),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'العرض قيد التجهيز',
+                                style: TextStyle(
+                                  color: Color(0xFF7D4E13),
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              SizedBox(height: 3),
+                              Text(
+                                'يجري التحقق ومقارنة أسعار الموردين. سيصلك إشعار فور جاهزية العرض.',
+                                style: TextStyle(
+                                  color: Color(0xFF8C6A3F),
+                                  height: 1.6,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : _OfferCard(offer: detail.offer!),
+          ],
+        );
+      },
+    ),
+  );
+}
+
+class _QuoteProgress extends StatelessWidget {
+  const _QuoteProgress({required this.status});
+  final String status;
+  @override
+  Widget build(BuildContext context) {
+    final current = switch (status) {
+      'draft' => 0,
+      'submitted' || 'verifying' || 'sourcing' => 1,
+      'quoted' || 'accepted' || 'fulfilled' => 2,
+      _ => 1,
+    };
+    const labels = ['تم الإرسال', 'التحقق والتسعير', 'العرض النهائي'];
+    return Container(
+      padding: const EdgeInsets.all(17),
+      decoration: _whiteCard(20),
+      child: Row(
+        children: List.generate(
+          labels.length,
+          (i) => Expanded(
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    if (i > 0)
+                      Expanded(
+                        child: Container(
+                          height: 2,
+                          color: i <= current
+                              ? BunyaColors.copper
+                              : BunyaColors.line,
+                        ),
+                      ),
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: i <= current
+                            ? BunyaColors.copper
+                            : BunyaColors.sand,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: i <= current
+                              ? BunyaColors.copper
+                              : BunyaColors.line,
+                        ),
+                      ),
+                      child: Icon(
+                        i < current ? Icons.check_rounded : Icons.circle,
+                        size: i < current ? 16 : 7,
+                        color: i <= current ? Colors.white : BunyaColors.muted,
+                      ),
+                    ),
+                    if (i < labels.length - 1)
+                      Expanded(
+                        child: Container(
+                          height: 2,
+                          color: i < current
+                              ? BunyaColors.copper
+                              : BunyaColors.line,
+                        ),
+                      ),
+                  ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 7),
+                Text(
+                  labels[i],
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: i <= current ? BunyaColors.ink : BunyaColors.muted,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ],
+        ),
       ),
     );
   }
+}
+
+class _DetailSection extends StatelessWidget {
+  const _DetailSection({
+    required this.title,
+    required this.icon,
+    required this.child,
+  });
+  final String title;
+  final IconData icon;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(17),
+    decoration: _whiteCard(20),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0DDCF),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, size: 19, color: BunyaColors.copperDark),
+            ),
+            const SizedBox(width: 10),
+            Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
+          ],
+        ),
+        const SizedBox(height: 14),
+        child,
+      ],
+    ),
+  );
+}
+
+class _DetailFact extends StatelessWidget {
+  const _DetailFact({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+  final String label, value;
+  final IconData icon;
+  @override
+  Widget build(BuildContext context) => Container(
+    height: 84,
+    padding: const EdgeInsets.all(11),
+    decoration: BoxDecoration(
+      color: BunyaColors.sand,
+      borderRadius: BorderRadius.circular(15),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(icon, size: 17, color: BunyaColors.copper),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: const TextStyle(
+            color: BunyaColors.muted,
+            fontSize: 9,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900),
+        ),
+      ],
+    ),
+  );
+}
+
+class _OfferCard extends StatelessWidget {
+  const _OfferCard({required this.offer});
+  final QuoteOfferDetail offer;
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(19),
+    decoration: BoxDecoration(
+      gradient: const LinearGradient(
+        colors: [BunyaColors.copper, BunyaColors.copperDark],
+      ),
+      borderRadius: BorderRadius.circular(22),
+      boxShadow: const [
+        BoxShadow(
+          color: Color(0x2EB7603B),
+          blurRadius: 24,
+          offset: Offset(0, 12),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'عرض بُنية النهائي',
+          style: TextStyle(
+            color: Color(0xFFFFD9C5),
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        Text(
+          offer.code,
+          textDirection: TextDirection.ltr,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const Divider(height: 24, color: Color(0x44FFFFFF)),
+        _PriceRow(label: 'قيمة المنتجات', value: offer.subtotal),
+        _PriceRow(label: 'الضريبة', value: offer.vat),
+        _PriceRow(label: 'التوصيل', value: offer.delivery),
+        const Divider(height: 20, color: Color(0x44FFFFFF)),
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'الإجمالي',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            Text(
+              '${_money(offer.total)} ر.س',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 21,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 9),
+        Text(
+          'صالح حتى ${_dateTime(offer.validUntil)}',
+          style: const TextStyle(
+            color: Color(0xFFFFD9C5),
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _PriceRow extends StatelessWidget {
+  const _PriceRow({required this.label, required this.value});
+  final String label;
+  final double value;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 6),
+    child: Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFFEFD5C8),
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        Text(
+          '${_money(value)} ر.س',
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class NotificationsScreen extends StatefulWidget {
@@ -1578,7 +2380,18 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => busy = true);
     try {
       await widget.repository.signIn(email.text, password.text);
-      if (mounted) Navigator.pop(context, true);
+      await PushService.registerForCurrentUser();
+      final profile = await widget.repository.loadProfile();
+      if (!mounted) return;
+      if (profile?.mustChangePassword == true) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => ChangePasswordScreen(repository: widget.repository),
+          ),
+        );
+      } else {
+        Navigator.pop(context, true);
+      }
     } catch (error) {
       if (mounted) _message(context, _friendlyError(error));
     }
@@ -1684,6 +2497,145 @@ class _LoginScreenState extends State<LoginScreen> {
             child: const Text('متابعة التصفح كضيف'),
           ),
         ],
+      ),
+    ),
+  );
+}
+
+class ChangePasswordScreen extends StatefulWidget {
+  const ChangePasswordScreen({super.key, required this.repository});
+  final BunyaRepository repository;
+
+  @override
+  State<ChangePasswordScreen> createState() => _ChangePasswordScreenState();
+}
+
+class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
+  final password = TextEditingController(), confirm = TextEditingController();
+  bool hidden = true, busy = false;
+
+  @override
+  void dispose() {
+    password.dispose();
+    confirm.dispose();
+    super.dispose();
+  }
+
+  Future<void> save() async {
+    final value = password.text;
+    final error = value.length < 8
+        ? 'يجب ألا تقل كلمة المرور عن 8 أحرف'
+        : !RegExp(r'[A-Z]').hasMatch(value)
+        ? 'أضف حرفًا إنجليزيًا كبيرًا واحدًا على الأقل'
+        : !RegExp(r'[0-9]').hasMatch(value)
+        ? 'أضف رقمًا واحدًا على الأقل'
+        : value != confirm.text
+        ? 'كلمتا المرور غير متطابقتين'
+        : null;
+    if (error != null) {
+      _message(context, error);
+      return;
+    }
+    setState(() => busy = true);
+    try {
+      await widget.repository.changeTemporaryPassword(value);
+      if (mounted) Navigator.pop(context, true);
+    } catch (error) {
+      if (mounted) _message(context, _friendlyError(error));
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => PopScope(
+    canPop: false,
+    child: Scaffold(
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(22),
+          children: [
+            const SizedBox(height: 45),
+            const CircleAvatar(
+              radius: 38,
+              backgroundColor: BunyaColors.mint,
+              child: Icon(
+                Icons.lock_reset_rounded,
+                size: 40,
+                color: BunyaColors.forest,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'عيّن كلمة مرور جديدة',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.headlineSmall
+                  ?.copyWith(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'كلمة المرور المرسلة مؤقتة. غيّرها الآن قبل الدخول إلى حسابك.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: BunyaColors.muted,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 28),
+            TextField(
+              controller: password,
+              obscureText: hidden,
+              textDirection: TextDirection.ltr,
+              decoration: InputDecoration(
+                labelText: 'كلمة المرور الجديدة',
+                prefixIcon: const Icon(Icons.lock_outline_rounded),
+                suffixIcon: IconButton(
+                  onPressed: () => setState(() => hidden = !hidden),
+                  icon: Icon(
+                    hidden
+                        ? Icons.visibility_outlined
+                        : Icons.visibility_off_outlined,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: confirm,
+              obscureText: hidden,
+              textDirection: TextDirection.ltr,
+              onSubmitted: (_) => save(),
+              decoration: const InputDecoration(
+                labelText: 'تأكيد كلمة المرور',
+                prefixIcon: Icon(Icons.verified_user_outlined),
+              ),
+            ),
+            const SizedBox(height: 9),
+            const Text(
+              '8 أحرف على الأقل، حرف إنجليزي كبير، ورقم.',
+              style: TextStyle(
+                color: BunyaColors.muted,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 18),
+            FilledButton.icon(
+              onPressed: busy ? null : save,
+              icon: busy
+                  ? const SizedBox(
+                      width: 19,
+                      height: 19,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.check_rounded),
+              label: const Text('حفظ ودخول التطبيق'),
+            ),
+          ],
+        ),
       ),
     ),
   );
@@ -1877,3 +2829,11 @@ String _role(String? value) =>
   'cancelled' => ('ملغي', const Color(0xFFFFDFDF), BunyaColors.danger),
   _ => ('قيد المعالجة', const Color(0xFFF0E8DE), BunyaColors.muted),
 };
+String _quantity(double value) => value == value.roundToDouble()
+    ? value.toInt().toString()
+    : value.toStringAsFixed(2);
+String _money(double value) =>
+    value.toStringAsFixed(2).replaceFirst(RegExp(r'\.00$'), '');
+String _date(DateTime value) => '${value.day}/${value.month}/${value.year}';
+String _dateTime(DateTime value) =>
+    '${value.day}/${value.month} · ${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
