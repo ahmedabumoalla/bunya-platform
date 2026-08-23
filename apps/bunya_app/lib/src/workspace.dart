@@ -1100,29 +1100,475 @@ class _AdminApplications extends StatefulWidget {
 class _AdminApplicationsState extends State<_AdminApplications> {
   late Future<List<Map<String, dynamic>>> rows = widget.repository
       .adminApplications();
+  String selectedKind = 'provider';
+  String selectedStatus = 'all';
+
   void reload() => setState(() => rows = widget.repository.adminApplications());
+
+  Future<void> open(Map<String, dynamic> row) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) =>
+          _AdminDecisionSheet(repository: widget.repository, row: row),
+    );
+    reload();
+  }
+
   @override
-  Widget build(BuildContext context) => _FutureList(
-    title: 'طلبات الانضمام',
-    caption: 'مراجعة المزودين والمقاولين وإرسال القرار وبيانات الدخول.',
-    future: rows,
-    item: (row) {
-      final provider = row['_kind'] == 'provider';
-      return _RecordCard(
-        title: '${provider ? row['company_name'] : row['contractor_name']}',
-        subtitle: '${row['email']} · ${row['mobile']}',
-        status: _status('${row['status']}'),
-        onTap: () async {
-          await showModalBottomSheet<void>(
-            context: context,
-            isScrollControlled: true,
-            builder: (_) =>
-                _AdminDecisionSheet(repository: widget.repository, row: row),
+  Widget build(BuildContext context) =>
+      FutureBuilder<List<Map<String, dynamic>>>(
+        future: rows,
+        builder: (context, snapshot) {
+          final data = snapshot.data ?? const <Map<String, dynamic>>[];
+          final providers = data
+              .where((row) => row['_kind'] == 'provider')
+              .length;
+          final contractors = data
+              .where((row) => row['_kind'] == 'contractor')
+              .length;
+          final kindRows = data
+              .where((row) => row['_kind'] == selectedKind)
+              .toList();
+          final visible = kindRows.where((row) {
+            if (selectedStatus == 'all') return true;
+            if (selectedStatus == 'active') {
+              return const {
+                'pending',
+                'needs_changes',
+              }.contains('${row['status']}');
+            }
+            return '${row['status']}' == selectedStatus;
+          }).toList();
+
+          return RefreshIndicator(
+            onRefresh: () async {
+              reload();
+              await rows;
+            },
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 26),
+              children: [
+                const _PageHeading(
+                  title: 'طلبات الانضمام',
+                  caption: 'مراجعة منظمة، تفاصيل كاملة، وقرار واضح لكل طلب.',
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _JoinTypeSelector(
+                        title: 'المزودون',
+                        caption: 'توريد وتسعير',
+                        count: providers,
+                        icon: Icons.storefront_rounded,
+                        selected: selectedKind == 'provider',
+                        color: BunyaColors.forest,
+                        onTap: () => setState(() {
+                          selectedKind = 'provider';
+                          selectedStatus = 'all';
+                        }),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _JoinTypeSelector(
+                        title: 'المقاولون',
+                        caption: 'مشاريع وتنفيذ',
+                        count: contractors,
+                        icon: Icons.engineering_rounded,
+                        selected: selectedKind == 'contractor',
+                        color: BunyaColors.copperDark,
+                        onTap: () => setState(() {
+                          selectedKind = 'contractor';
+                          selectedStatus = 'all';
+                        }),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      for (final filter in const [
+                        ('all', 'الكل'),
+                        ('active', 'بانتظار القرار'),
+                        ('needs_changes', 'بحاجة تعديل'),
+                        ('approved', 'معتمد'),
+                        ('rejected', 'مرفوض'),
+                      ]) ...[
+                        ChoiceChip(
+                          label: Text(filter.$2),
+                          selected: selectedStatus == filter.$1,
+                          onSelected: (_) =>
+                              setState(() => selectedStatus = filter.$1),
+                          showCheckmark: false,
+                          selectedColor: selectedKind == 'provider'
+                              ? BunyaColors.forest
+                              : BunyaColors.copperDark,
+                          labelStyle: TextStyle(
+                            color: selectedStatus == filter.$1
+                                ? Colors.white
+                                : BunyaColors.ink,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                          ),
+                          side: const BorderSide(color: BunyaColors.line),
+                        ),
+                        const SizedBox(width: 7),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Text(
+                      selectedKind == 'provider'
+                          ? 'طلبات المزودين'
+                          : 'طلبات المقاولين',
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      '${visible.length} طلب',
+                      style: const TextStyle(
+                        color: BunyaColors.muted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                if (snapshot.connectionState == ConnectionState.waiting)
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(35),
+                      child: CircularProgressIndicator(),
+                    ),
+                  )
+                else if (snapshot.hasError)
+                  _Empty(text: _clean(snapshot.error!))
+                else if (visible.isEmpty)
+                  const _Empty(text: 'لا توجد طلبات مطابقة لهذه الفلترة')
+                else
+                  ...visible.map(
+                    (row) =>
+                        _JoinApplicationCard(row: row, onTap: () => open(row)),
+                  ),
+              ],
+            ),
           );
-          reload();
         },
       );
-    },
+}
+
+class _JoinTypeSelector extends StatelessWidget {
+  const _JoinTypeSelector({
+    required this.title,
+    required this.caption,
+    required this.count,
+    required this.icon,
+    required this.selected,
+    required this.color,
+    required this.onTap,
+  });
+  final String title, caption;
+  final int count;
+  final IconData icon;
+  final bool selected;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: selected ? color : Colors.white,
+    borderRadius: BorderRadius.circular(24),
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(24),
+      child: Container(
+        padding: const EdgeInsets.all(15),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: selected ? color : BunyaColors.line),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 39,
+                  height: 39,
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? Colors.white.withValues(alpha: .16)
+                        : color.withValues(alpha: .10),
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: Icon(icon, color: selected ? Colors.white : color),
+                ),
+                const Spacer(),
+                Text(
+                  '$count',
+                  style: TextStyle(
+                    color: selected ? Colors.white : color,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 13),
+            Text(
+              title,
+              style: TextStyle(
+                color: selected ? Colors.white : BunyaColors.ink,
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            Text(
+              caption,
+              style: TextStyle(
+                color: selected ? Colors.white70 : BunyaColors.muted,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _JoinApplicationCard extends StatelessWidget {
+  const _JoinApplicationCard({required this.row, required this.onTap});
+  final Map<String, dynamic> row;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = row['_kind'] == 'provider';
+    final status = '${row['status']}';
+    final active = const {'pending', 'needs_changes'}.contains(status);
+    final regions =
+        ((row[provider
+                        ? 'provider_delivery_regions'
+                        : 'contractor_work_regions']
+                    as List?) ??
+                const [])
+            .length;
+    final expertise =
+        ((row[provider
+                        ? 'provider_application_categories'
+                        : 'contractor_specialties']
+                    as List?) ??
+                const [])
+            .length;
+    final color = provider ? BunyaColors.forest : BunyaColors.copperDark;
+    final name = '${provider ? row['company_name'] : row['contractor_name']}';
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 11),
+      elevation: 0,
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(23),
+        side: BorderSide(
+          color: active ? color.withValues(alpha: .30) : BunyaColors.line,
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(15),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: .10),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Icon(
+                      provider
+                          ? Icons.storefront_rounded
+                          : Icons.engineering_rounded,
+                      color: color,
+                    ),
+                  ),
+                  const SizedBox(width: 11),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          provider
+                              ? '${row['contact_name'] ?? 'مسؤول المنشأة'}'
+                              : 'مقدم طلب مقاول',
+                          style: const TextStyle(
+                            color: BunyaColors.muted,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: active ? BunyaColors.mint : BunyaColors.sand,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      _status(status),
+                      style: TextStyle(
+                        color: active ? BunyaColors.forest : BunyaColors.muted,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 13),
+              _JoinContactLine(
+                icon: Icons.phone_outlined,
+                text: '${row['mobile']}',
+              ),
+              const SizedBox(height: 6),
+              _JoinContactLine(
+                icon: Icons.alternate_email_rounded,
+                text: '${row['email']}',
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Divider(height: 1, color: BunyaColors.line),
+              ),
+              Row(
+                children: [
+                  _JoinMetric(
+                    icon: provider
+                        ? Icons.category_outlined
+                        : Icons.handyman_outlined,
+                    text: '$expertise ${provider ? 'تصنيف' : 'تخصص'}',
+                  ),
+                  const SizedBox(width: 12),
+                  _JoinMetric(icon: Icons.map_outlined, text: '$regions منطقة'),
+                  const Spacer(),
+                  Text(
+                    _date(row['created_at']),
+                    style: const TextStyle(
+                      color: BunyaColors.muted,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Container(
+                height: 42,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: .07),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      active
+                          ? 'مراجعة الطلب واتخاذ القرار'
+                          : 'عرض الملف الكامل',
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(width: 7),
+                    Icon(Icons.arrow_back_rounded, color: color, size: 18),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _JoinContactLine extends StatelessWidget {
+  const _JoinContactLine({required this.icon, required this.text});
+  final IconData icon;
+  final String text;
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Icon(icon, size: 16, color: BunyaColors.copper),
+      const SizedBox(width: 7),
+      Expanded(
+        child: Text(
+          text,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+        ),
+      ),
+    ],
+  );
+}
+
+class _JoinMetric extends StatelessWidget {
+  const _JoinMetric({required this.icon, required this.text});
+  final IconData icon;
+  final String text;
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(icon, size: 15, color: BunyaColors.muted),
+      const SizedBox(width: 4),
+      Text(
+        text,
+        style: const TextStyle(
+          color: BunyaColors.muted,
+          fontSize: 9,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    ],
   );
 }
 
