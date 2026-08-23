@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -177,16 +178,66 @@ class WorkspaceRepository {
   }
 
   Future<List<Map<String, dynamic>>> loadModule(WorkspaceModule module) async {
-    dynamic query = client.from(module.table).select('*');
+    final isProducts = module.table == 'products';
+    dynamic query = client
+        .from(module.table)
+        .select(
+          isProducts
+              ? '*,product_images(image_url,storage_path,is_primary,sort_order)'
+              : '*',
+        );
     if (module.filterField != null && module.filterValue != null) {
       query = query.eq(module.filterField!, module.filterValue!);
     }
     final rows = await query.limit(80);
-    return (rows as List)
+    final records = (rows as List)
         .map((row) => Map<String, dynamic>.from(row as Map))
         .toList()
         .reversed
         .toList();
+    if (!isProducts) return records;
+
+    final paths = <String>{};
+    for (final row in records) {
+      final images =
+          ((row['product_images'] as List?) ?? const [])
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .toList()
+            ..sort((a, b) {
+              final primary =
+                  (b['is_primary'] == true ? 1 : 0) -
+                  (a['is_primary'] == true ? 1 : 0);
+              return primary != 0
+                  ? primary
+                  : (a['sort_order'] as num? ?? 0).compareTo(
+                      b['sort_order'] as num? ?? 0,
+                    );
+            });
+      if (images.isEmpty) continue;
+      row['_primary_image'] = images.first;
+      final path = '${images.first['storage_path'] ?? ''}'.trim();
+      if (path.isNotEmpty) paths.add(path);
+    }
+    final signedUrls = <String, String>{};
+    if (paths.isNotEmpty) {
+      try {
+        final signed = await client.storage
+            .from('provider-product-images')
+            .createSignedUrls(paths.toList(), 21600);
+        for (final item in signed) {
+          signedUrls[item.path] = item.signedUrl;
+        }
+      } catch (_) {}
+    }
+    for (final row in records) {
+      final image = row['_primary_image'];
+      if (image is! Map) continue;
+      final path = '${image['storage_path'] ?? ''}'.trim();
+      final directUrl = '${image['image_url'] ?? ''}'.trim();
+      row['_image_url'] = directUrl.isNotEmpty ? directUrl : signedUrls[path];
+      row['_image_cache_key'] = path.isNotEmpty ? path : directUrl;
+    }
+    return records;
   }
 
   Future<void> reviewProduct(String id, String decision, String reason) async {
@@ -1363,21 +1414,25 @@ class ModuleRecordsScreen extends StatelessWidget {
       title: module.title,
       caption: module.caption,
       future: repository.loadModule(module),
-      item: (row) => _RecordCard(
-        title: _recordTitle(row),
-        subtitle: _recordSubtitle(row),
-        status: _status(
+      item: (row) {
+        void openDetails() => showModalBottomSheet<void>(
+          context: context,
+          isScrollControlled: true,
+          builder: (_) =>
+              _RawRecord(row: row, module: module, repository: repository),
+        );
+        final status = _status(
           '${row['status'] ?? row['review_status'] ?? row['approval_status'] ?? 'سجل'}',
-        ),
-        onTap: () async {
-          await showModalBottomSheet<void>(
-            context: context,
-            isScrollControlled: true,
-            builder: (_) =>
-                _RawRecord(row: row, module: module, repository: repository),
-          );
-        },
-      ),
+        );
+        return module.table == 'products'
+            ? _ProductRecordCard(row: row, status: status, onTap: openDetails)
+            : _RecordCard(
+                title: _recordTitle(row),
+                subtitle: _recordSubtitle(row),
+                status: status,
+                onTap: openDetails,
+              );
+      },
     ),
   );
 }
@@ -1584,6 +1639,146 @@ class _RecordCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    ),
+  );
+}
+
+class _ProductRecordCard extends StatelessWidget {
+  const _ProductRecordCard({
+    required this.row,
+    required this.status,
+    required this.onTap,
+  });
+  final Map<String, dynamic> row;
+  final String status;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final imageUrl = '${row['_image_url'] ?? ''}'.trim();
+    final description =
+        '${row['short_description'] ?? row['description'] ?? 'لا يوجد وصف مختصر'}';
+    return Card(
+      margin: const EdgeInsets.only(bottom: 13),
+      elevation: 0,
+      clipBehavior: Clip.antiAlias,
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(22),
+        side: const BorderSide(color: BunyaColors.line),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        child: Row(
+          children: [
+            SizedBox(
+              width: 116,
+              height: 126,
+              child: imageUrl.isEmpty
+                  ? const ColoredBox(
+                      color: Color(0xFFF0E9E0),
+                      child: Icon(
+                        Icons.inventory_2_outlined,
+                        size: 38,
+                        color: BunyaColors.copper,
+                      ),
+                    )
+                  : CachedNetworkImage(
+                      imageUrl: imageUrl,
+                      cacheKey: '${row['_image_cache_key'] ?? imageUrl}',
+                      fit: BoxFit.cover,
+                      memCacheWidth: 420,
+                      maxWidthDiskCache: 700,
+                      fadeInDuration: const Duration(milliseconds: 100),
+                      placeholder: (_, _) => const ColoredBox(
+                        color: Color(0xFFF0E9E0),
+                        child: Center(
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                      errorWidget: (_, _, _) => const ColoredBox(
+                        color: Color(0xFFF0E9E0),
+                        child: Icon(
+                          Icons.broken_image_outlined,
+                          color: BunyaColors.copper,
+                        ),
+                      ),
+                    ),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(13),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _recordTitle(row),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                        const Icon(
+                          Icons.arrow_back_rounded,
+                          size: 18,
+                          color: BunyaColors.copper,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: BunyaColors.muted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        _ProductChip(status),
+                        _ProductChip('${row['base_unit'] ?? 'وحدة'}'),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProductChip extends StatelessWidget {
+  const _ProductChip(this.text);
+  final String text;
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+    decoration: BoxDecoration(
+      color: BunyaColors.mint,
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Text(
+      text,
+      style: const TextStyle(
+        color: BunyaColors.forest,
+        fontSize: 9,
+        fontWeight: FontWeight.w900,
       ),
     ),
   );
