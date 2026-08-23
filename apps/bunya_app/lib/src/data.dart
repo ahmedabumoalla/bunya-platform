@@ -19,6 +19,7 @@ class Product {
     required this.availability,
     required this.deliveryWindow,
     required this.imageUrl,
+    required this.imageCacheKey,
     required this.isNew,
   });
   final String id,
@@ -29,6 +30,7 @@ class Product {
       availability,
       deliveryWindow;
   final String? imageUrl;
+  final String? imageCacheKey;
   final bool isNew;
 }
 
@@ -139,79 +141,113 @@ class BunyaRepository {
   BunyaRepository([SupabaseClient? value])
     : client = value ?? Supabase.instance.client;
   final SupabaseClient client;
+  static CatalogData? _catalogCache;
+  static DateTime? _catalogCachedAt;
+  static Future<CatalogData>? _catalogRequest;
   User? get user => client.auth.currentUser;
 
-  Future<CatalogData> loadCatalog() async {
-    final categoryRows = await client
-        .from('product_categories')
-        .select('id,name,sort_order')
-        .eq('is_active', true)
-        .order('sort_order');
-    final rows = await client
-        .from('products')
-        .select(
-          'id,name,base_unit,short_description,description,availability_summary,delivery_window,is_new,custom_category,product_categories(name),product_images(image_url,storage_path,is_primary,sort_order)',
-        )
-        .eq('is_published', true)
-        .eq('review_status', 'approved')
-        .order('created_at', ascending: false)
-        .limit(80);
-    final products = await Future.wait(
-      (rows as List).map((raw) async {
-        final row = Map<String, dynamic>.from(raw as Map);
-        final categoryRaw = row['product_categories'];
-        final custom = '${row['custom_category'] ?? ''}'.trim();
-        final category = custom.isNotEmpty
-            ? custom
-            : categoryRaw is Map
-            ? '${categoryRaw['name'] ?? 'غير مصنف'}'
-            : 'غير مصنف';
-        final images =
-            ((row['product_images'] as List?) ?? const [])
-                .map((item) => Map<String, dynamic>.from(item as Map))
-                .toList()
-              ..sort((a, b) {
-                final primary =
-                    (b['is_primary'] == true ? 1 : 0) -
-                    (a['is_primary'] == true ? 1 : 0);
-                return primary != 0
-                    ? primary
-                    : (a['sort_order'] as num? ?? 0).compareTo(
-                        b['sort_order'] as num? ?? 0,
-                      );
-              });
-        String? imageUrl;
-        if (images.isNotEmpty) {
-          imageUrl = images.first['image_url'] as String?;
-          final path = images.first['storage_path'] as String?;
-          if ((imageUrl == null || imageUrl.isEmpty) &&
-              path != null &&
-              path.isNotEmpty) {
-            try {
-              imageUrl = await client.storage
-                  .from('provider-product-images')
-                  .createSignedUrl(path, 3600);
-            } catch (_) {}
-          }
+  Future<CatalogData> loadCatalog({bool forceRefresh = false}) {
+    final cachedAt = _catalogCachedAt;
+    if (!forceRefresh &&
+        _catalogCache != null &&
+        cachedAt != null &&
+        DateTime.now().difference(cachedAt) < const Duration(minutes: 5)) {
+      return Future.value(_catalogCache);
+    }
+    if (_catalogRequest != null) return _catalogRequest!;
+    final request = _fetchCatalog();
+    _catalogRequest = request;
+    return request.whenComplete(() => _catalogRequest = null);
+  }
+
+  Future<CatalogData> _fetchCatalog() async {
+    final results = await Future.wait([
+      client
+          .from('product_categories')
+          .select('id,name,sort_order')
+          .eq('is_active', true)
+          .order('sort_order'),
+      client
+          .from('products')
+          .select(
+            'id,name,base_unit,short_description,description,availability_summary,delivery_window,is_new,custom_category,product_categories(name),product_images(image_url,storage_path,is_primary,sort_order)',
+          )
+          .eq('is_published', true)
+          .eq('review_status', 'approved')
+          .order('created_at', ascending: false)
+          .limit(80),
+    ]);
+    final categoryRows = results[0] as List;
+    final rows = results[1] as List;
+    final prepared = rows.map((raw) {
+      final row = Map<String, dynamic>.from(raw as Map);
+      final categoryRaw = row['product_categories'];
+      final custom = '${row['custom_category'] ?? ''}'.trim();
+      final category = custom.isNotEmpty
+          ? custom
+          : categoryRaw is Map
+          ? '${categoryRaw['name'] ?? 'غير مصنف'}'
+          : 'غير مصنف';
+      final images =
+          ((row['product_images'] as List?) ?? const [])
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .toList()
+            ..sort((a, b) {
+              final primary =
+                  (b['is_primary'] == true ? 1 : 0) -
+                  (a['is_primary'] == true ? 1 : 0);
+              return primary != 0
+                  ? primary
+                  : (a['sort_order'] as num? ?? 0).compareTo(
+                      b['sort_order'] as num? ?? 0,
+                    );
+            });
+      final image = images.isEmpty ? null : images.first;
+      return (row: row, category: category, image: image);
+    }).toList();
+    final paths = prepared
+        .map((item) => '${item.image?['storage_path'] ?? ''}'.trim())
+        .where((path) => path.isNotEmpty)
+        .toSet()
+        .toList();
+    final signedUrls = <String, String>{};
+    if (paths.isNotEmpty) {
+      try {
+        final signed = await client.storage
+            .from('provider-product-images')
+            .createSignedUrls(paths, 21600);
+        for (final item in signed) {
+          signedUrls[item.path] = item.signedUrl;
         }
-        return Product(
-          id: '${row['id']}',
-          name: '${row['name'] ?? 'منتج'}',
-          category: category,
-          unit: '${row['base_unit'] ?? 'وحدة'}',
-          description:
-              '${row['description'] ?? row['short_description'] ?? ''}',
-          availability: '${row['availability_summary'] ?? 'حسب التوفر'}',
-          deliveryWindow: '${row['delivery_window'] ?? 'يحدد بعد الطلب'}',
-          imageUrl: imageUrl,
-          isNew: row['is_new'] == true,
-        );
-      }),
-    );
-    return CatalogData(
-      (categoryRows as List).map((row) => '${(row as Map)['name']}').toList(),
+      } catch (_) {}
+    }
+    final products = prepared.map((item) {
+      final row = item.row;
+      final path = '${item.image?['storage_path'] ?? ''}'.trim();
+      final directUrl = '${item.image?['image_url'] ?? ''}'.trim();
+      final imageUrl = directUrl.isNotEmpty ? directUrl : signedUrls[path];
+      return Product(
+        id: '${row['id']}',
+        name: '${row['name'] ?? 'منتج'}',
+        category: item.category,
+        unit: '${row['base_unit'] ?? 'وحدة'}',
+        description: '${row['description'] ?? row['short_description'] ?? ''}',
+        availability: '${row['availability_summary'] ?? 'حسب التوفر'}',
+        deliveryWindow: '${row['delivery_window'] ?? 'يحدد بعد الطلب'}',
+        imageUrl: imageUrl,
+        imageCacheKey: path.isNotEmpty
+            ? path
+            : (directUrl.isEmpty ? null : directUrl),
+        isNew: row['is_new'] == true,
+      );
+    }).toList();
+    final catalog = CatalogData(
+      categoryRows.map((row) => '${(row as Map)['name']}').toList(),
       products,
     );
+    _catalogCache = catalog;
+    _catalogCachedAt = DateTime.now();
+    return catalog;
   }
 
   Future<void> signIn(String email, String password) async =>

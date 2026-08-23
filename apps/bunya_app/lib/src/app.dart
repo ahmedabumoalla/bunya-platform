@@ -92,7 +92,8 @@ class _BunyaShellState extends State<BunyaShell> {
         false;
   }
 
-  void refreshCatalog() => setState(() => catalog = repo.loadCatalog());
+  void refreshCatalog() =>
+      setState(() => catalog = repo.loadCatalog(forceRefresh: true));
 
   @override
   Widget build(BuildContext context) {
@@ -889,7 +890,11 @@ class ProductVisual extends StatelessWidget {
           )
         : CachedNetworkImage(
             imageUrl: product.imageUrl!,
+            cacheKey: product.imageCacheKey,
             fit: BoxFit.cover,
+            memCacheWidth: 900,
+            maxWidthDiskCache: 1200,
+            fadeInDuration: const Duration(milliseconds: 120),
             placeholder: (_, _) =>
                 const Center(child: CircularProgressIndicator(strokeWidth: 2)),
             errorWidget: (_, _, _) => const Center(
