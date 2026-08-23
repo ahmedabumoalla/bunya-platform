@@ -97,61 +97,82 @@ class WorkspaceRepository {
       if (statusField != null && statuses != null) {
         query = query.inFilter(statusField, statuses);
       }
-      final rows = await query.limit(500);
-      return (rows as List).length;
+      try {
+        final rows = await query.limit(500).timeout(const Duration(seconds: 5));
+        return (rows as List).length;
+      } catch (_) {
+        return -1;
+      }
     }
 
     if (context.role == 'provider') {
-      return {
-        'المنتجات': await count(
-          'products',
-          field: 'provider_id',
-          value: context.entityId,
-        ),
-        'طلبات التسعير': await count(
+      final values = await Future.wait<int>([
+        count('products', field: 'provider_id', value: context.entityId),
+        count(
           'internal_sourcing_request_targets',
           field: 'provider_id',
           value: context.entityId,
         ),
-        'أوامر التوريد': await count(
+        count(
           'internal_fulfillment_orders',
           field: 'provider_id',
           value: context.entityId,
         ),
+      ]);
+      return {
+        'المنتجات': values[0],
+        'طلبات التسعير': values[1],
+        'أوامر التوريد': values[2],
       };
     }
     if (context.role == 'contractor') {
-      return {
-        'الفرص':
-            (await client.rpc('get_contractor_opportunities') as List).length,
-        'العروض': await count(
+      Future<int> opportunityCount() async {
+        try {
+          final rows = await client
+              .rpc('get_contractor_opportunities')
+              .timeout(const Duration(seconds: 5));
+          return (rows as List).length;
+        } catch (_) {
+          return -1;
+        }
+      }
+
+      final values = await Future.wait<int>([
+        opportunityCount(),
+        count(
           'contractor_proposals',
           field: 'contractor_profile_id',
           value: context.entityId,
         ),
-        'المشاريع': await count(
+        count(
           'contractor_projects',
           field: 'contractor_profile_id',
           value: context.entityId,
         ),
-      };
+      ]);
+      return {'الفرص': values[0], 'العروض': values[1], 'المشاريع': values[2]};
     }
-    return {
-      'طلبات المزودين': await count(
+    final values = await Future.wait<int>([
+      count(
         'provider_applications',
         statusField: 'status',
         statuses: ['pending', 'needs_changes'],
       ),
-      'طلبات المقاولين': await count(
+      count(
         'contractor_applications',
         statusField: 'status',
         statuses: ['pending', 'needs_changes'],
       ),
-      'مراجعة المنتجات': await count(
+      count(
         'products',
         statusField: 'review_status',
         statuses: ['pending_review'],
       ),
+    ]);
+    return {
+      'طلبات المزودين': values[0],
+      'طلبات المقاولين': values[1],
+      'مراجعة المنتجات': values[2],
     };
   }
 
@@ -466,14 +487,33 @@ class _RoleWorkspaceState extends State<RoleWorkspace> {
   );
 }
 
-class _RoleHome extends StatelessWidget {
+class _RoleHome extends StatefulWidget {
   const _RoleHome({required this.repository, required this.contextData});
   final WorkspaceRepository repository;
   final RoleContext contextData;
 
   @override
+  State<_RoleHome> createState() => _RoleHomeState();
+}
+
+class _RoleHomeState extends State<_RoleHome> {
+  late Future<Map<String, int>> metrics;
+
+  @override
+  void initState() {
+    super.initState();
+    metrics = widget.repository.metrics(widget.contextData);
+  }
+
+  Future<void> refresh() async {
+    final next = widget.repository.metrics(widget.contextData);
+    setState(() => metrics = next);
+    await next;
+  }
+
+  @override
   Widget build(BuildContext context) => RefreshIndicator(
-    onRefresh: () async {},
+    onRefresh: refresh,
     child: ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -481,9 +521,9 @@ class _RoleHome extends StatelessWidget {
           padding: const EdgeInsets.all(22),
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: contextData.role == 'admin'
+              colors: widget.contextData.role == 'admin'
                   ? const [Color(0xFF2D273F), Color(0xFF54466F)]
-                  : contextData.role == 'provider'
+                  : widget.contextData.role == 'provider'
                   ? const [BunyaColors.copperDark, BunyaColors.copper]
                   : const [BunyaColors.forest, Color(0xFF2B715D)],
             ),
@@ -495,7 +535,7 @@ class _RoleHome extends StatelessWidget {
               const Icon(Icons.auto_awesome_rounded, color: Colors.white),
               const SizedBox(height: 28),
               Text(
-                _welcome(contextData.role),
+                _welcome(widget.contextData.role),
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 22,
@@ -504,7 +544,7 @@ class _RoleHome extends StatelessWidget {
               ),
               const SizedBox(height: 5),
               Text(
-                _roleCaption(contextData.role),
+                _roleCaption(widget.contextData.role),
                 style: const TextStyle(
                   color: Colors.white70,
                   fontWeight: FontWeight.w700,
@@ -515,7 +555,7 @@ class _RoleHome extends StatelessWidget {
         ),
         const SizedBox(height: 18),
         FutureBuilder<Map<String, int>>(
-          future: repository.metrics(contextData),
+          future: metrics,
           builder: (_, snapshot) {
             if (!snapshot.hasData) {
               return const Center(child: CircularProgressIndicator());
@@ -531,7 +571,7 @@ class _RoleHome extends StatelessWidget {
                         child: Column(
                           children: [
                             Text(
-                              '${entry.value}',
+                              entry.value < 0 ? '—' : '${entry.value}',
                               style: const TextStyle(
                                 fontSize: 24,
                                 fontWeight: FontWeight.w900,
