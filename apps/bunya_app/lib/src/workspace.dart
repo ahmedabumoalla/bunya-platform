@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'data.dart';
 import 'theme.dart';
@@ -1511,7 +1512,11 @@ class ModuleRecordsScreen extends StatelessWidget {
                   module: module,
                   repository: repository,
                 )
-              : _RawRecord(row: row, module: module, repository: repository),
+              : _RecordDetails(
+                  row: row,
+                  module: module,
+                  repository: repository,
+                ),
         );
         final status = _status(
           '${row['status'] ?? row['review_status'] ?? row['approval_status'] ?? 'سجل'}',
@@ -1519,9 +1524,10 @@ class ModuleRecordsScreen extends StatelessWidget {
         return module.table == 'products'
             ? _ProductRecordCard(row: row, status: status, onTap: openDetails)
             : _RecordCard(
-                title: _recordTitle(row),
-                subtitle: _recordSubtitle(row),
+                title: _recordTitle(row, module),
+                subtitle: _recordSubtitle(row, module),
                 status: status,
+                icon: module.icon,
                 onTap: openDetails,
               );
       },
@@ -1592,7 +1598,7 @@ class _RoleNotificationsState extends State<_RoleNotifications> {
           ...snapshot.data!.map(
             (item) => _RecordCard(
               title: item.title,
-              subtitle: item.message,
+              subtitle: _friendlyNotificationMessage(item.message),
               status: item.read ? 'مقروء' : 'جديد',
               onTap: () => open(item),
             ),
@@ -1617,7 +1623,7 @@ class _NotificationDetails extends StatelessWidget {
           padding: const EdgeInsets.all(18),
           decoration: _panel(),
           child: Text(
-            item.message,
+            _friendlyNotificationMessage(item.message),
             style: const TextStyle(fontWeight: FontWeight.w700, height: 1.8),
           ),
         ),
@@ -1716,9 +1722,11 @@ class _RecordCard extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.status,
+    this.icon,
     this.onTap,
   });
   final String title, subtitle, status;
+  final IconData? icon;
   final VoidCallback? onTap;
   @override
   Widget build(BuildContext context) => Card(
@@ -1736,6 +1744,18 @@ class _RecordCard extends StatelessWidget {
         padding: const EdgeInsets.all(15),
         child: Row(
           children: [
+            if (icon != null) ...[
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: BunyaColors.sand,
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: Icon(icon, size: 22, color: BunyaColors.copper),
+              ),
+              const SizedBox(width: 11),
+            ],
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2388,8 +2408,8 @@ class _ProductFact extends StatelessWidget {
   );
 }
 
-class _RawRecord extends StatefulWidget {
-  const _RawRecord({
+class _RecordDetails extends StatefulWidget {
+  const _RecordDetails({
     required this.row,
     required this.module,
     required this.repository,
@@ -2399,10 +2419,10 @@ class _RawRecord extends StatefulWidget {
   final WorkspaceRepository repository;
 
   @override
-  State<_RawRecord> createState() => _RawRecordState();
+  State<_RecordDetails> createState() => _RecordDetailsState();
 }
 
-class _RawRecordState extends State<_RawRecord> {
+class _RecordDetailsState extends State<_RecordDetails> {
   final note = TextEditingController();
   bool busy = false;
 
@@ -2410,27 +2430,6 @@ class _RawRecordState extends State<_RawRecord> {
   void dispose() {
     note.dispose();
     super.dispose();
-  }
-
-  Future<void> productDecision(String decision) async {
-    if (decision != 'approved' && note.text.trim().length < 5) {
-      return _notice(context, 'اكتب ملاحظة واضحة للقرار');
-    }
-    setState(() => busy = true);
-    try {
-      await widget.repository.reviewProduct(
-        '${widget.row['id']}',
-        decision,
-        note.text.trim().isEmpty ? 'تمت المراجعة من تطبيق بُنية' : note.text,
-      );
-      if (mounted) {
-        _notice(context, 'تم حفظ قرار المنتج');
-        Navigator.pop(context);
-      }
-    } catch (error) {
-      if (mounted) _notice(context, _clean(error));
-    }
-    if (mounted) setState(() => busy = false);
   }
 
   Future<void> fulfillmentAction() async {
@@ -2465,120 +2464,278 @@ class _RawRecordState extends State<_RawRecord> {
   Widget build(BuildContext context) {
     final row = widget.row;
     final entries = row.entries
-        .where((item) => item.value != null && item.value.toString().isNotEmpty)
-        .take(18)
+        .where(
+          (item) =>
+              _fieldLabels.containsKey(item.key) &&
+              item.value != null &&
+              '${item.value}'.trim().isNotEmpty &&
+              item.value is! Map &&
+              item.value is! List,
+        )
         .toList();
+    final currentStatus = _status(
+      '${row['status'] ?? row['review_status'] ?? row['approval_status'] ?? 'سجل'}',
+    );
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
+      top: false,
+      child: Container(
+        height: MediaQuery.sizeOf(context).height * .92,
+        decoration: const BoxDecoration(
+          color: BunyaColors.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+        ),
         child: SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+            18,
+            10,
+            18,
+            MediaQuery.viewInsetsOf(context).bottom + 24,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _DetailHeader(
-                title: _recordTitle(row),
-                caption: widget.module.title,
-              ),
-              const SizedBox(height: 12),
-              ...entries.map(
-                (entry) => Container(
-                  width: double.infinity,
-                  margin: const EdgeInsets.only(bottom: 7),
-                  padding: const EdgeInsets.all(12),
-                  decoration: _panel(),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _field(entry.key),
-                        style: const TextStyle(
-                          color: BunyaColors.muted,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      SelectableText(
-                        '${entry.value}',
-                        style: const TextStyle(fontWeight: FontWeight.w800),
-                      ),
-                      if (widget.module.action == 'product_review' &&
-                          row['review_status'] == 'pending_review') ...[
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: note,
-                          maxLines: 3,
-                          decoration: const InputDecoration(
-                            labelText: 'ملاحظة قرار المراجعة',
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        FilledButton.icon(
-                          onPressed: busy
-                              ? null
-                              : () => productDecision('approved'),
-                          icon: const Icon(Icons.check_rounded),
-                          label: const Text('اعتماد المنتج'),
-                        ),
-                        const SizedBox(height: 7),
-                        OutlinedButton.icon(
-                          onPressed: busy
-                              ? null
-                              : () => productDecision('needs_changes'),
-                          icon: const Icon(Icons.edit_note_rounded),
-                          label: const Text('إعادته للمزود للتعديل'),
-                          style: OutlinedButton.styleFrom(
-                            minimumSize: const Size.fromHeight(50),
-                          ),
-                        ),
-                        TextButton.icon(
-                          onPressed: busy
-                              ? null
-                              : () => productDecision('rejected'),
-                          icon: const Icon(Icons.close_rounded),
-                          label: const Text('رفض المنتج'),
-                          style: TextButton.styleFrom(
-                            foregroundColor: BunyaColors.danger,
-                            minimumSize: const Size.fromHeight(48),
-                          ),
-                        ),
-                      ],
-                      if (widget.module.action == 'fulfillment' &&
-                          const {
-                            'assigned',
-                            'preparing',
-                          }.contains(row['status'])) ...[
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: note,
-                          decoration: const InputDecoration(
-                            labelText: 'ملاحظة التشغيل (اختياري)',
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        FilledButton.icon(
-                          onPressed: busy ? null : fulfillmentAction,
-                          icon: Icon(
-                            row['status'] == 'assigned'
-                                ? Icons.play_arrow_rounded
-                                : Icons.inventory_rounded,
-                          ),
-                          label: Text(
-                            row['status'] == 'assigned'
-                                ? 'بدء تجهيز الطلب'
-                                : 'تأكيد جاهزية الطلب',
-                          ),
-                        ),
-                      ],
-                    ],
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 5,
+                  margin: const EdgeInsets.only(bottom: 14),
+                  decoration: BoxDecoration(
+                    color: BunyaColors.line,
+                    borderRadius: BorderRadius.circular(20),
                   ),
                 ),
               ),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [BunyaColors.forest, Color(0xFF26745F)],
+                  ),
+                  borderRadius: BorderRadius.circular(26),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: .14),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Icon(widget.module.icon, color: Colors.white),
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    Text(
+                      widget.module.title,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      _recordTitle(row, widget.module),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        height: 1.25,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 11,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: .14),
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      child: Text(
+                        currentStatus,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'التفاصيل',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 10),
+              if (entries.isEmpty)
+                const _Empty(text: 'لا توجد تفاصيل إضافية لهذا السجل')
+              else
+                LayoutBuilder(
+                  builder: (context, constraints) => Wrap(
+                    spacing: 9,
+                    runSpacing: 9,
+                    children: entries.map((entry) {
+                      final wide = _wideFields.contains(entry.key);
+                      return SizedBox(
+                        width: wide
+                            ? constraints.maxWidth
+                            : (constraints.maxWidth - 9) / 2,
+                        child: _RecordFact(
+                          label: _fieldLabels[entry.key]!,
+                          value: _displayValue(entry.key, entry.value),
+                          icon: _fieldIcon(entry.key),
+                          url: _urlFields.contains(entry.key)
+                              ? '${entry.value}'
+                              : null,
+                          wide: wide,
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              if (widget.module.action == 'fulfillment' &&
+                  const {'assigned', 'preparing'}.contains(row['status'])) ...[
+                const SizedBox(height: 22),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: BunyaColors.sand,
+                    borderRadius: BorderRadius.circular(22),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'إجراء التوريد',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: note,
+                        decoration: const InputDecoration(
+                          hintText: 'ملاحظة التشغيل (اختياري)',
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      FilledButton.icon(
+                        onPressed: busy ? null : fulfillmentAction,
+                        icon: Icon(
+                          row['status'] == 'assigned'
+                              ? Icons.play_arrow_rounded
+                              : Icons.inventory_rounded,
+                        ),
+                        label: Text(
+                          row['status'] == 'assigned'
+                              ? 'بدء تجهيز الطلب'
+                              : 'تأكيد جاهزية الطلب',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ),
       ),
     );
   }
+}
+
+class _RecordFact extends StatelessWidget {
+  const _RecordFact({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.wide,
+    this.url,
+  });
+  final String label, value;
+  final IconData icon;
+  final bool wide;
+  final String? url;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Colors.white,
+    borderRadius: BorderRadius.circular(20),
+    child: InkWell(
+      onTap: url == null
+          ? null
+          : () => launchUrl(
+              Uri.parse(url!),
+              mode: LaunchMode.externalApplication,
+            ),
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        constraints: BoxConstraints(minHeight: wide ? 84 : 98),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: BunyaColors.line),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, size: 17, color: BunyaColors.copper),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: const TextStyle(
+                      color: BunyaColors.muted,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                if (url != null)
+                  const Icon(
+                    Icons.open_in_new_rounded,
+                    size: 16,
+                    color: BunyaColors.forest,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 7),
+            Text(
+              url == null ? value : 'فتح في الخرائط',
+              maxLines: wide ? 5 : 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: url == null ? BunyaColors.ink : BunyaColors.forest,
+                fontWeight: FontWeight.w900,
+                height: 1.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 class _Empty extends StatelessWidget {
@@ -2613,6 +2770,20 @@ BoxDecoration _panel() => BoxDecoration(
 void _notice(BuildContext context, String text) =>
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
 String _clean(Object error) => error.toString().replaceFirst('Exception: ', '');
+String _friendlyNotificationMessage(String value) {
+  final cleaned = value
+      .replaceAll(
+        RegExp(
+          r'\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b',
+        ),
+        '',
+      )
+      .replaceAll(RegExp(r'https?://\S+'), '')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+  return cleaned.isEmpty ? 'افتح الإشعار للاطلاع على التفاصيل.' : cleaned;
+}
+
 String _date(Object? value) => value == null
     ? '—'
     : (DateTime.tryParse('$value')?.toLocal().toString().substring(0, 16) ??
@@ -2631,6 +2802,28 @@ String _status(String value) =>
       'under_review': 'قيد المراجعة',
       'new': 'جديد',
       'proposed': 'تم تقديم عرض',
+      'draft': 'مسودة',
+      'submitted': 'تم الإرسال',
+      'active': 'نشط',
+      'inactive': 'غير نشط',
+      'available': 'متاح',
+      'unavailable': 'غير متاح',
+      'confirmed': 'مؤكد',
+      'accepted': 'مقبول',
+      'declined': 'مرفوض',
+      'in_progress': 'قيد التنفيذ',
+      'completed': 'مكتمل',
+      'cancelled': 'ملغي',
+      'expired': 'منتهي',
+      'open': 'مفتوح',
+      'resolved': 'تم الحل',
+      'closed': 'مغلق',
+      'paid': 'مدفوع',
+      'unpaid': 'غير مدفوع',
+      'verified': 'موثّق',
+      'suspended': 'موقوف',
+      'won': 'فائز',
+      'lost': 'غير فائز',
     }[value] ??
     value;
 String _roleLabel(String role) =>
@@ -2650,22 +2843,245 @@ String _roleCaption(String role) => role == 'admin'
     : role == 'provider'
     ? 'استلم طلب التسعير ونفّذ التوريد والتوصيل.'
     : 'استلم الفرص وقدّم العروض وتابع التنفيذ.';
-String _recordTitle(Map<String, dynamic> row) =>
-    '${row['name'] ?? row['title'] ?? row['company_name'] ?? row['display_name'] ?? row['request_code'] ?? row['fulfillment_code'] ?? row['proposal_code'] ?? row['transaction_code'] ?? row['id'] ?? 'سجل'}';
-String _recordSubtitle(Map<String, dynamic> row) =>
-    '${row['description'] ?? row['email'] ?? row['city'] ?? row['subject'] ?? row['created_at'] ?? ''}';
-String _field(String value) =>
+String _recordTitle(Map<String, dynamic> row, [WorkspaceModule? module]) {
+  if (module?.table == 'audit_logs') {
+    return _displayValue('action', row['action'] ?? 'إجراء جديد');
+  }
+  return '${row['name'] ?? row['title'] ?? row['company_name'] ?? row['commercial_name'] ?? row['display_name'] ?? row['contact_name'] ?? row['project_name'] ?? row['subject'] ?? row['request_code'] ?? row['fulfillment_code'] ?? row['order_code'] ?? row['ticket_code'] ?? row['proposal_code'] ?? row['response_code'] ?? row['transaction_code'] ?? row['email'] ?? row['mobile'] ?? 'تفاصيل ${module?.title ?? 'السجل'}'}';
+}
+
+String _recordSubtitle(Map<String, dynamic> row, [WorkspaceModule? module]) {
+  if (module?.table == 'profiles') {
+    return '${_roleName('${row['role'] ?? 'مستخدم'}')} · ${row['mobile'] ?? 'لا يوجد جوال'}';
+  }
+  if (module?.table == 'audit_logs') {
+    return '${_entityName('${row['entity_table'] ?? ''}')} · ${_date(row['created_at'])}';
+  }
+  final description =
+      row['short_description'] ??
+      row['description'] ??
+      row['subject'] ??
+      row['email'] ??
+      row['mobile'] ??
+      row['city'] ??
+      row['delivery_region'];
+  final status =
+      row['status'] ?? row['review_status'] ?? row['approval_status'];
+  if (description != null && status != null) {
+    return '$description · ${_status('$status')}';
+  }
+  return '${description ?? (status == null ? _date(row['created_at']) : _status('$status'))}';
+}
+
+const _fieldLabels = <String, String>{
+  'name': 'الاسم',
+  'title': 'العنوان',
+  'display_name': 'اسم المستخدم',
+  'company_name': 'اسم المنشأة',
+  'commercial_name': 'الاسم التجاري',
+  'contact_name': 'اسم المسؤول',
+  'email': 'البريد الإلكتروني',
+  'mobile': 'رقم الجوال',
+  'role': 'نوع الحساب',
+  'status': 'الحالة',
+  'review_status': 'حالة المراجعة',
+  'approval_status': 'حالة الاعتماد',
+  'availability': 'حالة التوفر',
+  'is_active': 'الحساب نشط',
+  'subscription_active': 'الاشتراك نشط',
+  'is_published': 'ظاهر للعملاء',
+  'is_verified': 'تم التحقق',
+  'created_at': 'تاريخ الإنشاء',
+  'updated_at': 'آخر تحديث',
+  'approved_at': 'تاريخ الاعتماد',
+  'submitted_at': 'تاريخ الإرسال',
+  'assigned_at': 'تاريخ الإسناد',
+  'completed_at': 'تاريخ الإكمال',
+  'required_at': 'موعد الاستلام المطلوب',
+  'desired_receipt_at': 'موعد الاستلام المطلوب',
+  'response_deadline_at': 'آخر موعد للرد',
+  'quote_deadline': 'مهلة التسعير',
+  'price_expires_at': 'صلاحية السعر',
+  'city': 'المدينة',
+  'region': 'المنطقة',
+  'delivery_region': 'منطقة التوصيل',
+  'location_hint': 'وصف الموقع',
+  'address': 'العنوان',
+  'google_maps_url': 'الموقع الجغرافي',
+  'maps_url': 'الموقع الجغرافي',
+  'request_code': 'رقم الطلب',
+  'fulfillment_code': 'رقم أمر التوريد',
+  'order_code': 'رقم الطلب',
+  'ticket_code': 'رقم التذكرة',
+  'proposal_code': 'رقم العرض',
+  'response_code': 'رقم عرض السعر',
+  'transaction_code': 'رقم العملية',
+  'project_name': 'اسم المشروع',
+  'project_type': 'نوع المشروع',
+  'subject': 'الموضوع',
+  'category': 'التصنيف',
+  'document_type': 'نوع المستند',
+  'service_type': 'نوع الخدمة',
+  'priority': 'الأولوية',
+  'description': 'الوصف',
+  'short_description': 'وصف مختصر',
+  'full_description': 'التفاصيل',
+  'scope': 'نطاق العمل',
+  'notes': 'الملاحظات',
+  'internal_notes': 'ملاحظات التشغيل',
+  'message': 'الرسالة',
+  'resolution_notes': 'ملاحظات الحل',
+  'base_unit': 'الوحدة الأساسية',
+  'unit_snapshot': 'الوحدة',
+  'measurement_snapshot': 'القياس',
+  'quantity': 'الكمية',
+  'available_quantity': 'الكمية المتوفرة',
+  'availability_summary': 'ملخص التوفر',
+  'delivery_window': 'مدة التوصيل',
+  'delivery_mode': 'طريقة الاستلام',
+  'unit_price': 'سعر الوحدة',
+  'delivery_fee': 'تكلفة التوصيل',
+  'amount': 'المبلغ',
+  'total': 'الإجمالي',
+  'subtotal': 'قيمة المنتجات',
+  'vat_amount': 'الضريبة',
+  'discount_amount': 'الخصم',
+  'estimated_budget_min': 'الميزانية من',
+  'estimated_budget_max': 'الميزانية إلى',
+  'payment_status': 'حالة الدفع',
+  'payment_method': 'طريقة الدفع',
+  'rating': 'التقييم',
+  'duration': 'مدة التنفيذ',
+  'preparation_duration_hours': 'مدة التجهيز',
+  'delivery_duration_hours': 'مدة التوصيل',
+  'vehicle_type': 'نوع المركبة',
+  'plate_number': 'رقم اللوحة',
+  'license_number': 'رقم الرخصة',
+  'entity_table': 'القسم المتأثر',
+  'action': 'نوع الإجراء',
+};
+
+const _wideFields = <String>{
+  'description',
+  'short_description',
+  'full_description',
+  'scope',
+  'notes',
+  'internal_notes',
+  'message',
+  'resolution_notes',
+  'location_hint',
+  'address',
+  'google_maps_url',
+  'maps_url',
+};
+
+const _urlFields = <String>{'google_maps_url', 'maps_url'};
+
+String _displayValue(String key, Object? raw) {
+  if (raw == null || '$raw'.trim().isEmpty) return 'غير محدد';
+  if (raw is bool) return raw ? 'نعم' : 'لا';
+  final value = '$raw';
+  if (key.endsWith('_at') ||
+      key == 'desired_receipt_at' ||
+      key == 'quote_deadline') {
+    return _date(raw);
+  }
+  if ({
+    'status',
+    'review_status',
+    'approval_status',
+    'availability',
+    'payment_status',
+  }.contains(key)) {
+    return _status(value);
+  }
+  if (key == 'role') return _roleName(value);
+  if (key == 'entity_table') return _entityName(value);
+  if (key == 'action') return _actionName(value);
+  if (key == 'delivery_mode') {
+    return value == 'pickup' ? 'استلام من المزود' : 'توصيل للموقع';
+  }
+  if (key == 'priority') {
+    return const {'low': 'منخفضة', 'normal': 'عادية', 'high': 'عالية'}[value] ??
+        value;
+  }
+  if ({
+    'unit_price',
+    'delivery_fee',
+    'amount',
+    'total',
+    'subtotal',
+    'vat_amount',
+    'discount_amount',
+    'estimated_budget_min',
+    'estimated_budget_max',
+  }.contains(key)) {
+    return '$value ر.س';
+  }
+  if (key == 'rating') return '$value من 5';
+  if (key.endsWith('_duration_hours')) return '$value ساعة';
+  return value;
+}
+
+String _roleName(String value) =>
     const {
-      'id': 'المعرّف',
-      'name': 'الاسم',
-      'title': 'العنوان',
-      'status': 'الحالة',
-      'created_at': 'تاريخ الإنشاء',
-      'updated_at': 'آخر تحديث',
-      'email': 'البريد الإلكتروني',
-      'mobile': 'رقم الجوال',
-      'city': 'المدينة',
-      'review_status': 'حالة المراجعة',
-      'approval_status': 'حالة الاعتماد',
+      'admin': 'إدارة',
+      'customer': 'عميل',
+      'provider': 'مزود',
+      'contractor': 'مقاول',
+      'driver': 'سائق',
     }[value] ??
-    value.replaceAll('_', ' ');
+    value;
+
+String _entityName(String value) =>
+    const {
+      'profiles': 'المستخدمون',
+      'providers': 'المزودون',
+      'contractor_profiles': 'المقاولون',
+      'products': 'المنتجات',
+      'quote_requests': 'طلبات التسعير',
+      'orders': 'الطلبات',
+      'internal_fulfillment_orders': 'أوامر التوريد',
+      'support_tickets': 'الدعم',
+      'financial_transactions': 'المالية',
+    }[value] ??
+    'عمليات المنصة';
+
+String _actionName(String value) =>
+    const {
+      'insert': 'إضافة سجل جديد',
+      'update': 'تحديث البيانات',
+      'delete': 'حذف سجل',
+      'approve': 'اعتماد',
+      'reject': 'رفض',
+      'assigned': 'إسناد الطلب',
+      'notification_retry_requested': 'إعادة إرسال إشعار',
+    }[value] ??
+    'إجراء تشغيلي';
+
+IconData _fieldIcon(String key) {
+  if (key.contains('email')) return Icons.alternate_email_rounded;
+  if (key.contains('mobile')) return Icons.phone_rounded;
+  if (key.contains('status') || key == 'availability') {
+    return Icons.verified_outlined;
+  }
+  if (key.contains('date') || key.endsWith('_at')) {
+    return Icons.event_outlined;
+  }
+  if (key.contains('price') ||
+      key.contains('amount') ||
+      key.contains('fee') ||
+      key == 'total') {
+    return Icons.payments_outlined;
+  }
+  if (_urlFields.contains(key)) return Icons.map_outlined;
+  if (key.contains('city') || key.contains('region')) {
+    return Icons.location_on_outlined;
+  }
+  if (key.contains('quantity') || key.contains('unit')) {
+    return Icons.inventory_2_outlined;
+  }
+  if (key == 'action') return Icons.bolt_rounded;
+  return Icons.info_outline_rounded;
+}
