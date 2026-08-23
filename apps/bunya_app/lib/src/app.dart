@@ -10,6 +10,7 @@ import 'data.dart';
 import 'join_screen.dart';
 import 'push_service.dart';
 import 'theme.dart';
+import 'workspace.dart';
 
 class ConfigurationMissingApp extends StatelessWidget {
   const ConfigurationMissingApp({super.key});
@@ -82,14 +83,26 @@ class BunyaShell extends StatefulWidget {
 class _BunyaShellState extends State<BunyaShell> {
   final repo = BunyaRepository();
   late Future<CatalogData> catalog = repo.loadCatalog();
+  Future<Profile?>? roleProfile;
   int index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    if (repo.user != null) roleProfile = repo.loadProfile();
+  }
 
   Future<bool> ensureAuth() async {
     if (repo.user != null) return true;
-    return await Navigator.of(context).push<bool>(
+    final authenticated =
+        await Navigator.of(context).push<bool>(
           MaterialPageRoute(builder: (_) => LoginScreen(repository: repo)),
         ) ??
         false;
+    if (authenticated && mounted) {
+      setState(() => roleProfile = repo.loadProfile());
+    }
+    return authenticated;
   }
 
   void refreshCatalog() =>
@@ -97,6 +110,45 @@ class _BunyaShellState extends State<BunyaShell> {
 
   @override
   Widget build(BuildContext context) {
+    if (repo.user != null) {
+      roleProfile ??= repo.loadProfile();
+      return FutureBuilder<Profile?>(
+        future: roleProfile,
+        builder: (_, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          }
+          final profile = snapshot.data;
+          if (profile != null &&
+              const {
+                'admin',
+                'provider',
+                'contractor',
+              }.contains(profile.role)) {
+            return RoleWorkspace(
+              profile: profile,
+              repository: repo,
+              onLogout: () async {
+                await repo.signOut();
+                if (mounted) {
+                  setState(() {
+                    roleProfile = null;
+                    index = 0;
+                  });
+                }
+              },
+            );
+          }
+          return _customerShell();
+        },
+      );
+    }
+    return _customerShell();
+  }
+
+  Widget _customerShell() {
     final pages = [
       HomeTab(
         catalog: catalog,

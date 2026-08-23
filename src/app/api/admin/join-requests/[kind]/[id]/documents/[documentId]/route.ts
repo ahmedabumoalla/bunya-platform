@@ -5,10 +5,10 @@ import { getSupabasePublicEnv } from "@/lib/supabase/env";
 export const runtime = "nodejs";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ kind: string; id: string; documentId: string }> },
 ) {
-  const auth = await requireJoinReviewer();
+  const auth = await requireJoinReviewer(request);
   if ("error" in auth) {
     return NextResponse.json(
       { message: "غير مصرح بعرض هذا المستند." },

@@ -8,7 +8,7 @@ import {createHash,randomBytes} from "node:crypto";
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest, context: { params: Promise<{ kind: string; id: string; action: string }> }) {
-  const auth = await requireJoinReviewer();
+  const auth = await requireJoinReviewer(request);
   if ("error" in auth) return NextResponse.json({ message: "غير مصرح بهذا الإجراء." }, { status: auth.error === "unauthorized" ? 401 : 403 });
   const { kind, id, action } = await context.params;
   if (!['provider','contractor'].includes(kind) || !['approve','reject','needs-changes','resend-credentials','retry-provisioning'].includes(action)) return NextResponse.json({ message: "المسار غير صالح." }, { status: 404 });

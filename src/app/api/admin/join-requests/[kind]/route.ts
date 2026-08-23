@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireJoinReviewer } from "@/lib/join/admin";
 
-export async function GET(_request: Request, context: { params: Promise<{ kind: string }> }) {
-  const auth=await requireJoinReviewer();
+export async function GET(request: Request, context: { params: Promise<{ kind: string }> }) {
+  const auth=await requireJoinReviewer(request);
   if("error" in auth)return NextResponse.json({message:"غير مصرح."},{status:auth.error==="unauthorized"?401:403});
   const {kind}=await context.params;
   if(kind!=="provider"&&kind!=="contractor")return NextResponse.json({message:"المسار غير صالح."},{status:404});
