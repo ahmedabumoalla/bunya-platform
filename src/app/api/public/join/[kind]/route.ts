@@ -17,7 +17,7 @@ function isLocalAppOrigin(request: NextRequest) {
   } catch { return false; }
 }
 
-function corsHeaders(request: NextRequest) {
+function corsHeaders(request: NextRequest): Record<string, string> {
   const origin = request.headers.get("origin");
   if (!origin || (origin !== request.nextUrl.origin && !isLocalAppOrigin(request))) return {};
   return {
