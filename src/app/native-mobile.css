@@ -19,32 +19,30 @@ html[data-native-app] :where(.customer-sidebar,.provider-sidebar,.contractor-sid
 
 @media (max-width: 760px) {
   html[data-native-app] body:has(.store-home) {
-    padding-bottom: calc(82px + env(safe-area-inset-bottom));
-    background: #f6efe5;
+    padding-bottom: calc(76px + env(safe-area-inset-bottom));
+    background: #f4efe8;
   }
 
   html[data-native-app] .store-home {
     min-height: 100dvh;
     overflow: visible;
-    background:
-      radial-gradient(circle at 100% 0, rgb(185 113 73 / 0.15), transparent 32%),
-      #f6efe5 !important;
+    background: #f4efe8 !important;
   }
 
   html[data-native-app] .store-home .store-header {
     position: sticky;
     top: 0;
     z-index: 60;
-    border-bottom: 1px solid rgb(103 73 51 / 0.1) !important;
-    background: rgb(255 252 247 / 0.94) !important;
-    box-shadow: 0 8px 26px rgb(62 43 30 / 0.08) !important;
+    border-bottom: 1px solid rgb(74 55 42 / 0.08) !important;
+    background: rgb(255 253 249 / 0.96) !important;
+    box-shadow: 0 5px 20px rgb(50 36 27 / 0.06) !important;
     backdrop-filter: blur(18px) saturate(135%);
   }
 
   html[data-native-app] .store-home .store-header-layout {
     grid-template-columns: 1fr auto auto;
-    min-height: 64px;
-    padding: 7px 14px;
+    min-height: 62px;
+    padding: 7px 16px;
   }
 
   html[data-native-app] .store-home .store-brand {
@@ -53,8 +51,8 @@ html[data-native-app] :where(.customer-sidebar,.provider-sidebar,.contractor-sid
   }
 
   html[data-native-app] .store-home .store-brand .bunya-logo {
-    width: 102px;
-    height: 42px;
+    width: 108px;
+    height: 40px;
   }
 
   html[data-native-app] .store-home .store-header-quote,
@@ -64,15 +62,26 @@ html[data-native-app] :where(.customer-sidebar,.provider-sidebar,.contractor-sid
     height: 44px;
     padding: 0;
     place-self: center;
-    border-radius: 14px;
+    border-radius: 13px;
   }
 
-  html[data-native-app] .store-home .store-header-quote { grid-column: 2; }
-  html[data-native-app] .store-home .store-menu-button { grid-column: 3; }
+  html[data-native-app] .store-home .store-header-quote {
+    grid-column: 2;
+    border-color: #a95634 !important;
+    background: #a95634 !important;
+    color: #fff !important;
+  }
+
+  html[data-native-app] .store-home .store-menu-button {
+    grid-column: 3;
+    border-color: rgb(80 59 44 / 0.14) !important;
+    background: #fffaf3 !important;
+    color: #312820 !important;
+  }
 
   html[data-native-app] .store-home .store-mobile-menu {
     position: fixed;
-    inset: auto 12px calc(82px + env(safe-area-inset-bottom));
+    inset: auto 12px calc(80px + env(safe-area-inset-bottom));
     z-index: 70;
     max-height: min(70dvh, 520px);
     overflow-y: auto;
@@ -86,39 +95,52 @@ html[data-native-app] :where(.customer-sidebar,.provider-sidebar,.contractor-sid
 
   html[data-native-app] .native-home-dashboard {
     display: grid;
-    gap: 14px;
-    padding: 18px 16px 12px;
+    gap: 12px;
+    padding: 16px 16px 8px;
   }
 
   html[data-native-app] .native-home-welcome {
     position: relative;
     overflow: hidden;
-    padding: 22px 20px;
-    border: 1px solid rgb(255 255 255 / 0.2);
-    border-radius: 26px;
+    min-height: 170px;
+    padding: 22px 22px 20px;
+    border: 1px solid rgb(150 87 53 / 0.16);
+    border-radius: 24px;
     background:
-      radial-gradient(circle at 8% 18%, rgb(255 211 178 / 0.28), transparent 30%),
-      linear-gradient(145deg, #9d4f2d, #713822);
-    box-shadow: 0 18px 42px rgb(101 54 33 / 0.23);
-    color: #fffaf5;
+      linear-gradient(120deg, rgb(255 253 248 / 0.97), rgb(249 234 216 / 0.96));
+    box-shadow: 0 14px 34px rgb(72 48 31 / 0.1);
+    color: #2f2925 !important;
+  }
+
+  html[data-native-app] .native-home-welcome::before {
+    position: absolute;
+    inset: 0 0 0 auto;
+    width: 6px;
+    background: linear-gradient(#c57248, #8e452b);
+    content: "";
   }
 
   html[data-native-app] .native-home-welcome::after {
     position: absolute;
-    inset: auto -28px -46px auto;
-    width: 132px;
-    height: 132px;
-    border: 22px solid rgb(255 255 255 / 0.08);
-    border-radius: 36px;
+    inset: auto auto -55px -36px;
+    width: 150px;
+    height: 150px;
+    border: 24px solid rgb(185 113 73 / 0.08);
+    border-radius: 42px;
     content: "";
-    transform: rotate(24deg);
+    transform: rotate(28deg);
   }
 
-  html[data-native-app] .native-home-welcome span {
-    display: block;
-    margin-bottom: 7px;
-    color: #ffd6bc;
-    font-size: 0.78rem;
+  html[data-native-app] .native-home-eyebrow {
+    display: inline-flex;
+    min-height: 28px;
+    align-items: center;
+    margin-bottom: 10px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: #f0ddca;
+    color: #945033 !important;
+    font-size: 0.72rem;
     font-weight: 900;
   }
 
@@ -126,76 +148,131 @@ html[data-native-app] :where(.customer-sidebar,.provider-sidebar,.contractor-sid
     position: relative;
     z-index: 1;
     margin: 0;
-    color: #fff;
-    font-size: clamp(1.7rem, 7vw, 2.15rem);
-    line-height: 1.22;
+    max-width: 14ch;
+    color: #2f2925 !important;
+    font-size: clamp(1.62rem, 7vw, 2rem) !important;
+    font-weight: 950;
+    line-height: 1.25 !important;
     letter-spacing: -0.035em;
   }
 
   html[data-native-app] .native-home-welcome p {
     position: relative;
     z-index: 1;
-    max-width: 30ch;
-    margin: 9px 0 0;
-    color: rgb(255 246 238 / 0.82);
-    font-size: 0.88rem;
+    max-width: 32ch;
+    margin: 8px 0 0 !important;
+    color: #6d6057 !important;
+    font-size: 0.84rem !important;
     font-weight: 700;
-    line-height: 1.7;
+    line-height: 1.65 !important;
   }
+
+  html[data-native-app] .native-home-trust {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-top: 13px;
+    color: #315b4d !important;
+    font-size: 0.71rem;
+    font-weight: 900;
+  }
+
+  html[data-native-app] .native-home-trust i {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: #2e8a68;
+    box-shadow: 0 0 0 4px rgb(46 138 104 / 0.12);
+  }
+
+  html[data-native-app] .native-home-search {
+    position: relative;
+    z-index: 2;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    min-height: 58px;
+    align-items: center;
+    gap: 10px;
+    margin: -24px 12px 4px;
+    padding-inline: 16px;
+    border: 1px solid rgb(103 73 51 / 0.14);
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 13px 30px rgb(69 46 31 / 0.13);
+    color: #9f5335;
+  }
+
+  html[data-native-app] .native-home-search input {
+    width: 100%;
+    min-width: 0;
+    border: 0 !important;
+    outline: 0;
+    background: transparent !important;
+    color: #302923 !important;
+    font-weight: 800;
+  }
+
+  html[data-native-app] .native-home-search input::placeholder { color: #8a7c72 !important; }
+  html[data-native-app] .native-home-search button { display: grid; width: 36px; min-height: 36px; padding: 0; place-items: center; border: 0; border-radius: 12px; background: #f4ebe1; color: #8f4b31; }
+
+  html[data-native-app] .native-home-actions-heading {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    padding: 2px 2px 0;
+  }
+
+  html[data-native-app] .native-home-actions-heading strong { color: #302923; font-size: 1rem; }
+  html[data-native-app] .native-home-actions-heading small { color: #81736a; font-size: 0.68rem; font-weight: 700; }
 
   html[data-native-app] .native-home-actions {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 9px;
   }
 
   html[data-native-app] .native-home-actions > :where(a, button) {
-    display: grid;
+    display: flex;
     min-width: 0;
-    min-height: 118px;
-    align-content: start;
-    gap: 6px;
-    padding: 14px;
-    border: 1px solid rgb(103 73 51 / 0.12);
-    border-radius: 20px;
-    background: #fffdf9;
-    box-shadow: 0 9px 24px rgb(70 45 28 / 0.07);
-    color: #312820;
-    text-align: right;
-  }
-
-  html[data-native-app] .native-home-actions svg { color: #ae5d38; }
-  html[data-native-app] .native-home-actions strong { display: block; font-size: 1rem; }
-  html[data-native-app] .native-home-actions small { color: #76675d; font-size: 0.72rem; font-weight: 700; line-height: 1.5; }
-
-  html[data-native-app] .native-home-actions button {
-    grid-column: 1 / -1;
-    min-height: 76px;
-    grid-template-columns: auto 1fr;
+    min-height: 108px;
     align-items: center;
-    align-content: center;
-    background: #173d32;
-    color: #fff;
+    justify-content: center;
+    flex-direction: column;
+    gap: 5px;
+    padding: 11px 6px;
+    border: 1px solid rgb(103 73 51 / 0.12);
+    border-radius: 18px;
+    background: #fffdf9;
+    box-shadow: 0 7px 20px rgb(70 45 28 / 0.06);
+    color: #312820 !important;
+    text-align: center;
   }
 
-  html[data-native-app] .native-home-actions button svg { color: #a9e1ca; }
-  html[data-native-app] .native-home-actions button small { color: rgb(255 255 255 / 0.68); }
+  html[data-native-app] .native-home-actions > :where(a, button) > span {
+    position: relative;
+    display: grid;
+    width: 42px;
+    min-height: 42px;
+    place-items: center;
+    border-radius: 14px;
+    background: #f1dfce;
+    color: #a95634 !important;
+  }
+
+  html[data-native-app] .native-home-actions strong { color: #312820 !important; font-size: 0.78rem; font-weight: 950; }
+  html[data-native-app] .native-home-actions small { color: #81736a !important; font-size: 0.62rem; font-weight: 700; white-space: nowrap; }
+  html[data-native-app] .native-home-actions .native-home-quote-action > span { background: #deeee7; color: #19503f !important; }
+  html[data-native-app] .native-home-actions .native-home-quote-action b { position: absolute; top: -5px; left: -5px; display: grid; min-width: 17px; height: 17px; place-items: center; border-radius: 999px; background: #a95634; color: #fff; font-size: 0.58rem; }
 
   html[data-native-app] .store-home .store-search-section {
-    margin: 0 !important;
-    padding: 2px 16px 12px !important;
+    display: none !important;
   }
-
-  html[data-native-app] .store-home .store-search {
-    border-radius: 18px !important;
-    box-shadow: 0 8px 22px rgb(70 45 28 / 0.08) !important;
-  }
-
-  html[data-native-app] .store-home .store-search input { min-height: 54px; }
 
   html[data-native-app] .store-home-section {
     padding-inline: 16px !important;
-    padding-block: 12px !important;
+    padding-block: 14px !important;
   }
 
   html[data-native-app] .store-home .store-category-heading,
@@ -203,6 +280,7 @@ html[data-native-app] :where(.customer-sidebar,.provider-sidebar,.contractor-sid
 
   html[data-native-app] .store-home .store-section-heading h2,
   html[data-native-app] .store-home .store-category-heading h2 { font-size: 1.35rem !important; }
+  html[data-native-app] .store-home .store-category-heading span { display: none; }
 
   html[data-native-app] .store-home .store-category-row {
     display: flex;
@@ -214,7 +292,19 @@ html[data-native-app] :where(.customer-sidebar,.provider-sidebar,.contractor-sid
 
   html[data-native-app] .store-home .store-category-chip { flex: 0 0 auto; scroll-snap-align: start; }
 
-  html[data-native-app] .store-home .store-latest-grid,
+  html[data-native-app] .store-home .store-latest-grid {
+    display: flex;
+    margin-inline: -16px;
+    padding-inline: 16px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+  }
+
+  html[data-native-app] .store-home .store-latest-card {
+    flex: 0 0 72%;
+    scroll-snap-align: start;
+  }
+
   html[data-native-app] .store-home .store-product-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
@@ -231,16 +321,17 @@ html[data-native-app] :where(.customer-sidebar,.provider-sidebar,.contractor-sid
 
   html[data-native-app] .native-home-tabs {
     position: fixed;
-    inset: auto 10px max(8px, env(safe-area-inset-bottom));
+    inset: auto 0 0;
     z-index: 80;
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    min-height: 66px;
-    padding: 7px;
-    border: 1px solid rgb(103 73 51 / 0.14);
-    border-radius: 23px;
-    background: rgb(255 252 247 / 0.96);
-    box-shadow: 0 18px 48px rgb(46 31 21 / 0.22);
+    min-height: calc(70px + env(safe-area-inset-bottom));
+    padding: 7px 8px max(7px, env(safe-area-inset-bottom));
+    border: 0;
+    border-top: 1px solid rgb(103 73 51 / 0.12);
+    border-radius: 22px 22px 0 0;
+    background: rgb(255 253 249 / 0.97);
+    box-shadow: 0 -10px 32px rgb(46 31 21 / 0.1);
     backdrop-filter: blur(20px) saturate(140%);
   }
 
@@ -255,12 +346,12 @@ html[data-native-app] :where(.customer-sidebar,.provider-sidebar,.contractor-sid
     border: 0;
     border-radius: 16px;
     background: transparent;
-    color: #75665c;
+    color: #75665c !important;
     font-size: 0.65rem;
     font-weight: 900;
   }
 
-  html[data-native-app] .native-home-tabs > [aria-current="page"] { color: #9e4f2d; }
+  html[data-native-app] .native-home-tabs > [aria-current="page"] { background: #f3e4d5; color: #9e4f2d !important; }
   html[data-native-app] .native-home-tabs svg { width: 20px; height: 20px; }
   html[data-native-app] .native-home-tabs-quote { position: relative; display: grid; width: 34px; height: 34px; place-items: center; border-radius: 12px; background: #173d32; color: white; }
   html[data-native-app] .native-home-tabs-quote b { position: absolute; top: -7px; left: -7px; display: grid; min-width: 18px; height: 18px; place-items: center; border-radius: 999px; background: #bd633d; color: white; font-size: 0.62rem; }

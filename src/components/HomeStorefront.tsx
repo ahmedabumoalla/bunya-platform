@@ -433,14 +433,21 @@ export function HomeStorefront({ categories, products, dataError }: HomeStorefro
 
       <section aria-label="واجهة تطبيق بُنية" className="native-home-dashboard">
         <div className="native-home-welcome">
-          <span>منصة بُنية</span>
-          <h1>ماذا يحتاج مشروعك اليوم؟</h1>
-          <p>اطلب مواد البناء أو اعثر على المقاول المناسب بخطوات واضحة.</p>
+          <span className="native-home-eyebrow">بُنية لمواد البناء</span>
+          <h1>ابدأ مشروعك من المكان الصحيح</h1>
+          <p>مواد، موردون ومقاولون في تجربة واحدة موثوقة.</p>
+          <small className="native-home-trust"><i aria-hidden="true" /> منتجات ومزودون موثّقون</small>
         </div>
+        <div className="native-home-search" role="search">
+          <Icon name="search" />
+          <input aria-label="البحث عن المنتجات في التطبيق" value={query} onChange={(event) => { const value = event.currentTarget.value; updateFilters(() => setQuery(value)); }} placeholder="ماذا تحتاج لمشروعك؟" />
+          {query ? <button aria-label="مسح البحث" onClick={() => updateFilters(() => setQuery(""))} type="button"><Icon name="close" /></button> : null}
+        </div>
+        <div className="native-home-actions-heading"><strong>خدمات بُنية</strong><small>وصول سريع لما تحتاجه</small></div>
         <div className="native-home-actions" aria-label="الخدمات الرئيسية">
-          <a href="#products"><Icon name="grid" /><strong>مواد البناء</strong><small>تصفح المنتجات واطلب التسعير</small></a>
-          <Link href="/contractors"><Icon name="search" /><strong>المقاولون</strong><small>اعثر على مقاول حسب تخصصه</small></Link>
-          <button onClick={() => void openQuoteDrawer()} type="button"><Icon name="quote" /><span><strong>طلب عرض السعر</strong><small>{quoteItems.length ? `${quoteItems.length.toLocaleString("ar-SA")} منتج في طلبك الحالي` : "راجع منتجاتك واعتمد الطلب"}</small></span></button>
+          <a href="#products"><span><Icon name="grid" /></span><strong>المنتجات</strong><small>مواد البناء</small></a>
+          <Link href="/contractors"><span><Icon name="search" /></span><strong>المقاولون</strong><small>حسب التخصص</small></Link>
+          <button className="native-home-quote-action" onClick={() => void openQuoteDrawer()} type="button"><span><Icon name="quote" />{quoteItems.length ? <b>{quoteItems.length.toLocaleString("ar-SA")}</b> : null}</span><strong>طلب السعر</strong><small>راجع طلبك</small></button>
         </div>
       </section>
 
