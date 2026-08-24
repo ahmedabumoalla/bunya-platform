@@ -426,10 +426,10 @@ class WorkspaceRepository {
         'is_primary': true,
         'sort_order': 0,
       });
-      await client
-          .from('products')
-          .update({'review_status': 'pending_review'})
-          .eq('id', productId);
+      await client.rpc(
+        'submit_product_for_review',
+        params: {'p_product_id': productId},
+      );
     } catch (_) {
       if (imagePath != null) {
         try {
