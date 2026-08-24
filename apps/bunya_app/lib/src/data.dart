@@ -275,9 +275,14 @@ class BunyaRepository {
     );
   }
 
-  Future<void> changeTemporaryPassword(String password) async {
+  Future<void> changePassword(
+    String password, {
+    required bool completeTemporarySetup,
+  }) async {
     await client.auth.updateUser(UserAttributes(password: password));
-    await client.rpc('complete_temporary_password_change');
+    if (completeTemporarySetup) {
+      await client.rpc('complete_temporary_password_change');
+    }
   }
 
   Future<JoinSubmission> submitJoinApplication({

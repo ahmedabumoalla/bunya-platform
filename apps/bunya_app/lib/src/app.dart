@@ -2635,7 +2635,10 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     }
     setState(() => busy = true);
     try {
-      await widget.repository.changeTemporaryPassword(value);
+      await widget.repository.changePassword(
+        value,
+        completeTemporarySetup: widget.forced,
+      );
       if (!mounted) return;
       if (widget.onComplete != null) {
         widget.onComplete!();
