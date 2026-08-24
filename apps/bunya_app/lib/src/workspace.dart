@@ -3695,8 +3695,10 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
   String unit = 'حبة';
   String availability = 'available';
   String offerType = 'sale', rentalUnit = 'day', weightUnit = 'كجم';
+  String variantType = 'المقاس';
   bool vatInclusive = true, hasWarranty = false, busy = false;
   final List<String> measurements = [];
+  final List<Map<String, String>> variants = [];
   XFile? image;
   Uint8List? imageBytes;
 
@@ -3768,6 +3770,20 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
     });
   }
 
+  void addVariant() {
+    final value = variantValue.text.trim();
+    if (value.isEmpty ||
+        variants.any(
+          (item) => item['type'] == variantType && item['value'] == value,
+        )) {
+      return;
+    }
+    setState(() {
+      variants.add({'type': variantType, 'value': value});
+      variantValue.clear();
+    });
+  }
+
   Future<void> submit() async {
     final unitPrice = number(price.text);
     final minimumOrder = number(minimum.text);
@@ -3822,22 +3838,11 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
       ...measurements,
       if (measurement.text.trim().isNotEmpty) measurement.text.trim(),
     }.toList();
-    final separators = RegExp(r'[\n,،;]+');
-    final allVariants = variantValue.text
-        .split(separators)
-        .map((value) => value.trim())
-        .where((value) => value.isNotEmpty)
-        .map((value) {
-          final separator = value.indexOf(RegExp(r'[:：]'));
-          return separator > 0
-              ? {
-                  'type': value.substring(0, separator).trim(),
-                  'value': value.substring(separator + 1).trim(),
-                }
-              : {'type': 'خيار', 'value': value};
-        })
-        .where((item) => item['value']!.isNotEmpty)
-        .toList();
+    final allVariants = <Map<String, String>>[
+      ...variants,
+      if (variantValue.text.trim().isNotEmpty)
+        {'type': variantType, 'value': variantValue.text.trim()},
+    ];
     setState(() => busy = true);
     try {
       final extension = image!.name.toLowerCase();
@@ -4188,18 +4193,77 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
           const _ProductFormHeading(
             icon: Icons.account_tree_outlined,
             title: 'الفئات وخيارات المنتج',
-            caption: 'افصل الخيارات بفاصلة واكتب النوع ثم القيمة',
+            caption: 'اختر النوع وأضف كل قيمة متوفرة بشكل مستقل',
           ),
+          DropdownButtonFormField<String>(
+            initialValue: variantType,
+            decoration: const InputDecoration(labelText: 'نوع الخيار'),
+            items:
+                const [
+                      'المقاس',
+                      'الضغط',
+                      'الكثافة',
+                      'السماكة',
+                      'الدرجة',
+                      'اللون',
+                      'الموديل',
+                      'أخرى',
+                    ]
+                    .map(
+                      (value) =>
+                          DropdownMenuItem(value: value, child: Text(value)),
+                    )
+                    .toList(),
+            onChanged: (value) =>
+                setState(() => variantType = value ?? variantType),
+          ),
+          const SizedBox(height: 8),
           TextField(
             controller: variantValue,
-            minLines: 2,
-            maxLines: 4,
-            decoration: const InputDecoration(
-              labelText: 'الخيارات المتوفرة — اختياري',
-              hintText: 'الضغط: 16، الضغط: 20، الكثافة: 18، السماكة: 5 سم',
-              alignLabelWithHint: true,
+            onSubmitted: (_) => addVariant(),
+            decoration: InputDecoration(
+              labelText: 'قيمة الخيار — اختياري',
+              hintText: 'مثال: 16 أو 5 سم',
+              suffixIcon: IconButton.filledTonal(
+                onPressed: addVariant,
+                tooltip: 'إضافة الخيار',
+                icon: const Icon(Icons.add_rounded),
+              ),
             ),
           ),
+          if (variants.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Column(
+              children: [
+                for (var index = 0; index < variants.length; index++)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 6),
+                    padding: const EdgeInsetsDirectional.only(start: 12),
+                    decoration: BoxDecoration(
+                      color: BunyaColors.sand,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: BunyaColors.line),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${variants[index]['type']}: ${variants[index]['value']}',
+                            style: const TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () =>
+                              setState(() => variants.removeAt(index)),
+                          tooltip: 'حذف الخيار',
+                          icon: const Icon(Icons.close_rounded, size: 19),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ],
           const SizedBox(height: 10),
           Row(
             children: [
