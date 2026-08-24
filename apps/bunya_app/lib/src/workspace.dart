@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -182,7 +184,7 @@ class WorkspaceRepository {
     final isProducts = module.table == 'products';
     final isQuoteRequests = module.table == 'quote_requests';
     final selection = isProducts
-        ? '*,product_categories(name),product_images(image_url,storage_path,is_primary,sort_order)'
+        ? '*,providers(company_name,contact_name,mobile,email),product_categories(name,slug),product_images(image_url,storage_path,is_primary,sort_order),product_units(name,is_base,sort_order),product_measurements(label,is_default,product_units(name)),product_specifications(value,sort_order),product_warranties(label,duration,details),product_availability_regions(city,scope),product_delivery_configs(is_available,maximum_duration,duration_unit,price_per_km,maximum_distance_km,notes),product_delivery_regions(region_name),product_review_history(from_status,to_status,notes,changed_at)'
         : isQuoteRequests
         ? '*,quote_request_items(product_name_snapshot,measurement_label_snapshot,unit_name_snapshot,quantity,notes),bunya_customer_quotes(quote_code,subtotal,vat_amount,delivery_fee,total,valid_until,expected_delivery_at,status,processing_stage)'
         : '*';
@@ -252,6 +254,124 @@ class WorkspaceRepository {
             'app-review-${DateTime.now().microsecondsSinceEpoch}',
       },
     );
+  }
+
+  Future<List<Map<String, dynamic>>> productCategories() async {
+    final rows = await client
+        .from('product_categories')
+        .select('id,name,slug')
+        .eq('is_active', true)
+        .order('sort_order');
+    return (rows as List)
+        .map((row) => Map<String, dynamic>.from(row as Map))
+        .toList();
+  }
+
+  Future<void> createProviderProduct({
+    required String providerId,
+    required String name,
+    required String categoryId,
+    required String categoryTone,
+    required String baseUnit,
+    required String description,
+    required double unitPrice,
+    required double? minimumOrder,
+    required double? stockQuantity,
+    required String availabilityStatus,
+    required String leadTime,
+    required String deliveryWindow,
+    required String deliveryNotes,
+    required bool vatInclusive,
+    required Uint8List imageBytes,
+    required String imageName,
+    required String imageMime,
+  }) async {
+    final userId = client.auth.currentUser!.id;
+    final stamp = DateTime.now().microsecondsSinceEpoch;
+    String? productId, imagePath;
+    try {
+      final availability = availabilityStatus == 'limited'
+          ? 'كمية محدودة: ${stockQuantity ?? 0} $baseUnit'
+          : availabilityStatus == 'on_request'
+          ? 'متوفر حسب الطلب'
+          : availabilityStatus == 'unavailable'
+          ? 'غير متوفر حاليًا'
+          : 'متوفر لدى المزود';
+      final inserted = await client
+          .from('products')
+          .insert({
+            'provider_id': providerId,
+            'created_by': userId,
+            'category_id': categoryId,
+            'custom_category': null,
+            'slug': 'app-product-$stamp',
+            'name': name,
+            'base_unit': baseUnit,
+            'short_description': description,
+            'description': description,
+            'full_description': description,
+            'availability_summary': availability,
+            'availability_status': availabilityStatus,
+            'lead_time_label': leadTime,
+            'delivery_label': 'يتم تنسيق التسليم مع العميل',
+            'delivery_window': deliveryWindow,
+            'delivery_notes': deliveryNotes,
+            'offer_type': 'sale',
+            'unit_price': unitPrice,
+            'minimum_order': minimumOrder,
+            'stock_quantity': stockQuantity,
+            'vat_inclusive': vatInclusive,
+            'review_status': 'draft',
+            'is_published': false,
+            'is_new': true,
+          })
+          .select('id')
+          .single();
+      productId = '${inserted['id']}';
+      final safeName = imageName.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '-');
+      imagePath = '$providerId/$productId/$stamp-$safeName';
+      await client.storage
+          .from('provider-product-images')
+          .uploadBinary(
+            imagePath,
+            imageBytes,
+            fileOptions: FileOptions(contentType: imageMime, upsert: false),
+          );
+      await client.from('product_images').insert({
+        'product_id': productId,
+        'label': '$name - الصورة الأساسية',
+        'alt_text': 'صورة المنتج $name',
+        'tone':
+            const {
+              'blocks-bricks': 'blocks',
+              'electrical': 'electric',
+              'tools-equipment': 'tools',
+            }[categoryTone] ??
+            categoryTone,
+        'storage_path': imagePath,
+        'file_name': imageName,
+        'mime_type': imageMime,
+        'file_size_bytes': imageBytes.length,
+        'is_primary': true,
+        'sort_order': 0,
+      });
+      await client
+          .from('products')
+          .update({'review_status': 'pending_review'})
+          .eq('id', productId);
+    } catch (_) {
+      if (imagePath != null) {
+        try {
+          await client.storage.from('provider-product-images').remove([
+            imagePath,
+          ]);
+        } catch (_) {}
+      }
+      if (productId != null) {
+        await client.from('products').delete().eq('id', productId);
+      }
+      rethrow;
+    }
   }
 
   Future<void> transitionFulfillment(
@@ -2128,6 +2248,7 @@ class _RoleModules extends StatelessWidget {
           table: 'products',
           filterField: 'provider_id',
           filterValue: id,
+          action: 'provider_products',
         ),
         WorkspaceModule(
           title: 'عروض الأسعار',
@@ -2363,7 +2484,7 @@ class _RoleModules extends StatelessWidget {
   );
 }
 
-class ModuleRecordsScreen extends StatelessWidget {
+class ModuleRecordsScreen extends StatefulWidget {
   const ModuleRecordsScreen({
     super.key,
     required this.repository,
@@ -2371,42 +2492,74 @@ class ModuleRecordsScreen extends StatelessWidget {
   });
   final WorkspaceRepository repository;
   final WorkspaceModule module;
+
+  @override
+  State<ModuleRecordsScreen> createState() => _ModuleRecordsScreenState();
+}
+
+class _ModuleRecordsScreenState extends State<ModuleRecordsScreen> {
+  late Future<List<Map<String, dynamic>>> rows = widget.repository.loadModule(
+    widget.module,
+  );
+
+  Future<void> addProduct() async {
+    final added = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _CreateProductSheet(
+        repository: widget.repository,
+        providerId: widget.module.filterValue!,
+      ),
+    );
+    if (added == true && mounted) {
+      setState(() => rows = widget.repository.loadModule(widget.module));
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(module.title)),
+    appBar: AppBar(title: Text(widget.module.title)),
+    floatingActionButton: widget.module.action == 'provider_products'
+        ? FloatingActionButton.extended(
+            onPressed: addProduct,
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('إضافة منتج'),
+          )
+        : null,
     body: _FutureList(
-      title: module.title,
-      caption: module.caption,
-      future: repository.loadModule(module),
+      title: widget.module.title,
+      caption: widget.module.caption,
+      future: rows,
       item: (row) {
         void openDetails() => showModalBottomSheet<void>(
           context: context,
           isScrollControlled: true,
           backgroundColor: Colors.transparent,
-          builder: (_) => module.table == 'products'
+          builder: (_) => widget.module.table == 'products'
               ? _ProductRecordDetails(
                   row: row,
-                  module: module,
-                  repository: repository,
+                  module: widget.module,
+                  repository: widget.repository,
                 )
-              : module.table == 'quote_requests'
+              : widget.module.table == 'quote_requests'
               ? _QuoteRequestDetails(row: row)
               : _RecordDetails(
                   row: row,
-                  module: module,
-                  repository: repository,
+                  module: widget.module,
+                  repository: widget.repository,
                 ),
         );
         final status = _status(
           '${row['status'] ?? row['review_status'] ?? row['approval_status'] ?? 'سجل'}',
         );
-        return module.table == 'products'
+        return widget.module.table == 'products'
             ? _ProductRecordCard(row: row, status: status, onTap: openDetails)
             : _RecordCard(
-                title: _recordTitle(row, module),
-                subtitle: _recordSubtitle(row, module),
+                title: _recordTitle(row, widget.module),
+                subtitle: _recordSubtitle(row, widget.module),
                 status: status,
-                icon: module.icon,
+                icon: widget.module.icon,
                 onTap: openDetails,
               );
       },
@@ -3426,6 +3579,426 @@ class _QuoteAmountRow extends StatelessWidget {
   );
 }
 
+class _CreateProductSheet extends StatefulWidget {
+  const _CreateProductSheet({
+    required this.repository,
+    required this.providerId,
+  });
+  final WorkspaceRepository repository;
+  final String providerId;
+
+  @override
+  State<_CreateProductSheet> createState() => _CreateProductSheetState();
+}
+
+class _CreateProductSheetState extends State<_CreateProductSheet> {
+  final name = TextEditingController();
+  final description = TextEditingController();
+  final price = TextEditingController();
+  final minimum = TextEditingController();
+  final stock = TextEditingController();
+  final leadTime = TextEditingController();
+  final deliveryWindow = TextEditingController();
+  final deliveryNotes = TextEditingController();
+  late final Future<List<Map<String, dynamic>>> categories = widget.repository
+      .productCategories();
+  String? categoryId, categoryTone;
+  String unit = 'حبة';
+  String availability = 'available';
+  bool vatInclusive = true, busy = false;
+  XFile? image;
+  Uint8List? imageBytes;
+
+  @override
+  void dispose() {
+    for (final controller in [
+      name,
+      description,
+      price,
+      minimum,
+      stock,
+      leadTime,
+      deliveryWindow,
+      deliveryNotes,
+    ]) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> pickImage() async {
+    final selected = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 84,
+      maxWidth: 1800,
+    );
+    if (selected == null) return;
+    final bytes = await selected.readAsBytes();
+    if (bytes.length > 5 * 1024 * 1024) {
+      if (mounted) _notice(context, 'الصورة أكبر من 5MB');
+      return;
+    }
+    if (mounted)
+      setState(() {
+        image = selected;
+        imageBytes = bytes;
+      });
+  }
+
+  double? number(String value) {
+    final clean = value.trim().replaceAll(',', '.');
+    return clean.isEmpty ? null : double.tryParse(clean);
+  }
+
+  Future<void> submit() async {
+    final unitPrice = number(price.text);
+    final minimumOrder = number(minimum.text);
+    final stockQuantity = number(stock.text);
+    if (imageBytes == null || categoryId == null) {
+      return _notice(context, 'اختر صورة المنتج وتصنيفه');
+    }
+    if (name.text.trim().length < 2 ||
+        description.text.trim().length < 10 ||
+        unitPrice == null ||
+        unitPrice < 0) {
+      return _notice(context, 'أكمل اسم المنتج ووصفه وسعره بصورة صحيحة');
+    }
+    if (leadTime.text.trim().isEmpty ||
+        deliveryWindow.text.trim().isEmpty ||
+        deliveryNotes.text.trim().isEmpty) {
+      return _notice(context, 'أكمل مدة التجهيز والتوصيل وتعليماته');
+    }
+    if (availability == 'limited' &&
+        (stockQuantity == null || stockQuantity <= 0)) {
+      return _notice(context, 'حدد كمية المخزون المتوفرة');
+    }
+    setState(() => busy = true);
+    try {
+      final extension = image!.name.toLowerCase();
+      final mime =
+          image!.mimeType ??
+          (extension.endsWith('.png')
+              ? 'image/png'
+              : extension.endsWith('.webp')
+              ? 'image/webp'
+              : 'image/jpeg');
+      await widget.repository.createProviderProduct(
+        providerId: widget.providerId,
+        name: name.text.trim(),
+        categoryId: categoryId!,
+        categoryTone: categoryTone ?? 'tools',
+        baseUnit: unit,
+        description: description.text.trim(),
+        unitPrice: unitPrice,
+        minimumOrder: minimumOrder,
+        stockQuantity: stockQuantity,
+        availabilityStatus: availability,
+        leadTime: leadTime.text.trim(),
+        deliveryWindow: deliveryWindow.text.trim(),
+        deliveryNotes: deliveryNotes.text.trim(),
+        vatInclusive: vatInclusive,
+        imageBytes: imageBytes!,
+        imageName: image!.name,
+        imageMime: mime,
+      );
+      if (!mounted) return;
+      _notice(context, 'تم إرسال المنتج للإدارة للمراجعة');
+      Navigator.pop(context, true);
+    } catch (error) {
+      if (mounted) _notice(context, _clean(error));
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => SafeArea(
+    top: false,
+    child: Container(
+      height: MediaQuery.sizeOf(context).height * .95,
+      decoration: const BoxDecoration(
+        color: BunyaColors.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+      ),
+      child: ListView(
+        padding: EdgeInsets.fromLTRB(
+          18,
+          12,
+          18,
+          MediaQuery.viewInsetsOf(context).bottom + 28,
+        ),
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: BunyaColors.mint,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(
+                  Icons.add_business_rounded,
+                  color: BunyaColors.forest,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'إضافة منتج جديد',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    Text(
+                      'أدخل بيانات البيع وسيصل المنتج للإدارة للمراجعة.',
+                      style: TextStyle(
+                        color: BunyaColors.muted,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton.filledTonal(
+                onPressed: busy ? null : () => Navigator.pop(context),
+                icon: const Icon(Icons.close_rounded),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          InkWell(
+            onTap: busy ? null : pickImage,
+            borderRadius: BorderRadius.circular(24),
+            child: Container(
+              height: 190,
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                color: BunyaColors.sand,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: BunyaColors.line),
+              ),
+              child: imageBytes == null
+                  ? const Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.add_photo_alternate_outlined,
+                          size: 46,
+                          color: BunyaColors.copper,
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'اختر صورة واضحة للمنتج',
+                          style: TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                        Text(
+                          'JPG أو PNG أو WebP — بحد أقصى 5MB',
+                          style: TextStyle(
+                            color: BunyaColors.muted,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                    )
+                  : Image.memory(imageBytes!, fit: BoxFit.cover),
+            ),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: name,
+            decoration: const InputDecoration(
+              labelText: 'اسم المنتج',
+              prefixIcon: Icon(Icons.inventory_2_outlined),
+            ),
+          ),
+          const SizedBox(height: 10),
+          FutureBuilder<List<Map<String, dynamic>>>(
+            future: categories,
+            builder: (_, snapshot) => DropdownButtonFormField<String>(
+              initialValue: categoryId,
+              decoration: const InputDecoration(
+                labelText: 'التصنيف',
+                prefixIcon: Icon(Icons.category_outlined),
+              ),
+              items: (snapshot.data ?? const [])
+                  .map(
+                    (item) => DropdownMenuItem<String>(
+                      value: '${item['id']}',
+                      child: Text('${item['name']}'),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) {
+                Map<String, dynamic>? selected;
+                for (final item in snapshot.data ?? const []) {
+                  if ('${item['id']}' == value) selected = item;
+                }
+                setState(() {
+                  categoryId = value;
+                  categoryTone = '${selected?['slug'] ?? 'tools'}';
+                });
+              },
+            ),
+          ),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            initialValue: unit,
+            decoration: const InputDecoration(
+              labelText: 'الوحدة الأساسية',
+              prefixIcon: Icon(Icons.straighten_rounded),
+            ),
+            items:
+                const [
+                      'حبة',
+                      'كيس',
+                      'طن',
+                      'متر',
+                      'متر مربع',
+                      'متر مكعب',
+                      'لفة',
+                      'كرتون',
+                    ]
+                    .map(
+                      (value) =>
+                          DropdownMenuItem(value: value, child: Text(value)),
+                    )
+                    .toList(),
+            onChanged: (value) => setState(() => unit = value ?? unit),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: description,
+            maxLines: 4,
+            decoration: const InputDecoration(
+              labelText: 'وصف المنتج ومواصفاته',
+              alignLabelWithHint: true,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: price,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'سعر الوحدة (ر.س)',
+                  ),
+                ),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: TextField(
+                  controller: minimum,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'أقل كمية للطلب',
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            initialValue: availability,
+            decoration: const InputDecoration(labelText: 'حالة التوفر'),
+            items:
+                const {
+                      'available': 'متوفر',
+                      'limited': 'كمية محدودة',
+                      'on_request': 'حسب الطلب',
+                      'unavailable': 'غير متوفر حاليًا',
+                    }.entries
+                    .map(
+                      (item) => DropdownMenuItem(
+                        value: item.key,
+                        child: Text(item.value),
+                      ),
+                    )
+                    .toList(),
+            onChanged: (value) =>
+                setState(() => availability = value ?? availability),
+          ),
+          if (availability == 'limited') ...[
+            const SizedBox(height: 10),
+            TextField(
+              controller: stock,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: const InputDecoration(
+                labelText: 'كمية المخزون المتاحة',
+              ),
+            ),
+          ],
+          const SizedBox(height: 10),
+          TextField(
+            controller: leadTime,
+            decoration: const InputDecoration(
+              labelText: 'مدة التجهيز',
+              hintText: 'مثال: خلال 24 ساعة',
+              prefixIcon: Icon(Icons.schedule_outlined),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: deliveryWindow,
+            decoration: const InputDecoration(
+              labelText: 'مدة التوصيل',
+              hintText: 'مثال: من يومين إلى 3 أيام',
+              prefixIcon: Icon(Icons.local_shipping_outlined),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: deliveryNotes,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              labelText: 'شروط وتعليمات التوصيل',
+              alignLabelWithHint: true,
+            ),
+          ),
+          const SizedBox(height: 8),
+          SwitchListTile.adaptive(
+            value: vatInclusive,
+            onChanged: (value) => setState(() => vatInclusive = value),
+            title: const Text(
+              'السعر شامل ضريبة القيمة المضافة',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+            contentPadding: EdgeInsets.zero,
+          ),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: busy ? null : submit,
+            icon: busy
+                ? const SizedBox(
+                    width: 19,
+                    height: 19,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.send_rounded),
+            label: const Text('إرسال المنتج للمراجعة'),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
 class _ProductRecordDetails extends StatefulWidget {
   const _ProductRecordDetails({
     required this.row,
@@ -3485,6 +4058,41 @@ class _ProductRecordDetailsState extends State<_ProductRecordDetails> {
     final description =
         '${row['full_description'] ?? row['description'] ?? row['short_description'] ?? ''}'
             .trim();
+    final provider = row['providers'] is Map
+        ? Map<String, dynamic>.from(row['providers'] as Map)
+        : null;
+    final units = ((row['product_units'] as List?) ?? const [])
+        .map((item) => '${(item as Map)['name'] ?? ''}'.trim())
+        .where((value) => value.isNotEmpty)
+        .toList();
+    final measurements = ((row['product_measurements'] as List?) ?? const [])
+        .map((item) => '${(item as Map)['label'] ?? ''}'.trim())
+        .where((value) => value.isNotEmpty)
+        .toList();
+    final specifications =
+        ((row['product_specifications'] as List?) ?? const [])
+            .map((item) => '${(item as Map)['value'] ?? ''}'.trim())
+            .where((value) => value.isNotEmpty)
+            .toList();
+    final availabilityRegions =
+        ((row['product_availability_regions'] as List?) ?? const [])
+            .map((item) => '${(item as Map)['city'] ?? ''}'.trim())
+            .where((value) => value.isNotEmpty)
+            .toList();
+    final deliveryRegions =
+        ((row['product_delivery_regions'] as List?) ?? const [])
+            .map((item) => '${(item as Map)['region_name'] ?? ''}'.trim())
+            .where((value) => value.isNotEmpty)
+            .toList();
+    final warranty = row['product_warranties'] is Map
+        ? Map<String, dynamic>.from(row['product_warranties'] as Map)
+        : null;
+    final delivery = row['product_delivery_configs'] is Map
+        ? Map<String, dynamic>.from(row['product_delivery_configs'] as Map)
+        : null;
+    final history = ((row['product_review_history'] as List?) ?? const [])
+        .map((item) => Map<String, dynamic>.from(item as Map))
+        .toList();
     final canReview =
         widget.module.action == 'product_review' &&
         row['review_status'] == 'pending_review';
@@ -3647,6 +4255,68 @@ class _ProductRecordDetailsState extends State<_ProductRecordDetails> {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 9),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _ProductFact(
+                            icon: Icons.payments_outlined,
+                            label: 'سعر الوحدة',
+                            value: '${row['unit_price'] ?? '—'} ر.س',
+                          ),
+                        ),
+                        const SizedBox(width: 9),
+                        Expanded(
+                          child: _ProductFact(
+                            icon: Icons.shopping_basket_outlined,
+                            label: 'الحد الأدنى للطلب',
+                            value: row['minimum_order'] == null
+                                ? 'غير محدد'
+                                : '${row['minimum_order']} ${row['base_unit']}',
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 9),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _ProductFact(
+                            icon: Icons.warehouse_outlined,
+                            label: 'المخزون',
+                            value: row['stock_quantity'] == null
+                                ? 'حسب التوفر'
+                                : '${row['stock_quantity']} ${row['base_unit']}',
+                          ),
+                        ),
+                        const SizedBox(width: 9),
+                        Expanded(
+                          child: _ProductFact(
+                            icon: Icons.receipt_long_outlined,
+                            label: 'الضريبة',
+                            value: row['vat_inclusive'] == true
+                                ? 'السعر شامل الضريبة'
+                                : 'تُضاف على السعر',
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (provider != null) ...[
+                      const SizedBox(height: 22),
+                      const _SectionTitle(
+                        icon: Icons.storefront_rounded,
+                        title: 'بيانات المزود',
+                      ),
+                      const SizedBox(height: 9),
+                      _Facts(
+                        values: {
+                          'المنشأة': '${provider['company_name'] ?? '—'}',
+                          'المسؤول': '${provider['contact_name'] ?? '—'}',
+                          'الجوال': '${provider['mobile'] ?? '—'}',
+                          'البريد': '${provider['email'] ?? '—'}',
+                        },
+                      ),
+                    ],
                     if (description.isNotEmpty) ...[
                       const SizedBox(height: 22),
                       const Text(
@@ -3665,6 +4335,92 @@ class _ProductRecordDetailsState extends State<_ProductRecordDetails> {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
+                    ],
+                    if (units.isNotEmpty || measurements.isNotEmpty) ...[
+                      const SizedBox(height: 22),
+                      const _SectionTitle(
+                        icon: Icons.straighten_rounded,
+                        title: 'الوحدات والقياسات',
+                      ),
+                      const SizedBox(height: 9),
+                      _JoinTags(
+                        values: [...units, ...measurements],
+                        empty: 'لا توجد وحدات أو قياسات إضافية',
+                      ),
+                    ],
+                    if (specifications.isNotEmpty) ...[
+                      const SizedBox(height: 22),
+                      const _SectionTitle(
+                        icon: Icons.tune_rounded,
+                        title: 'المواصفات المسجلة',
+                      ),
+                      const SizedBox(height: 9),
+                      _JoinTags(
+                        values: specifications,
+                        empty: 'لا توجد مواصفات إضافية',
+                      ),
+                    ],
+                    const SizedBox(height: 22),
+                    const _SectionTitle(
+                      icon: Icons.local_shipping_rounded,
+                      title: 'التجهيز والتوصيل',
+                    ),
+                    const SizedBox(height: 9),
+                    _Facts(
+                      values: {
+                        'مدة التجهيز': '${row['lead_time_label'] ?? '—'}',
+                        'مدة التوصيل': '${row['delivery_window'] ?? '—'}',
+                        'تعليمات التوصيل': '${row['delivery_notes'] ?? '—'}',
+                        if (delivery != null)
+                          'مسافة التوصيل القصوى':
+                              delivery['maximum_distance_km'] == null
+                              ? 'غير محددة'
+                              : '${delivery['maximum_distance_km']} كم',
+                      },
+                    ),
+                    if (availabilityRegions.isNotEmpty ||
+                        deliveryRegions.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      _JoinTags(
+                        values: {
+                          ...availabilityRegions,
+                          ...deliveryRegions,
+                        }.toList(),
+                        empty: 'لا توجد مناطق محددة',
+                      ),
+                    ],
+                    if (warranty != null) ...[
+                      const SizedBox(height: 22),
+                      const _SectionTitle(
+                        icon: Icons.verified_user_outlined,
+                        title: 'الضمان',
+                      ),
+                      const SizedBox(height: 9),
+                      _Facts(
+                        values: {
+                          'نوع الضمان': '${warranty['label'] ?? '—'}',
+                          'المدة': '${warranty['duration'] ?? '—'}',
+                          'التفاصيل': '${warranty['details'] ?? '—'}',
+                        },
+                      ),
+                    ],
+                    if (history.isNotEmpty) ...[
+                      const SizedBox(height: 22),
+                      const _SectionTitle(
+                        icon: Icons.history_rounded,
+                        title: 'سجل مراجعة المنتج',
+                      ),
+                      const SizedBox(height: 9),
+                      ...history
+                          .take(5)
+                          .map(
+                            (item) => _JoinReviewCard(
+                              outcome:
+                                  '${item['to_status'] ?? 'pending_review'}',
+                              reason: '${item['notes'] ?? ''}',
+                              date: item['changed_at'],
+                            ),
+                          ),
                     ],
                     if (canReview) ...[
                       const SizedBox(height: 24),
