@@ -3697,10 +3697,20 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
   String offerType = 'sale', rentalUnit = 'day', weightUnit = 'كجم';
   String variantType = 'المقاس';
   bool vatInclusive = true, hasWarranty = false, busy = false;
+  String formError = '';
   final List<String> measurements = [];
   final List<Map<String, String>> variants = [];
   XFile? image;
   Uint8List? imageBytes;
+
+  @override
+  void initState() {
+    super.initState();
+    leadTime.text = 'خلال 24 ساعة';
+    deliveryWindow.text = 'يتم تحديدها بعد اعتماد الطلب';
+    deliveryNotes.text =
+        'يتم تنسيق موعد وموقع التسليم مع العميل بعد اعتماد الطلب.';
+  }
 
   @override
   void dispose() {
@@ -3784,34 +3794,38 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
     });
   }
 
+  void fail(String message) {
+    if (mounted) setState(() => formError = message);
+  }
+
   Future<void> submit() async {
     final unitPrice = number(price.text);
     final minimumOrder = number(minimum.text);
     final stockQuantity = number(stock.text);
     final rentalValue = number(rentalDuration.text);
     if (imageBytes == null || categoryId == null) {
-      return _notice(context, 'اختر صورة المنتج وتصنيفه');
+      return fail('اختر صورة المنتج وتصنيفه');
     }
     if (name.text.trim().length < 2 ||
         description.text.trim().length < 10 ||
         unitPrice == null ||
         unitPrice < 0) {
-      return _notice(context, 'أكمل اسم المنتج ووصفه وسعره بصورة صحيحة');
+      return fail('أكمل اسم المنتج ووصفه وسعره بصورة صحيحة');
     }
     if (leadTime.text.trim().isEmpty ||
         deliveryWindow.text.trim().isEmpty ||
         deliveryNotes.text.trim().isEmpty) {
-      return _notice(context, 'أكمل مدة التجهيز والتوصيل وتعليماته');
+      return fail('أكمل مدة التجهيز والتوصيل وتعليماته');
     }
     if (availability == 'limited' &&
         (stockQuantity == null || stockQuantity <= 0)) {
-      return _notice(context, 'حدد كمية المخزون المتوفرة');
+      return fail('حدد كمية المخزون المتوفرة');
     }
     if (offerType == 'rental' && (rentalValue == null || rentalValue <= 0)) {
-      return _notice(context, 'حدد مدة التأجير الأساسية');
+      return fail('حدد مدة التأجير الأساسية');
     }
     if (hasWarranty && warrantyDuration.text.trim().isEmpty) {
-      return _notice(context, 'حدد مدة الضمان أو ألغِ خيار الضمان');
+      return fail('حدد مدة الضمان أو ألغِ خيار الضمان');
     }
     final specifications = <String>[];
     void addSpecification(String label, String value) {
@@ -3843,7 +3857,10 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
       if (variantValue.text.trim().isNotEmpty)
         {'type': variantType, 'value': variantValue.text.trim()},
     ];
-    setState(() => busy = true);
+    setState(() {
+      formError = '';
+      busy = true;
+    });
     try {
       final extension = image!.name.toLowerCase();
       final mime =
@@ -3885,7 +3902,7 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
       _notice(context, 'تم إرسال المنتج للإدارة للمراجعة');
       Navigator.pop(context, true);
     } catch (error) {
-      if (mounted) _notice(context, _clean(error));
+      fail(_clean(error));
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -4562,6 +4579,25 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
             ),
             contentPadding: EdgeInsets.zero,
           ),
+          if (formError.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFE9E5),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFF0B8AA)),
+              ),
+              child: Text(
+                formError,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Color(0xFF9F321E),
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           FilledButton.icon(
             onPressed: busy ? null : submit,
