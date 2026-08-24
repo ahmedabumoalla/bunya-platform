@@ -2574,14 +2574,28 @@ class _ModuleRecordsScreenState extends State<ModuleRecordsScreen> {
   );
 
   Future<void> addProduct() async {
-    final added = await showModalBottomSheet<bool>(
+    final added = await showGeneralDialog<bool>(
       context: context,
-      isScrollControlled: true,
-      enableDrag: false,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _CreateProductSheet(
-        repository: widget.repository,
-        providerId: widget.module.filterValue!,
+      barrierDismissible: true,
+      barrierLabel: 'إغلاق إضافة المنتج',
+      barrierColor: Colors.black54,
+      transitionDuration: const Duration(milliseconds: 160),
+      pageBuilder: (_, __, ___) => Align(
+        alignment: Alignment.bottomCenter,
+        child: FractionallySizedBox(
+          heightFactor: .95,
+          widthFactor: 1,
+          child: _CreateProductSheet(
+            repository: widget.repository,
+            providerId: widget.module.filterValue!,
+          ),
+        ),
+      ),
+      transitionBuilder: (_, animation, __, child) => SlideTransition(
+        position: Tween(begin: const Offset(0, .06), end: Offset.zero).animate(
+          CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+        ),
+        child: FadeTransition(opacity: animation, child: child),
       ),
     );
     if (added == true && mounted) {
@@ -3895,12 +3909,12 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
   @override
   Widget build(BuildContext context) => SafeArea(
     top: false,
-    child: Container(
-      height: MediaQuery.sizeOf(context).height * .95,
-      decoration: const BoxDecoration(
-        color: BunyaColors.surface,
+    child: Material(
+      color: BunyaColors.surface,
+      shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
       ),
+      clipBehavior: Clip.antiAlias,
       child: ListView(
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: EdgeInsets.fromLTRB(
