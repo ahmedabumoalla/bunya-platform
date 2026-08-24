@@ -2574,11 +2574,20 @@ class _ModuleRecordsScreenState extends State<ModuleRecordsScreen> {
   );
 
   Future<void> addProduct() async {
-    final added = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (_) => _CreateProductSheet(
+    final added = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      enableDrag: false,
+      backgroundColor: Colors.transparent,
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: .96,
+        minChildSize: .72,
+        maxChildSize: .96,
+        expand: false,
+        builder: (_, scrollController) => _CreateProductSheet(
           repository: widget.repository,
           providerId: widget.module.filterValue!,
+          scrollController: scrollController,
         ),
       ),
     );
@@ -3653,9 +3662,11 @@ class _CreateProductSheet extends StatefulWidget {
   const _CreateProductSheet({
     required this.repository,
     required this.providerId,
+    required this.scrollController,
   });
   final WorkspaceRepository repository;
   final String providerId;
+  final ScrollController scrollController;
 
   @override
   State<_CreateProductSheet> createState() => _CreateProductSheetState();
@@ -3891,10 +3902,14 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    backgroundColor: BunyaColors.surface,
-    body: SafeArea(
+  Widget build(BuildContext context) => SafeArea(
+    top: false,
+    child: Material(
+      color: BunyaColors.surface,
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+      clipBehavior: Clip.antiAlias,
       child: ListView(
+        controller: widget.scrollController,
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: EdgeInsets.fromLTRB(
           18,
