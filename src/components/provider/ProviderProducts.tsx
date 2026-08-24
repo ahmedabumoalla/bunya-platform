@@ -36,6 +36,26 @@ type ProviderProductImage = {
   signed_url: string | null;
 };
 
+type ProductVariantInput = { type: string; value: string };
+type ProductMeasurement = {
+  label: string;
+  is_default: boolean;
+  sort_order: number;
+};
+type ProductVariant = {
+  name: string;
+  sku: string;
+  attributes: Record<string, unknown>;
+  is_active: boolean;
+  sort_order: number;
+};
+type ProductSpecification = { value: string; sort_order: number };
+type ProductWarranty = {
+  label: string;
+  duration: string;
+  details: string;
+} | null;
+
 type ProviderProductDetails = ProviderProduct & {
   short_description: string;
   description: string;
@@ -53,6 +73,10 @@ type ProviderProductDetails = ProviderProduct & {
   rental_duration_unit: string | null;
   created_at: string;
   product_images: ProviderProductImage[];
+  product_measurements: ProductMeasurement[];
+  product_variants: ProductVariant[];
+  product_specifications: ProductSpecification[];
+  product_warranties: ProductWarranty;
 };
 
 const reviewLabels: Record<string, string> = {
@@ -96,26 +120,22 @@ export function ProviderProductsList() {
         }
         return;
       }
-      const { data, error: loadError } = await createClient()
-        .from("products")
-        .select("id,name,sku,base_unit,unit_price,stock_quantity,review_status,is_published,updated_at,custom_category,product_categories(name)")
-        .eq("provider_id", providerId)
-        .order("updated_at", { ascending: false });
+      const { data, error: loadError } = await createClient().from("products").select("id,name,sku,base_unit,unit_price,stock_quantity,review_status,is_published,updated_at,custom_category,product_categories(name)").eq("provider_id", providerId).order("updated_at", { ascending: false });
       if (!active) return;
       if (loadError) setError("تعذر تحميل منتجات المنشأة. تحقق من الاتصال ثم أعد المحاولة.");
       else setProducts((data ?? []) as unknown as ProviderProduct[]);
       setLoading(false);
     };
     void load();
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [providerId]);
 
   const filtered = useMemo(() => {
     const value = query.trim().toLocaleLowerCase("ar");
     if (!value) return products;
-    return products.filter((product) =>
-      product.name.toLocaleLowerCase("ar").includes(value) || product.sku?.toLocaleLowerCase("en").includes(value),
-    );
+    return products.filter((product) => product.name.toLocaleLowerCase("ar").includes(value) || product.sku?.toLocaleLowerCase("en").includes(value));
   }, [products, query]);
 
   useEffect(() => {
@@ -156,14 +176,7 @@ export function ProviderProductsList() {
     }
 
     const db = createClient();
-    const result = await db
-      .from("products")
-      .select(
-        "id,name,sku,base_unit,unit_price,stock_quantity,review_status,is_published,updated_at,created_at,short_description,description,full_description,availability_summary,availability_status,lead_time_label,delivery_label,delivery_window,delivery_notes,offer_type,minimum_order,vat_inclusive,rental_duration_value,rental_duration_unit,custom_category,product_categories(name),product_images(id,label,alt_text,image_url,storage_path,is_primary,sort_order)",
-      )
-      .eq("id", productId)
-      .eq("provider_id", providerId)
-      .maybeSingle();
+    const result = await db.from("products").select("id,name,sku,base_unit,unit_price,stock_quantity,review_status,is_published,updated_at,created_at,short_description,description,full_description,availability_summary,availability_status,lead_time_label,delivery_label,delivery_window,delivery_notes,offer_type,minimum_order,vat_inclusive,rental_duration_value,rental_duration_unit,custom_category,product_categories(name),product_images(id,label,alt_text,image_url,storage_path,is_primary,sort_order),product_measurements(label,is_default,sort_order),product_variants(name,sku,attributes,is_active,sort_order),product_specifications(value,sort_order),product_warranties(label,duration,details)").eq("id", productId).eq("provider_id", providerId).maybeSingle();
 
     if (detailRequest.current !== requestId) return;
     if (result.error || !result.data) {
@@ -175,14 +188,15 @@ export function ProviderProductsList() {
     const product = result.data as unknown as Omit<ProviderProductDetails, "product_images"> & {
       product_images: Omit<ProviderProductImage, "signed_url">[];
     };
-    const orderedImages = [...(product.product_images ?? [])].sort(
-      (first, second) => Number(second.is_primary) - Number(first.is_primary) || first.sort_order - second.sort_order,
-    );
+    const orderedImages = [...(product.product_images ?? [])].sort((first, second) => Number(second.is_primary) - Number(first.is_primary) || first.sort_order - second.sort_order);
     const hydratedImages = await Promise.all(
       orderedImages.map(async (image) => {
         if (!image.storage_path) return { ...image, signed_url: image.image_url };
         const signed = await db.storage.from("provider-product-images").createSignedUrl(image.storage_path, 600);
-        return { ...image, signed_url: signed.data?.signedUrl ?? image.image_url };
+        return {
+          ...image,
+          signed_url: signed.data?.signedUrl ?? image.image_url,
+        };
       }),
     );
 
@@ -199,11 +213,23 @@ export function ProviderProductsList() {
           <h2>المنتجات</h2>
           <span>أضف منتجات منشأتك وأرسلها للمراجعة قبل ظهورها في الكتالوج العام.</span>
         </div>
-        <div><Link className="provider-primary" href="/merchant/products/new">＋ إضافة منتج</Link></div>
+        <div>
+          <Link className="provider-primary" href="/merchant/products/new">
+            ＋ إضافة منتج
+          </Link>
+        </div>
       </header>
 
-      {searchParams.get("created") === "1" ? <p className="provider-toast" role="status">✓ تم إنشاء المنتج بنجاح.</p> : null}
-      {error ? <p className="provider-toast provider-toast-error" role="alert">{error}</p> : null}
+      {searchParams.get("created") === "1" ? (
+        <p className="provider-toast" role="status">
+          ✓ تم إنشاء المنتج بنجاح.
+        </p>
+      ) : null}
+      {error ? (
+        <p className="provider-toast provider-toast-error" role="alert">
+          {error}
+        </p>
+      ) : null}
 
       <div className="provider-filters">
         <label className="provider-search">
@@ -213,90 +239,83 @@ export function ProviderProductsList() {
       </div>
 
       {loading ? (
-        <div className="provider-skeleton" aria-label="جارٍ تحميل المنتجات"><i /><i /><i /></div>
+        <div className="provider-skeleton" aria-label="جارٍ تحميل المنتجات">
+          <i />
+          <i />
+          <i />
+        </div>
       ) : filtered.length === 0 ? (
         <div className="provider-empty">
           <span aria-hidden>▦</span>
           <h3>{products.length ? "لا توجد نتائج مطابقة" : "لم تُضف منتجات بعد"}</h3>
           <p>{products.length ? "غيّر عبارة البحث لعرض المنتجات." : "أنشئ أول منتج وأرسله إلى الإدارة للمراجعة."}</p>
-          {!products.length ? <Link className="provider-primary" href="/merchant/products/new">إضافة أول منتج</Link> : null}
+          {!products.length ? (
+            <Link className="provider-primary" href="/merchant/products/new">
+              إضافة أول منتج
+            </Link>
+          ) : null}
         </div>
       ) : (
         <div className="provider-product-grid">
           {filtered.map((product) => (
             <article className={`${styles.clickableCard} provider-product-card`} key={product.id}>
-              <button
-                className={styles.cardTrigger}
-                type="button"
-                onClick={() => void openDetails(product.id)}
-                aria-label={`عرض التفاصيل الكاملة للمنتج ${product.name}`}
-              />
-              <div className="provider-product-visual"><b>{product.name.slice(0, 1)}</b><span>{product.custom_category || product.product_categories?.name || "منتج"}</span></div>
+              <button className={styles.cardTrigger} type="button" onClick={() => void openDetails(product.id)} aria-label={`عرض التفاصيل الكاملة للمنتج ${product.name}`} />
+              <div className="provider-product-visual">
+                <b>{product.name.slice(0, 1)}</b>
+                <span>{product.custom_category || product.product_categories?.name || "منتج"}</span>
+              </div>
               <div className="provider-product-body">
                 <header>
-                  <div><small>{product.sku || "بدون SKU"}</small><h3>{product.name}</h3></div>
+                  <div>
+                    <small>{product.sku || "بدون SKU"}</small>
+                    <h3>{product.name}</h3>
+                  </div>
                   <span className={`provider-status ${reviewClasses[product.review_status] ?? "provider-status-info"}`}>{reviewLabels[product.review_status] ?? product.review_status}</span>
                 </header>
                 <dl>
-                  <div><dt>السعر</dt><dd>{product.unit_price === null ? "—" : `${Number(product.unit_price).toLocaleString("ar-SA")} ر.س`}</dd></div>
-                  <div><dt>المخزون</dt><dd>{product.stock_quantity === null ? "—" : `${Number(product.stock_quantity).toLocaleString("ar-SA")} ${product.base_unit}`}</dd></div>
-                  <div><dt>النشر</dt><dd>{product.is_published ? "منشور" : "غير منشور"}</dd></div>
+                  <div>
+                    <dt>السعر</dt>
+                    <dd>{product.unit_price === null ? "—" : `${Number(product.unit_price).toLocaleString("ar-SA")} ر.س`}</dd>
+                  </div>
+                  <div>
+                    <dt>المخزون</dt>
+                    <dd>{product.stock_quantity === null ? "—" : `${Number(product.stock_quantity).toLocaleString("ar-SA")} ${product.base_unit}`}</dd>
+                  </div>
+                  <div>
+                    <dt>النشر</dt>
+                    <dd>{product.is_published ? "منشور" : "غير منشور"}</dd>
+                  </div>
                 </dl>
                 <p>آخر تحديث: {new Date(product.updated_at).toLocaleString("ar-SA")}</p>
-                <span className={styles.viewHint}>عرض التفاصيل الكاملة <b aria-hidden>←</b></span>
+                <span className={styles.viewHint}>
+                  عرض التفاصيل الكاملة <b aria-hidden>←</b>
+                </span>
               </div>
             </article>
           ))}
         </div>
       )}
 
-      {detailId ? (
-        <ProviderProductDetailsDialog
-          product={details}
-          loading={detailsLoading}
-          error={detailsError}
-          activeImage={activeImage}
-          onActiveImage={setActiveImage}
-          onClose={closeDetails}
-          onRetry={() => void openDetails(detailId)}
-        />
-      ) : null}
+      {detailId ? <ProviderProductDetailsDialog product={details} loading={detailsLoading} error={detailsError} activeImage={activeImage} onActiveImage={setActiveImage} onClose={closeDetails} onRetry={() => void openDetails(detailId)} /> : null}
     </section>
   );
 }
 
-function ProviderProductDetailsDialog({
-  product,
-  loading,
-  error,
-  activeImage,
-  onActiveImage,
-  onClose,
-  onRetry,
-}: {
-  product: ProviderProductDetails | null;
-  loading: boolean;
-  error: string;
-  activeImage: number;
-  onActiveImage: (index: number) => void;
-  onClose: () => void;
-  onRetry: () => void;
-}) {
+function ProviderProductDetailsDialog({ product, loading, error, activeImage, onActiveImage, onClose, onRetry }: { product: ProviderProductDetails | null; loading: boolean; error: string; activeImage: number; onActiveImage: (index: number) => void; onClose: () => void; onRetry: () => void }) {
   const images = product?.product_images.filter((image) => image.signed_url) ?? [];
   const shownImage = images[Math.min(activeImage, Math.max(images.length - 1, 0))];
 
   return (
-    <div className="provider-modal-backdrop" onMouseDown={(event) => {
-      if (event.target === event.currentTarget) onClose();
-    }}>
-      <section
-        className={`${styles.detailModal} provider-modal`}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="provider-product-detail-title"
-        aria-busy={loading}
-      >
-        <button className="provider-modal-close" type="button" onClick={onClose} aria-label="إغلاق تفاصيل المنتج">×</button>
+    <div
+      className="provider-modal-backdrop"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <section className={`${styles.detailModal} provider-modal`} role="dialog" aria-modal="true" aria-labelledby="provider-product-detail-title" aria-busy={loading}>
+        <button className="provider-modal-close" type="button" onClick={onClose} aria-label="إغلاق تفاصيل المنتج">
+          ×
+        </button>
 
         {loading ? (
           <div className={styles.detailLoading} role="status">
@@ -310,48 +329,37 @@ function ProviderProductDetailsDialog({
             <b aria-hidden>!</b>
             <h3>تعذر عرض التفاصيل</h3>
             <p>{error || "لم يتم العثور على المنتج."}</p>
-            <button className="provider-secondary" type="button" onClick={onRetry}>إعادة المحاولة</button>
+            <button className="provider-secondary" type="button" onClick={onRetry}>
+              إعادة المحاولة
+            </button>
           </div>
         ) : (
           <div className={styles.detailContent}>
             <header className={styles.detailHeader}>
               <div>
-                <small>{product.custom_category || product.product_categories?.name || "منتج"} · {product.sku || "بدون SKU"}</small>
+                <small>
+                  {product.custom_category || product.product_categories?.name || "منتج"} · {product.sku || "بدون SKU"}
+                </small>
                 <h3 id="provider-product-detail-title">{product.name}</h3>
               </div>
-              <span className={`provider-status ${reviewClasses[product.review_status] ?? "provider-status-info"}`}>
-                {reviewLabels[product.review_status] ?? product.review_status}
-              </span>
+              <span className={`provider-status ${reviewClasses[product.review_status] ?? "provider-status-info"}`}>{reviewLabels[product.review_status] ?? product.review_status}</span>
             </header>
 
-            {product.review_status === "pending_review" ? (
-              <p className={styles.readOnlyNotice}>⌛ المنتج تحت المراجعة. يمكنك مشاهدة جميع بياناته، ولا يمكن تعديله حتى تنتهي المراجعة.</p>
-            ) : null}
+            {product.review_status === "pending_review" ? <p className={styles.readOnlyNotice}>⌛ المنتج تحت المراجعة. يمكنك مشاهدة جميع بياناته، ولا يمكن تعديله حتى تنتهي المراجعة.</p> : null}
 
             <div className={styles.gallery}>
               {shownImage?.signed_url ? (
-                <Image
-                  className={styles.heroImage}
-                  src={shownImage.signed_url}
-                  alt={shownImage.alt_text || product.name}
-                  width={1200}
-                  height={800}
-                  unoptimized
-                />
+                <Image className={styles.heroImage} src={shownImage.signed_url} alt={shownImage.alt_text || product.name} width={1200} height={800} unoptimized />
               ) : (
-                <div className={styles.imageFallback}><b>{product.name.slice(0, 1)}</b><span>لا توجد صورة متاحة</span></div>
+                <div className={styles.imageFallback}>
+                  <b>{product.name.slice(0, 1)}</b>
+                  <span>لا توجد صورة متاحة</span>
+                </div>
               )}
               {images.length > 1 ? (
                 <div className={styles.thumbnails} aria-label="صور المنتج">
                   {images.map((image, index) => (
-                    <button
-                      type="button"
-                      key={image.id}
-                      className={index === activeImage ? styles.activeThumbnail : undefined}
-                      onClick={() => onActiveImage(index)}
-                      aria-label={`عرض الصورة ${index + 1}`}
-                      aria-pressed={index === activeImage}
-                    >
+                    <button type="button" key={image.id} className={index === activeImage ? styles.activeThumbnail : undefined} onClick={() => onActiveImage(index)} aria-label={`عرض الصورة ${index + 1}`} aria-pressed={index === activeImage}>
                       <Image src={image.signed_url!} alt="" width={160} height={110} unoptimized />
                     </button>
                   ))}
@@ -377,6 +385,41 @@ function ProviderProductDetailsDialog({
               <p className={styles.description}>{product.full_description || product.description || product.short_description}</p>
             </section>
 
+            {product.product_measurements.length || product.product_variants.length ? (
+              <section className={styles.detailSection}>
+                <h4>المقاسات والفئات المتوفرة</h4>
+                <dl className={styles.detailGrid}>
+                  {product.product_measurements.map((item) => (
+                    <DetailValue key={`${item.label}-${item.sort_order}`} label={item.is_default ? "القياس الافتراضي" : "قياس متوفر"} value={item.label} />
+                  ))}
+                  {product.product_variants.map((item) => (
+                    <DetailValue key={item.sku} label="خيار منتج" value={item.name} />
+                  ))}
+                </dl>
+              </section>
+            ) : null}
+
+            {product.product_specifications.length ? (
+              <section className={styles.detailSection}>
+                <h4>المواصفات الفنية</h4>
+                <dl className={styles.detailGrid}>
+                  {product.product_specifications.map((item) => (
+                    <DetailValue key={`${item.value}-${item.sort_order}`} label="مواصفة" value={item.value} />
+                  ))}
+                </dl>
+              </section>
+            ) : null}
+
+            {product.product_warranties ? (
+              <section className={styles.detailSection}>
+                <h4>الضمان</h4>
+                <dl className={styles.detailGrid}>
+                  <DetailValue label={product.product_warranties.label} value={product.product_warranties.duration} />
+                  <DetailValue label="تفاصيل الضمان" value={product.product_warranties.details} wide />
+                </dl>
+              </section>
+            ) : null}
+
             <section className={styles.detailSection}>
               <h4>التوفر والتوصيل</h4>
               <dl className={styles.detailGrid}>
@@ -389,9 +432,17 @@ function ProviderProductDetailsDialog({
             </section>
 
             <footer className={styles.detailFooter}>
-              <div><span>تاريخ الإضافة</span><b>{new Date(product.created_at).toLocaleString("ar-SA")}</b></div>
-              <div><span>آخر تحديث</span><b>{new Date(product.updated_at).toLocaleString("ar-SA")}</b></div>
-              <button className="provider-secondary" type="button" onClick={onClose}>إغلاق</button>
+              <div>
+                <span>تاريخ الإضافة</span>
+                <b>{new Date(product.created_at).toLocaleString("ar-SA")}</b>
+              </div>
+              <div>
+                <span>آخر تحديث</span>
+                <b>{new Date(product.updated_at).toLocaleString("ar-SA")}</b>
+              </div>
+              <button className="provider-secondary" type="button" onClick={onClose}>
+                إغلاق
+              </button>
             </footer>
           </div>
         )}
@@ -401,7 +452,12 @@ function ProviderProductDetailsDialog({
 }
 
 function DetailValue({ label, value, wide = false }: { label: string; value: string; wide?: boolean }) {
-  return <div className={wide ? styles.wideDetail : undefined}><dt>{label}</dt><dd>{value || "—"}</dd></div>;
+  return (
+    <div className={wide ? styles.wideDetail : undefined}>
+      <dt>{label}</dt>
+      <dd>{value || "—"}</dd>
+    </div>
+  );
 }
 
 const availabilityLabels: Record<string, string> = {
@@ -426,6 +482,11 @@ export function ProviderProductCreate() {
   const [offerType, setOfferType] = useState("sale");
   const [categoryId, setCategoryId] = useState("");
   const [availabilityStatus, setAvailabilityStatus] = useState("available");
+  const [measurementDraft, setMeasurementDraft] = useState("");
+  const [measurements, setMeasurements] = useState<string[]>([]);
+  const [variantType, setVariantType] = useState("المقاس");
+  const [variantValue, setVariantValue] = useState("");
+  const [variants, setVariants] = useState<ProductVariantInput[]>([]);
   const [images, setImages] = useState<SelectedImage[]>([]);
   const previewUrls = useRef<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -433,18 +494,28 @@ export function ProviderProductCreate() {
 
   useEffect(() => {
     let active = true;
-    void createClient().from("product_categories").select("id,name").eq("is_active", true).order("sort_order").then(({ data, error: categoryError }) => {
-      if (!active) return;
-      if (categoryError) setError("تعذر تحميل تصنيفات المنتجات.");
-      else setCategories((data ?? []) as Category[]);
-      setLoadingCategories(false);
-    });
-    return () => { active = false; };
+    void createClient()
+      .from("product_categories")
+      .select("id,name")
+      .eq("is_active", true)
+      .order("sort_order")
+      .then(({ data, error: categoryError }) => {
+        if (!active) return;
+        if (categoryError) setError("تعذر تحميل تصنيفات المنتجات.");
+        else setCategories((data ?? []) as Category[]);
+        setLoadingCategories(false);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
-  useEffect(() => () => {
-    previewUrls.current.forEach((url) => URL.revokeObjectURL(url));
-  }, []);
+  useEffect(
+    () => () => {
+      previewUrls.current.forEach((url) => URL.revokeObjectURL(url));
+    },
+    [],
+  );
 
   const selectImages = (event: ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(event.target.files ?? []);
@@ -461,7 +532,13 @@ export function ProviderProductCreate() {
       event.target.value = "";
       return;
     }
-    const next = [...images, ...additions.map((file) => ({ file, preview: URL.createObjectURL(file) }))];
+    const next = [
+      ...images,
+      ...additions.map((file) => ({
+        file,
+        preview: URL.createObjectURL(file),
+      })),
+    ];
     previewUrls.current = next.map((image) => image.preview);
     setImages(next);
     setError(additions.length || selected.length === 0 ? "" : "الصور المحددة مضافة مسبقًا.");
@@ -477,6 +554,20 @@ export function ProviderProductCreate() {
     });
   };
 
+  const addMeasurement = () => {
+    const value = measurementDraft.trim();
+    if (!value || measurements.includes(value)) return;
+    setMeasurements((current) => [...current, value]);
+    setMeasurementDraft("");
+  };
+
+  const addVariant = () => {
+    const value = variantValue.trim();
+    if (!value || variants.some((item) => item.type === variantType && item.value === value)) return;
+    setVariants((current) => [...current, { type: variantType, value }]);
+    setVariantValue("");
+  };
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (busy) return;
@@ -487,6 +578,10 @@ export function ProviderProductCreate() {
     }
 
     const form = new FormData(event.currentTarget);
+    const allMeasurements = [...new Set([...measurements, measurementDraft.trim()].filter(Boolean))];
+    const allVariants = variantValue.trim() ? [...variants, { type: variantType, value: variantValue.trim() }] : variants;
+    form.set("measurements", JSON.stringify(allMeasurements));
+    form.set("variants", JSON.stringify(allVariants));
     const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
     const reviewStatus = submitter?.value === "pending_review" ? "pending_review" : "draft";
     const rentalDurationValue = Number(form.get("rental_duration_value") || 0);
@@ -510,8 +605,11 @@ export function ProviderProductCreate() {
       form.set("intent", reviewStatus);
       const optimizedImages = await Promise.all(images.map((image) => optimizeUploadFile(image.file)));
       optimizedImages.forEach((image) => form.append("images", image, image.name));
-      const response = await fetch("/api/provider/products", { method: "POST", body: form });
-      const result = await response.json() as { error?: string };
+      const response = await fetch("/api/provider/products", {
+        method: "POST",
+        body: form,
+      });
+      const result = (await response.json()) as { error?: string };
       if (!response.ok) {
         setError(result.error ?? "تعذر إنشاء المنتج.");
         return;
@@ -536,65 +634,299 @@ export function ProviderProductCreate() {
           <h2>إضافة منتج جديد</h2>
           <span>احفظه كمسودة لإكماله لاحقًا، أو أرسله للمراجعة ليتم اعتماده ونشره.</span>
         </div>
-        <div><Link className="provider-secondary" href="/merchant/products">العودة للمنتجات</Link></div>
+        <div>
+          <Link className="provider-secondary" href="/merchant/products">
+            العودة للمنتجات
+          </Link>
+        </div>
       </header>
 
       <form className="provider-product-form" onSubmit={submit}>
         <fieldset className="provider-form-section">
-          <legend><span>1</span> البيانات الأساسية</legend>
+          <legend>
+            <span>1</span> البيانات الأساسية
+          </legend>
           <div className="provider-form-grid">
-            <label className="provider-field"><span>اسم المنتج *</span><input name="name" required minLength={2} maxLength={160} /></label>
-            <label className="provider-field"><span>التصنيف *</span><select name="category_id" required disabled={loadingCategories} value={categoryId} onChange={(event) => setCategoryId(event.target.value)}><option value="">{loadingCategories ? "جارٍ تحميل التصنيفات…" : "اختر التصنيف"}</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}<option value="other">أخرى</option></select></label>
-            {categoryId === "other" ? <label className="provider-field"><span>اكتب التصنيف الآخر *</span><input name="custom_category" required minLength={2} maxLength={80} placeholder="مثال: مواد عزل صوتي" /></label> : null}
-            <label className="provider-field"><span>رمز SKU</span><input name="sku" maxLength={80} dir="ltr" placeholder="اختياري" /></label>
-            <label className="provider-field"><span>وحدة البيع *</span><input name="base_unit" required defaultValue="وحدة" placeholder="كيس، طن، متر…" /></label>
-            <label className="provider-field wide"><span>وصف المنتج *</span><textarea name="description" required minLength={10} rows={4} placeholder="اكتب وصفًا واضحًا ومواصفات المنتج الأساسية" /></label>
+            <label className="provider-field">
+              <span>اسم المنتج *</span>
+              <input name="name" required minLength={2} maxLength={160} />
+            </label>
+            <label className="provider-field">
+              <span>التصنيف *</span>
+              <select name="category_id" required disabled={loadingCategories} value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
+                <option value="">{loadingCategories ? "جارٍ تحميل التصنيفات…" : "اختر التصنيف"}</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+                <option value="other">أخرى</option>
+              </select>
+            </label>
+            {categoryId === "other" ? (
+              <label className="provider-field">
+                <span>اكتب التصنيف الآخر *</span>
+                <input name="custom_category" required minLength={2} maxLength={80} placeholder="مثال: مواد عزل صوتي" />
+              </label>
+            ) : null}
+            <label className="provider-field">
+              <span>رمز SKU</span>
+              <input name="sku" maxLength={80} dir="ltr" placeholder="اختياري" />
+            </label>
+            <label className="provider-field">
+              <span>وحدة البيع *</span>
+              <input name="base_unit" required defaultValue="وحدة" placeholder="كيس، طن، متر…" />
+            </label>
+            <label className="provider-field wide">
+              <span>وصف المنتج *</span>
+              <textarea name="description" required minLength={10} rows={4} placeholder="اكتب وصفًا واضحًا ومواصفات المنتج الأساسية" />
+            </label>
           </div>
         </fieldset>
 
         <fieldset className="provider-form-section">
-          <legend><span>2</span> صور المنتج</legend>
+          <legend>
+            <span>2</span> صور المنتج
+          </legend>
           <label className="provider-image-drop">
             <span aria-hidden>▧</span>
             <strong>اختر صور المنتج</strong>
             <small>JPEG أو PNG أو WebP، حتى 5MB للصورة، وبحد أقصى 6 صور. يمكنك الضغط مرة أخرى لإضافة صور دون حذف المحدد سابقًا، والصورة الأولى ستكون الرئيسية.</small>
             <input className="provider-image-input" type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={selectImages} />
           </label>
-          {images.length ? <div className="provider-image-list">{images.map((image, index) => <article key={`${image.file.name}-${image.file.lastModified}`}>
-            <Image src={image.preview} alt={`معاينة ${image.file.name}`} width={320} height={224} unoptimized />
-            <strong>{image.file.name}</strong>
-            <small>{index === 0 ? "الصورة الرئيسية" : `الصورة ${index + 1}`} · {(image.file.size / 1024 / 1024).toLocaleString("ar-SA", { maximumFractionDigits: 2 })}MB</small>
-            <footer><button type="button" onClick={() => removeImage(index)}>إزالة</button></footer>
-          </article>)}</div> : <p className="provider-muted">يمكن حفظ المسودة دون صور، لكن يلزم إرفاق صورة واحدة على الأقل عند الإرسال للمراجعة.</p>}
+          {images.length ? (
+            <div className="provider-image-list">
+              {images.map((image, index) => (
+                <article key={`${image.file.name}-${image.file.lastModified}`}>
+                  <Image src={image.preview} alt={`معاينة ${image.file.name}`} width={320} height={224} unoptimized />
+                  <strong>{image.file.name}</strong>
+                  <small>
+                    {index === 0 ? "الصورة الرئيسية" : `الصورة ${index + 1}`} ·{" "}
+                    {(image.file.size / 1024 / 1024).toLocaleString("ar-SA", {
+                      maximumFractionDigits: 2,
+                    })}
+                    MB
+                  </small>
+                  <footer>
+                    <button type="button" onClick={() => removeImage(index)}>
+                      إزالة
+                    </button>
+                  </footer>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className="provider-muted">يمكن حفظ المسودة دون صور، لكن يلزم إرفاق صورة واحدة على الأقل عند الإرسال للمراجعة.</p>
+          )}
         </fieldset>
 
         <fieldset className="provider-form-section">
-          <legend><span>3</span> السعر والمخزون</legend>
-          <div className="provider-form-grid compact">
-            <label className="provider-field"><span>نوع العرض *</span><select name="offer_type" value={offerType} onChange={(event) => setOfferType(event.target.value)}><option value="sale">بيع</option><option value="rental">تأجير</option></select></label>
-            <label className="provider-field"><span>سعر الوحدة (ر.س) *</span><input name="unit_price" type="number" min="0" step="0.01" required /></label>
-            <label className="provider-field"><span>الحد الأدنى للطلب</span><input name="minimum_order" type="number" min="0.001" step="0.001" /></label>
-            <label className="provider-check"><input name="vat_inclusive" type="checkbox" defaultChecked /> السعر شامل ضريبة القيمة المضافة</label>
-            {offerType === "rental" ? <><label className="provider-field"><span>مدة التأجير *</span><input name="rental_duration_value" type="number" min="0.01" step="0.01" required /></label><label className="provider-field"><span>وحدة المدة *</span><select name="rental_duration_unit" required><option value="">اختر</option><option value="ساعة">ساعة</option><option value="يوم">يوم</option><option value="أسبوع">أسبوع</option><option value="شهر">شهر</option></select></label></> : null}
+          <legend>
+            <span>3</span> المقاسات والفئات والمواصفات
+          </legend>
+          <div className={styles.repeatBuilder}>
+            <div className={styles.repeatInputs}>
+              <label className="provider-field">
+                <span>قياس أو أبعاد</span>
+                <input value={measurementDraft} onChange={(event) => setMeasurementDraft(event.target.value)} placeholder="مثال: 20 × 20 × 40 سم" />
+              </label>
+              <button className="provider-secondary" type="button" onClick={addMeasurement}>
+                إضافة القياس
+              </button>
+            </div>
+            {measurements.length ? (
+              <div className={styles.repeatList}>
+                {measurements.map((value, index) => (
+                  <button type="button" key={value} onClick={() => setMeasurements((current) => current.filter((_, itemIndex) => itemIndex !== index))}>
+                    {index === 0 ? "الافتراضي · " : ""}
+                    {value} ×
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
-        </fieldset>
-
-        <fieldset className="provider-form-section">
-          <legend><span>4</span> التوفر والتوصيل</legend>
+          <div className={styles.repeatBuilder}>
+            <div className={styles.repeatInputs}>
+              <label className="provider-field">
+                <span>نوع الخيار</span>
+                <select value={variantType} onChange={(event) => setVariantType(event.target.value)}>
+                  {["المقاس", "الضغط", "الكثافة", "السماكة", "الدرجة", "اللون", "الموديل", "أخرى"].map((value) => (
+                    <option key={value}>{value}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="provider-field">
+                <span>قيمة الخيار</span>
+                <input value={variantValue} onChange={(event) => setVariantValue(event.target.value)} placeholder="مثال: ضغط 20 أو سماكة 5 سم" />
+              </label>
+              <button className="provider-secondary" type="button" onClick={addVariant}>
+                إضافة الخيار
+              </button>
+            </div>
+            {variants.length ? (
+              <div className={styles.repeatList}>
+                {variants.map((item, index) => (
+                  <button type="button" key={`${item.type}-${item.value}`} onClick={() => setVariants((current) => current.filter((_, itemIndex) => itemIndex !== index))}>
+                    {item.type}: {item.value} ×
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
           <div className="provider-form-grid">
-            <label className="provider-field"><span>حالة التوفر *</span><select name="availability_status" value={availabilityStatus} onChange={(event) => setAvailabilityStatus(event.target.value)}><option value="available">متوفر</option><option value="limited">كمية محدودة</option><option value="on_request">حسب الطلب</option><option value="unavailable">غير متوفر حاليًا</option></select></label>
-            {availabilityStatus === "limited" ? <label className="provider-field"><span>الكمية المتوفرة *</span><input name="stock_quantity" type="number" min="0.001" step="0.001" required placeholder="حدد الكمية المحدودة" /></label> : null}
-            <label className="provider-field"><span>مدة التجهيز *</span><input name="lead_time_label" required defaultValue="خلال 24 ساعة" /></label>
-            <label className="provider-field"><span>نافذة التوصيل *</span><input name="delivery_window" required defaultValue="يتم تحديدها بعد اعتماد الطلب" /></label>
-            <label className="provider-field wide"><span>ملاحظات التوصيل *</span><textarea name="delivery_notes" required rows={3} defaultValue="يتم تنسيق موعد وموقع التسليم مع العميل بعد اعتماد الطلب." /></label>
+            <label className="provider-field">
+              <span>GTIN / الباركود</span>
+              <input name="gtin" dir="ltr" />
+            </label>
+            <label className="provider-field">
+              <span>المصنّع / العلامة</span>
+              <input name="manufacturer" />
+            </label>
+            <label className="provider-field">
+              <span>بلد المنشأ</span>
+              <input name="country_of_origin" />
+            </label>
+            <label className="provider-field">
+              <span>المادة / التركيبة</span>
+              <input name="material" />
+            </label>
+            <label className="provider-field">
+              <span>الدرجة / الفئة</span>
+              <input name="grade" />
+            </label>
+            <label className="provider-field">
+              <span>الوزن</span>
+              <input name="weight" placeholder="مثال: 25 كجم" />
+            </label>
+            <label className="provider-field">
+              <span>اللون / التشطيب</span>
+              <input name="color" />
+            </label>
+            <label className="provider-field">
+              <span>التعبئة</span>
+              <input name="packaging" placeholder="مثال: 50 حبة/طبليه" />
+            </label>
+            <label className="provider-field">
+              <span>المواصفة أو شهادة المطابقة</span>
+              <input name="standard_reference" />
+            </label>
+            <label className="provider-field">
+              <span>الاستخدام المخصص</span>
+              <input name="intended_use" />
+            </label>
+            <label className="provider-field">
+              <span>السلامة والمناولة</span>
+              <input name="safety_notes" />
+            </label>
+            <label className="provider-field">
+              <span>شروط التخزين</span>
+              <input name="storage_conditions" />
+            </label>
+            <label className="provider-field">
+              <span>مدة الضمان</span>
+              <input name="warranty_duration" placeholder="مثال: 5 سنوات" />
+            </label>
+            <label className="provider-field">
+              <span>تفاصيل الضمان</span>
+              <input name="warranty_details" />
+            </label>
           </div>
         </fieldset>
 
-        {error ? <p className="provider-toast provider-toast-error" role="alert">{error}</p> : null}
+        <fieldset className="provider-form-section">
+          <legend>
+            <span>4</span> السعر والمخزون
+          </legend>
+          <div className="provider-form-grid compact">
+            <label className="provider-field">
+              <span>نوع العرض *</span>
+              <select name="offer_type" value={offerType} onChange={(event) => setOfferType(event.target.value)}>
+                <option value="sale">بيع</option>
+                <option value="rental">تأجير</option>
+              </select>
+            </label>
+            <label className="provider-field">
+              <span>سعر الوحدة (ر.س) *</span>
+              <input name="unit_price" type="number" min="0" step="0.01" required />
+            </label>
+            <label className="provider-field">
+              <span>الحد الأدنى للطلب</span>
+              <input name="minimum_order" type="number" min="0.001" step="0.001" />
+            </label>
+            <label className="provider-check">
+              <input name="vat_inclusive" type="checkbox" defaultChecked /> السعر شامل ضريبة القيمة المضافة
+            </label>
+            {offerType === "rental" ? (
+              <>
+                <label className="provider-field">
+                  <span>مدة التأجير *</span>
+                  <input name="rental_duration_value" type="number" min="0.01" step="0.01" required />
+                </label>
+                <label className="provider-field">
+                  <span>وحدة المدة *</span>
+                  <select name="rental_duration_unit" required>
+                    <option value="">اختر</option>
+                    <option value="ساعة">ساعة</option>
+                    <option value="يوم">يوم</option>
+                    <option value="أسبوع">أسبوع</option>
+                    <option value="شهر">شهر</option>
+                  </select>
+                </label>
+              </>
+            ) : null}
+          </div>
+        </fieldset>
+
+        <fieldset className="provider-form-section">
+          <legend>
+            <span>5</span> التوفر والتوصيل
+          </legend>
+          <div className="provider-form-grid">
+            <label className="provider-field">
+              <span>حالة التوفر *</span>
+              <select name="availability_status" value={availabilityStatus} onChange={(event) => setAvailabilityStatus(event.target.value)}>
+                <option value="available">متوفر</option>
+                <option value="limited">كمية محدودة</option>
+                <option value="on_request">حسب الطلب</option>
+                <option value="unavailable">غير متوفر حاليًا</option>
+              </select>
+            </label>
+            {availabilityStatus === "limited" ? (
+              <label className="provider-field">
+                <span>الكمية المتوفرة *</span>
+                <input name="stock_quantity" type="number" min="0.001" step="0.001" required placeholder="حدد الكمية المحدودة" />
+              </label>
+            ) : null}
+            <label className="provider-field">
+              <span>مدة التجهيز *</span>
+              <input name="lead_time_label" required defaultValue="خلال 24 ساعة" />
+            </label>
+            <label className="provider-field">
+              <span>نافذة التوصيل *</span>
+              <input name="delivery_window" required defaultValue="يتم تحديدها بعد اعتماد الطلب" />
+            </label>
+            <label className="provider-field wide">
+              <span>ملاحظات التوصيل *</span>
+              <textarea name="delivery_notes" required rows={3} defaultValue="يتم تنسيق موعد وموقع التسليم مع العميل بعد اعتماد الطلب." />
+            </label>
+          </div>
+        </fieldset>
+
+        {error ? (
+          <p className="provider-toast provider-toast-error" role="alert">
+            {error}
+          </p>
+        ) : null}
         <footer className="provider-form-actions">
-          <Link className="provider-secondary" href="/merchant/products">إلغاء</Link>
-          <button className="provider-secondary" name="intent" value="draft" type="submit" disabled={busy || loadingCategories}>{busy ? "جارٍ الحفظ…" : "حفظ كمسودة"}</button>
-          <button className="provider-primary" name="intent" value="pending_review" type="submit" disabled={busy || loadingCategories}>{busy ? "جارٍ الإرسال…" : "حفظ وإرسال للمراجعة"}</button>
+          <Link className="provider-secondary" href="/merchant/products">
+            إلغاء
+          </Link>
+          <button className="provider-secondary" name="intent" value="draft" type="submit" disabled={busy || loadingCategories}>
+            {busy ? "جارٍ الحفظ…" : "حفظ كمسودة"}
+          </button>
+          <button className="provider-primary" name="intent" value="pending_review" type="submit" disabled={busy || loadingCategories}>
+            {busy ? "جارٍ الإرسال…" : "حفظ وإرسال للمراجعة"}
+          </button>
         </footer>
       </form>
     </section>

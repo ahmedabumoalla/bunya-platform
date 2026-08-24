@@ -1,7 +1,10 @@
 .clickableCard {
   position: relative;
   cursor: pointer;
-  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
 }
 
 .clickableCard:hover {
@@ -105,7 +108,9 @@
   place-items: center;
   align-content: center;
   gap: 0.5rem;
-  background: radial-gradient(circle at 70% 20%, rgba(255, 255, 255, 0.18), transparent 15rem), linear-gradient(145deg, #0d426c, #0c7672);
+  background:
+    radial-gradient(circle at 70% 20%, rgba(255, 255, 255, 0.18), transparent 15rem),
+    linear-gradient(145deg, #0d426c, #0c7672);
 }
 
 .imageFallback b {
@@ -201,6 +206,44 @@
   white-space: pre-wrap;
 }
 
+.repeatBuilder {
+  display: grid;
+  gap: 0.6rem;
+  margin-bottom: 0.9rem;
+  border: 1px solid var(--p-line);
+  border-radius: 0.8rem;
+  background: rgba(255, 255, 255, 0.025);
+  padding: 0.85rem;
+}
+
+.repeatInputs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+  align-items: end;
+  gap: 0.65rem;
+}
+
+.repeatInputs > button {
+  min-height: 2.8rem;
+}
+
+.repeatList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.repeatList button {
+  border: 1px solid rgba(103, 232, 249, 0.25);
+  border-radius: 999px;
+  background: rgba(20, 184, 166, 0.1);
+  padding: 0.45rem 0.75rem;
+  color: var(--bunya-text-primary);
+  font-size: 0.72rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
 .detailFooter {
   display: grid !important;
   grid-template-columns: 1fr 1fr auto;
@@ -273,6 +316,10 @@
 }
 
 @media (max-width: 700px) {
+  .repeatInputs {
+    grid-template-columns: 1fr;
+  }
+
   .detailModal {
     width: 100% !important;
     max-height: 100dvh;

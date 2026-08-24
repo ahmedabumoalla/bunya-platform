@@ -52,6 +52,15 @@ function optionalNumber(form: FormData, name: string) {
   return Number.isFinite(parsed) ? parsed : Number.NaN;
 }
 
+function jsonArray(form: FormData, name: string): unknown[] | null {
+  try {
+    const value = JSON.parse(text(form, name) || "[]");
+    return Array.isArray(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
 function safeFileName(name: string) {
   return name.replace(/[^a-zA-Z0-9._-]/g, "-").slice(-120) || "product-image";
 }
@@ -67,7 +76,11 @@ async function rollbackProduct(productId: string, uploadedPaths: string[]) {
   const supabase = await createClient();
   if (uploadedPaths.length) await supabase.storage.from(IMAGE_BUCKET).remove(uploadedPaths);
   const removed = await supabase.from("products").delete().eq("id", productId);
-  if (removed.error) console.error("provider_product_rollback_failed", { productId, code: removed.error.code });
+  if (removed.error)
+    console.error("provider_product_rollback_failed", {
+      productId,
+      code: removed.error.code,
+    });
 }
 
 export async function POST(request: Request) {
@@ -98,6 +111,46 @@ export async function POST(request: Request) {
   const rentalDuration = optionalNumber(form, "rental_duration_value");
   const rentalDurationUnit = text(form, "rental_duration_unit") || null;
   const images = form.getAll("images").filter((value): value is File => value instanceof File && value.size > 0);
+  const measurementInput = jsonArray(form, "measurements");
+  const variantInput = jsonArray(form, "variants");
+  if (!measurementInput || !variantInput) {
+    return Response.json({ error: "تعذر قراءة المقاسات أو فئات المنتج." }, { status: 400 });
+  }
+  const measurements = [...new Set(measurementInput.map((value) => String(value).trim()).filter(Boolean))].slice(0, 40);
+  const variants = variantInput
+    .map((value) =>
+      value && typeof value === "object"
+        ? {
+            type: String((value as Record<string, unknown>).type ?? "").trim(),
+            value: String((value as Record<string, unknown>).value ?? "").trim(),
+          }
+        : null,
+    )
+    .filter((value): value is { type: string; value: string } => Boolean(value?.type && value.value))
+    .slice(0, 60);
+  if (measurements.some((value) => value.length > 120) || variants.some((item) => item.type.length > 40 || item.value.length > 120)) {
+    return Response.json({ error: "أحد المقاسات أو خيارات المنتج أطول من الحد المسموح." }, { status: 400 });
+  }
+  const specificationFields: Array<[string, string]> = [
+    ["GTIN / الباركود", "gtin"],
+    ["المصنّع / العلامة", "manufacturer"],
+    ["بلد المنشأ", "country_of_origin"],
+    ["المادة / التركيبة", "material"],
+    ["الدرجة / الفئة", "grade"],
+    ["الوزن", "weight"],
+    ["اللون / التشطيب", "color"],
+    ["التعبئة", "packaging"],
+    ["المواصفة أو شهادة المطابقة", "standard_reference"],
+    ["الاستخدام المخصص", "intended_use"],
+    ["السلامة والمناولة", "safety_notes"],
+    ["شروط التخزين", "storage_conditions"],
+  ];
+  const specifications = specificationFields
+    .map(([label, field]) => [label, text(form, field)] as const)
+    .filter(([, value]) => value)
+    .map(([label, value]) => `${label}: ${value}`);
+  const warrantyDuration = text(form, "warranty_duration");
+  const warrantyDetails = text(form, "warranty_details");
 
   const usesCustomCategory = categoryId === "other";
   if (name.length < 2 || !categoryId || (usesCustomCategory && (customCategory.length < 2 || customCategory.length > 80)) || !baseUnit || description.length < 10 || unitPrice === null || !Number.isFinite(unitPrice) || unitPrice < 0) {
@@ -172,16 +225,66 @@ export async function POST(request: Request) {
   const inserted = await supabase.from("products").insert(product).select("id").single();
   if (inserted.error || !inserted.data) {
     const message = inserted.error?.code === "23505" ? "رمز SKU مستخدم لمنتج آخر." : "تعذر إنشاء المنتج في قاعدة البيانات.";
-    console.error("provider_product_insert_failed", { code: inserted.error?.code, details: inserted.error?.details });
-    return Response.json({
-      error: message,
-      diagnostic: process.env.NODE_ENV === "development" ? { code: inserted.error?.code, message: inserted.error?.message } : undefined,
-    }, { status: 400 });
+    console.error("provider_product_insert_failed", {
+      code: inserted.error?.code,
+      details: inserted.error?.details,
+    });
+    return Response.json(
+      {
+        error: message,
+        diagnostic: process.env.NODE_ENV === "development" ? { code: inserted.error?.code, message: inserted.error?.message } : undefined,
+      },
+      { status: 400 },
+    );
   }
 
   const productId = String(inserted.data.id);
   const uploadedPaths: string[] = [];
   try {
+    if (measurements.length) {
+      const baseUnitResult = await supabase.from("product_units").select("id").eq("product_id", productId).eq("is_base", true).maybeSingle();
+      if (baseUnitResult.error || !baseUnitResult.data) throw new Error("تعذر ربط المقاسات بوحدة المنتج الأساسية.");
+      const measurementRows = measurements.map((value, index) => ({
+        product_id: productId,
+        unit_id: baseUnitResult.data.id,
+        label: value,
+        is_default: index === 0,
+        sort_order: index,
+      }));
+      const measurementResult = await supabase.from("product_measurements").insert(measurementRows);
+      if (measurementResult.error) throw new Error("تعذر حفظ مقاسات المنتج.");
+    }
+    if (variants.length) {
+      const variantRows = variants.map((item, index) => ({
+        product_id: productId,
+        sku: `${product.sku || "WEB"}-${productId.slice(0, 8)}-${index + 1}`,
+        name: `${item.type}: ${item.value}`,
+        attributes: { [item.type]: item.value },
+        is_active: true,
+        sort_order: index,
+      }));
+      const variantResult = await supabase.from("product_variants").insert(variantRows);
+      if (variantResult.error) throw new Error("تعذر حفظ فئات وخيارات المنتج.");
+    }
+    if (specifications.length) {
+      const specificationResult = await supabase.from("product_specifications").insert(
+        specifications.map((value, index) => ({
+          product_id: productId,
+          value,
+          sort_order: index,
+        })),
+      );
+      if (specificationResult.error) throw new Error("تعذر حفظ المواصفات الفنية.");
+    }
+    if (warrantyDuration) {
+      const warrantyResult = await supabase.from("product_warranties").insert({
+        product_id: productId,
+        label: "ضمان المنتج",
+        duration: warrantyDuration,
+        details: warrantyDetails || "حسب شروط وضمان المزوّد",
+      });
+      if (warrantyResult.error) throw new Error("تعذر حفظ بيانات الضمان.");
+    }
     for (let index = 0; index < images.length; index += 1) {
       const image = images[index];
       const path = `${provider.providerId}/${productId}/${crypto.randomUUID()}-${safeFileName(image.name)}`;
@@ -211,17 +314,23 @@ export async function POST(request: Request) {
       const existing = await admin.from("notifications").select("profile_id").eq("type", "admin.product_pending_review").eq("entity_type", "product").eq("entity_id", productId).in("profile_id", profileIds);
       if (existing.error) throw new Error("تعذر التحقق من إشعار المراجعة.");
       const notified = new Set((existing.data ?? []).map((row) => String(row.profile_id)));
-      const notifications = profileIds.filter((profileId) => !notified.has(profileId)).map((profileId) => ({
-        profile_id: profileId,
-        actor_profile_id: identity.userId,
-        type: "admin.product_pending_review",
-        title: "منتج جديد بانتظار المراجعة",
-        message: `أضافت منشأة ${provider.companyName} المنتج «${name}» وأرسلته للمراجعة.`,
-        action_url: `/admin/products/review/${productId}`,
-        entity_type: "product",
-        entity_id: productId,
-        metadata: { provider_id: provider.providerId, provider_name: provider.companyName, product_name: name },
-      }));
+      const notifications = profileIds
+        .filter((profileId) => !notified.has(profileId))
+        .map((profileId) => ({
+          profile_id: profileId,
+          actor_profile_id: identity.userId,
+          type: "admin.product_pending_review",
+          title: "منتج جديد بانتظار المراجعة",
+          message: `أضافت منشأة ${provider.companyName} المنتج «${name}» وأرسلته للمراجعة.`,
+          action_url: `/admin/products/review/${productId}`,
+          entity_type: "product",
+          entity_id: productId,
+          metadata: {
+            provider_id: provider.providerId,
+            provider_name: provider.companyName,
+            product_name: name,
+          },
+        }));
       if (notifications.length) {
         const notificationResult = await admin.from("notifications").insert(notifications);
         if (notificationResult.error) throw new Error("تعذر إرسال إشعار المنتج إلى الإدارة.");

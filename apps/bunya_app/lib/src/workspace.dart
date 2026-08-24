@@ -184,7 +184,7 @@ class WorkspaceRepository {
     final isProducts = module.table == 'products';
     final isQuoteRequests = module.table == 'quote_requests';
     final selection = isProducts
-        ? '*,providers(company_name,contact_name,mobile,email),product_categories(name,slug),product_images(image_url,storage_path,is_primary,sort_order),product_units(name,is_base,sort_order),product_measurements(label,is_default,product_units(name)),product_specifications(value,sort_order),product_warranties(label,duration,details),product_availability_regions(city,scope),product_delivery_configs(is_available,maximum_duration,duration_unit,price_per_km,maximum_distance_km,notes),product_delivery_regions(region_name),product_review_history(from_status,to_status,notes,changed_at)'
+        ? '*,providers(company_name,contact_name,mobile,email),product_categories(name,slug),product_images(image_url,storage_path,is_primary,sort_order),product_units(name,is_base,sort_order),product_measurements(label,is_default,product_units(name)),product_variants(name,sku,attributes,is_active,sort_order),product_specifications(value,sort_order),product_warranties(label,duration,details),product_availability_regions(city,scope),product_delivery_configs(is_available,maximum_duration,duration_unit,price_per_km,maximum_distance_km,notes),product_delivery_regions(region_name),product_review_history(from_status,to_status,notes,changed_at)'
         : isQuoteRequests
         ? '*,quote_request_items(product_name_snapshot,measurement_label_snapshot,unit_name_snapshot,quantity,notes),bunya_customer_quotes(quote_code,subtotal,vat_amount,delivery_fee,total,valid_until,expected_delivery_at,status,processing_stage)'
         : '*';
@@ -286,7 +286,8 @@ class WorkspaceRepository {
     required String offerType,
     required double? rentalDuration,
     required String? rentalDurationUnit,
-    required String? measurement,
+    required List<String> measurements,
+    required List<Map<String, String>> variants,
     required List<String> specifications,
     required String? warrantyDuration,
     required String? warrantyDetails,
@@ -343,7 +344,7 @@ class WorkspaceRepository {
           .select('id')
           .single();
       productId = '${inserted['id']}';
-      if (measurement?.trim().isNotEmpty == true) {
+      if (measurements.isNotEmpty) {
         final base = await client
             .from('product_units')
             .select('id')
@@ -351,14 +352,32 @@ class WorkspaceRepository {
             .eq('is_base', true)
             .maybeSingle();
         if (base != null) {
-          await client.from('product_measurements').insert({
-            'product_id': productId,
-            'unit_id': base['id'],
-            'label': measurement!.trim(),
-            'is_default': true,
-            'sort_order': 0,
-          });
+          await client.from('product_measurements').insert([
+            for (var index = 0; index < measurements.length; index++)
+              {
+                'product_id': productId,
+                'unit_id': base['id'],
+                'label': measurements[index],
+                'is_default': index == 0,
+                'sort_order': index,
+              },
+          ]);
         }
+      }
+      if (variants.isNotEmpty) {
+        await client.from('product_variants').insert([
+          for (var index = 0; index < variants.length; index++)
+            {
+              'product_id': productId,
+              'sku': '${sku?.isNotEmpty == true ? sku : 'APP'}-$stamp-$index',
+              'name': '${variants[index]['type']}: ${variants[index]['value']}',
+              'attributes': {
+                '${variants[index]['type']}': variants[index]['value'],
+              },
+              'is_active': true,
+              'sort_order': index,
+            },
+        ]);
       }
       if (specifications.isNotEmpty) {
         await client.from('product_specifications').insert([
@@ -3659,6 +3678,7 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
   final material = TextEditingController();
   final grade = TextEditingController();
   final measurement = TextEditingController();
+  final variantValue = TextEditingController();
   final weight = TextEditingController();
   final color = TextEditingController();
   final packaging = TextEditingController();
@@ -3675,7 +3695,10 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
   String unit = 'حبة';
   String availability = 'available';
   String offerType = 'sale', rentalUnit = 'day', weightUnit = 'كجم';
+  String variantType = 'المقاس';
   bool vatInclusive = true, hasWarranty = false, busy = false;
+  final List<String> measurements = [];
+  final List<Map<String, String>> variants = [];
   XFile? image;
   Uint8List? imageBytes;
 
@@ -3697,6 +3720,7 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
       material,
       grade,
       measurement,
+      variantValue,
       weight,
       color,
       packaging,
@@ -3735,6 +3759,29 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
   double? number(String value) {
     final clean = value.trim().replaceAll(',', '.');
     return clean.isEmpty ? null : double.tryParse(clean);
+  }
+
+  void addMeasurement() {
+    final value = measurement.text.trim();
+    if (value.isEmpty || measurements.contains(value)) return;
+    setState(() {
+      measurements.add(value);
+      measurement.clear();
+    });
+  }
+
+  void addVariant() {
+    final value = variantValue.text.trim();
+    if (value.isEmpty ||
+        variants.any(
+          (item) => item['type'] == variantType && item['value'] == value,
+        )) {
+      return;
+    }
+    setState(() {
+      variants.add({'type': variantType, 'value': value});
+      variantValue.clear();
+    });
   }
 
   Future<void> submit() async {
@@ -3787,6 +3834,15 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
     addSpecification('الاستخدام المخصص', intendedUse.text);
     addSpecification('السلامة والمناولة', safety.text);
     addSpecification('شروط التخزين', storage.text);
+    final allMeasurements = <String>{
+      ...measurements,
+      if (measurement.text.trim().isNotEmpty) measurement.text.trim(),
+    }.toList();
+    final allVariants = <Map<String, String>>[
+      ...variants,
+      if (variantValue.text.trim().isNotEmpty)
+        {'type': variantType, 'value': variantValue.text.trim()},
+    ];
     setState(() => busy = true);
     try {
       final extension = image!.name.toLowerCase();
@@ -3816,9 +3872,8 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
         offerType: offerType,
         rentalDuration: rentalValue,
         rentalDurationUnit: offerType == 'rental' ? rentalUnit : null,
-        measurement: measurement.text.trim().isEmpty
-            ? null
-            : measurement.text.trim(),
+        measurements: allMeasurements,
+        variants: allVariants,
         specifications: specifications,
         warrantyDuration: hasWarranty ? warrantyDuration.text.trim() : null,
         warrantyDetails: hasWarranty ? warrantyDetails.text.trim() : null,
@@ -4081,16 +4136,118 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
           const _ProductFormHeading(
             icon: Icons.aspect_ratio_rounded,
             title: 'الخصائص الفيزيائية',
-            caption: 'الأبعاد والوزن واللون والتعبئة كلها اختيارية',
+            caption: 'أضف كل المقاسات المتوفرة؛ أول مقاس يصبح الافتراضي',
           ),
-          TextField(
-            controller: measurement,
-            decoration: const InputDecoration(
-              labelText: 'القياسات / الأبعاد — اختياري',
-              hintText: 'مثال: 20 × 20 × 40 سم',
-              prefixIcon: Icon(Icons.straighten_rounded),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: measurement,
+                  onSubmitted: (_) => addMeasurement(),
+                  decoration: const InputDecoration(
+                    labelText: 'قياس / أبعاد — اختياري',
+                    hintText: 'مثال: 20 × 20 × 40 سم',
+                    prefixIcon: Icon(Icons.straighten_rounded),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              FilledButton.icon(
+                onPressed: addMeasurement,
+                icon: const Icon(Icons.add_rounded),
+                label: const Text('إضافة'),
+              ),
+            ],
+          ),
+          if (measurements.isNotEmpty) ...[
+            const SizedBox(height: 9),
+            Wrap(
+              spacing: 7,
+              runSpacing: 7,
+              children: [
+                for (var index = 0; index < measurements.length; index++)
+                  InputChip(
+                    avatar: index == 0
+                        ? const Icon(Icons.star_rounded, size: 16)
+                        : null,
+                    label: Text(measurements[index]),
+                    onDeleted: () =>
+                        setState(() => measurements.removeAt(index)),
+                  ),
+              ],
             ),
+          ],
+          const _ProductFormHeading(
+            icon: Icons.account_tree_outlined,
+            title: 'الفئات وخيارات المنتج',
+            caption:
+                'متعددة حسب المنتج: مقاس، ضغط، كثافة، سماكة، درجة أو موديل',
           ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  initialValue: variantType,
+                  decoration: const InputDecoration(labelText: 'نوع الخيار'),
+                  items:
+                      const [
+                            'المقاس',
+                            'الضغط',
+                            'الكثافة',
+                            'السماكة',
+                            'الدرجة',
+                            'اللون',
+                            'الموديل',
+                            'أخرى',
+                          ]
+                          .map(
+                            (value) => DropdownMenuItem(
+                              value: value,
+                              child: Text(value),
+                            ),
+                          )
+                          .toList(),
+                  onChanged: (value) =>
+                      setState(() => variantType = value ?? variantType),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 2,
+                child: TextField(
+                  controller: variantValue,
+                  onSubmitted: (_) => addVariant(),
+                  decoration: const InputDecoration(
+                    labelText: 'القيمة',
+                    hintText: 'مثال: ضغط 20 أو 15 سم',
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton.filled(
+                onPressed: addVariant,
+                tooltip: 'إضافة الخيار',
+                icon: const Icon(Icons.add_rounded),
+              ),
+            ],
+          ),
+          if (variants.isNotEmpty) ...[
+            const SizedBox(height: 9),
+            Wrap(
+              spacing: 7,
+              runSpacing: 7,
+              children: [
+                for (var index = 0; index < variants.length; index++)
+                  InputChip(
+                    label: Text(
+                      '${variants[index]['type']}: ${variants[index]['value']}',
+                    ),
+                    onDeleted: () => setState(() => variants.removeAt(index)),
+                  ),
+              ],
+            ),
+          ],
           const SizedBox(height: 10),
           Row(
             children: [
@@ -4531,6 +4688,10 @@ class _ProductRecordDetailsState extends State<_ProductRecordDetails> {
         .map((item) => '${(item as Map)['label'] ?? ''}'.trim())
         .where((value) => value.isNotEmpty)
         .toList();
+    final variants = ((row['product_variants'] as List?) ?? const [])
+        .map((item) => '${(item as Map)['name'] ?? ''}'.trim())
+        .where((value) => value.isNotEmpty)
+        .toList();
     final specifications =
         ((row['product_specifications'] as List?) ?? const [])
             .map((item) => '${(item as Map)['value'] ?? ''}'.trim())
@@ -4834,6 +4995,18 @@ class _ProductRecordDetailsState extends State<_ProductRecordDetails> {
                       _JoinTags(
                         values: [...units, ...measurements],
                         empty: 'لا توجد وحدات أو قياسات إضافية',
+                      ),
+                    ],
+                    if (variants.isNotEmpty) ...[
+                      const SizedBox(height: 22),
+                      const _SectionTitle(
+                        icon: Icons.account_tree_outlined,
+                        title: 'فئات وخيارات المنتج',
+                      ),
+                      const SizedBox(height: 9),
+                      _JoinTags(
+                        values: variants,
+                        empty: 'لا توجد خيارات إضافية',
                       ),
                     ],
                     if (specifications.isNotEmpty) ...[
