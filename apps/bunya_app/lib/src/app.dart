@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui' show PointerDeviceKind;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -76,14 +75,6 @@ class _BunyaAppState extends State<BunyaApp> {
     debugShowCheckedModeBanner: false,
     theme: bunyaTheme(),
     locale: const Locale('ar'),
-    scrollBehavior: const MaterialScrollBehavior().copyWith(
-      dragDevices: const {
-        PointerDeviceKind.touch,
-        PointerDeviceKind.mouse,
-        PointerDeviceKind.stylus,
-        PointerDeviceKind.trackpad,
-      },
-    ),
     builder: (context, child) =>
         Directionality(textDirection: TextDirection.rtl, child: child!),
     home: const BunyaShell(),

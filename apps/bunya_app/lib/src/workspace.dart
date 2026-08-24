@@ -2574,28 +2574,13 @@ class _ModuleRecordsScreenState extends State<ModuleRecordsScreen> {
   );
 
   Future<void> addProduct() async {
-    final added = await showGeneralDialog<bool>(
+    final added = await showModalBottomSheet<bool>(
       context: context,
-      barrierDismissible: true,
-      barrierLabel: 'إغلاق إضافة المنتج',
-      barrierColor: Colors.black54,
-      transitionDuration: const Duration(milliseconds: 160),
-      pageBuilder: (_, __, ___) => Align(
-        alignment: Alignment.bottomCenter,
-        child: FractionallySizedBox(
-          heightFactor: .95,
-          widthFactor: 1,
-          child: _CreateProductSheet(
-            repository: widget.repository,
-            providerId: widget.module.filterValue!,
-          ),
-        ),
-      ),
-      transitionBuilder: (_, animation, __, child) => SlideTransition(
-        position: Tween(begin: const Offset(0, .06), end: Offset.zero).animate(
-          CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
-        ),
-        child: FadeTransition(opacity: animation, child: child),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _CreateProductSheet(
+        repository: widget.repository,
+        providerId: widget.module.filterValue!,
       ),
     );
     if (added == true && mounted) {
@@ -3710,10 +3695,7 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
   String unit = 'حبة';
   String availability = 'available';
   String offerType = 'sale', rentalUnit = 'day', weightUnit = 'كجم';
-  String variantType = 'المقاس';
   bool vatInclusive = true, hasWarranty = false, busy = false;
-  final List<String> measurements = [];
-  final List<Map<String, String>> variants = [];
   XFile? image;
   Uint8List? imageBytes;
 
@@ -3776,29 +3758,6 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
     return clean.isEmpty ? null : double.tryParse(clean);
   }
 
-  void addMeasurement() {
-    final value = measurement.text.trim();
-    if (value.isEmpty || measurements.contains(value)) return;
-    setState(() {
-      measurements.add(value);
-      measurement.clear();
-    });
-  }
-
-  void addVariant() {
-    final value = variantValue.text.trim();
-    if (value.isEmpty ||
-        variants.any(
-          (item) => item['type'] == variantType && item['value'] == value,
-        )) {
-      return;
-    }
-    setState(() {
-      variants.add({'type': variantType, 'value': value});
-      variantValue.clear();
-    });
-  }
-
   Future<void> submit() async {
     final unitPrice = number(price.text);
     final minimumOrder = number(minimum.text);
@@ -3849,15 +3808,28 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
     addSpecification('الاستخدام المخصص', intendedUse.text);
     addSpecification('السلامة والمناولة', safety.text);
     addSpecification('شروط التخزين', storage.text);
-    final allMeasurements = <String>{
-      ...measurements,
-      if (measurement.text.trim().isNotEmpty) measurement.text.trim(),
-    }.toList();
-    final allVariants = <Map<String, String>>[
-      ...variants,
-      if (variantValue.text.trim().isNotEmpty)
-        {'type': variantType, 'value': variantValue.text.trim()},
-    ];
+    final separators = RegExp(r'[\n,،;]+');
+    final allMeasurements = measurement.text
+        .split(separators)
+        .map((value) => value.trim())
+        .where((value) => value.isNotEmpty)
+        .toSet()
+        .toList();
+    final allVariants = variantValue.text
+        .split(separators)
+        .map((value) => value.trim())
+        .where((value) => value.isNotEmpty)
+        .map((value) {
+          final separator = value.indexOf(RegExp(r'[:：]'));
+          return separator > 0
+              ? {
+                  'type': value.substring(0, separator).trim(),
+                  'value': value.substring(separator + 1).trim(),
+                }
+              : {'type': 'خيار', 'value': value};
+        })
+        .where((item) => item['value']!.isNotEmpty)
+        .toList();
     setState(() => busy = true);
     try {
       final extension = image!.name.toLowerCase();
@@ -3909,685 +3881,594 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
   @override
   Widget build(BuildContext context) => SafeArea(
     top: false,
-    child: Material(
-      color: BunyaColors.surface,
-      shape: const RoundedRectangleBorder(
+    child: Container(
+      height: MediaQuery.sizeOf(context).height * .95,
+      decoration: const BoxDecoration(
+        color: BunyaColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
       ),
-      clipBehavior: Clip.antiAlias,
-      child: SingleChildScrollView(
-        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      child: ListView(
         padding: EdgeInsets.fromLTRB(
           18,
           12,
           18,
           MediaQuery.viewInsetsOf(context).bottom + 28,
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: BunyaColors.mint,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Icon(
-                    Icons.add_business_rounded,
-                    color: BunyaColors.forest,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'إضافة منتج جديد',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      Text(
-                        'أدخل بيانات البيع وسيصل المنتج للإدارة للمراجعة.',
-                        style: TextStyle(
-                          color: BunyaColors.muted,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton.filledTonal(
-                  onPressed: busy ? null : () => Navigator.pop(context),
-                  icon: const Icon(Icons.close_rounded),
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            InkWell(
-              onTap: busy ? null : pickImage,
-              borderRadius: BorderRadius.circular(24),
-              child: Container(
-                height: 190,
-                clipBehavior: Clip.antiAlias,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
                 decoration: BoxDecoration(
-                  color: BunyaColors.sand,
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: BunyaColors.line),
+                  color: BunyaColors.mint,
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                child: imageBytes == null
-                    ? const Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.add_photo_alternate_outlined,
-                            size: 46,
-                            color: BunyaColors.copper,
-                          ),
-                          SizedBox(height: 8),
-                          Text(
-                            'اختر صورة واضحة للمنتج',
-                            style: TextStyle(fontWeight: FontWeight.w900),
-                          ),
-                          Text(
-                            'JPG أو PNG أو WebP — بحد أقصى 5MB',
-                            style: TextStyle(
-                              color: BunyaColors.muted,
-                              fontSize: 10,
-                            ),
-                          ),
-                        ],
-                      )
-                    : Image.memory(
-                        imageBytes!,
-                        fit: BoxFit.cover,
-                        cacheWidth: 900,
-                        gaplessPlayback: true,
-                      ),
+                child: const Icon(
+                  Icons.add_business_rounded,
+                  color: BunyaColors.forest,
+                ),
               ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'إضافة منتج جديد',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    Text(
+                      'أدخل بيانات البيع وسيصل المنتج للإدارة للمراجعة.',
+                      style: TextStyle(
+                        color: BunyaColors.muted,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton.filledTonal(
+                onPressed: busy ? null : () => Navigator.pop(context),
+                icon: const Icon(Icons.close_rounded),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          InkWell(
+            onTap: busy ? null : pickImage,
+            borderRadius: BorderRadius.circular(24),
+            child: Container(
+              height: 190,
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                color: BunyaColors.sand,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: BunyaColors.line),
+              ),
+              child: imageBytes == null
+                  ? const Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.add_photo_alternate_outlined,
+                          size: 46,
+                          color: BunyaColors.copper,
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'اختر صورة واضحة للمنتج',
+                          style: TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                        Text(
+                          'JPG أو PNG أو WebP — بحد أقصى 5MB',
+                          style: TextStyle(
+                            color: BunyaColors.muted,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                    )
+                  : Image.memory(
+                      imageBytes!,
+                      fit: BoxFit.cover,
+                      cacheWidth: 900,
+                      gaplessPlayback: true,
+                    ),
             ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: name,
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: name,
+            decoration: const InputDecoration(
+              labelText: 'اسم المنتج',
+              prefixIcon: Icon(Icons.inventory_2_outlined),
+            ),
+          ),
+          const SizedBox(height: 10),
+          FutureBuilder<List<Map<String, dynamic>>>(
+            future: categories,
+            builder: (_, snapshot) => DropdownButtonFormField<String>(
+              initialValue: categoryId,
               decoration: const InputDecoration(
-                labelText: 'اسم المنتج',
-                prefixIcon: Icon(Icons.inventory_2_outlined),
+                labelText: 'التصنيف',
+                prefixIcon: Icon(Icons.category_outlined),
               ),
+              items: (snapshot.data ?? const [])
+                  .map(
+                    (item) => DropdownMenuItem<String>(
+                      value: '${item['id']}',
+                      child: Text('${item['name']}'),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) {
+                Map<String, dynamic>? selected;
+                for (final item in snapshot.data ?? const []) {
+                  if ('${item['id']}' == value) selected = item;
+                }
+                setState(() {
+                  categoryId = value;
+                  categoryTone = '${selected?['slug'] ?? 'tools'}';
+                });
+              },
             ),
-            const SizedBox(height: 10),
-            FutureBuilder<List<Map<String, dynamic>>>(
-              future: categories,
-              builder: (_, snapshot) => DropdownButtonFormField<String>(
-                initialValue: categoryId,
-                decoration: const InputDecoration(
-                  labelText: 'التصنيف',
-                  prefixIcon: Icon(Icons.category_outlined),
-                ),
-                items: (snapshot.data ?? const [])
+          ),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            initialValue: unit,
+            decoration: const InputDecoration(
+              labelText: 'الوحدة الأساسية',
+              prefixIcon: Icon(Icons.straighten_rounded),
+            ),
+            items:
+                const [
+                      'حبة',
+                      'كيس',
+                      'طن',
+                      'متر',
+                      'متر مربع',
+                      'متر مكعب',
+                      'لفة',
+                      'كرتون',
+                    ]
                     .map(
-                      (item) => DropdownMenuItem<String>(
-                        value: '${item['id']}',
-                        child: Text('${item['name']}'),
-                      ),
+                      (value) =>
+                          DropdownMenuItem(value: value, child: Text(value)),
                     )
                     .toList(),
-                onChanged: (value) {
-                  Map<String, dynamic>? selected;
-                  for (final item in snapshot.data ?? const []) {
-                    if ('${item['id']}' == value) selected = item;
-                  }
-                  setState(() {
-                    categoryId = value;
-                    categoryTone = '${selected?['slug'] ?? 'tools'}';
-                  });
-                },
-              ),
+            onChanged: (value) => setState(() => unit = value ?? unit),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: description,
+            maxLines: 4,
+            decoration: const InputDecoration(
+              labelText: 'وصف المنتج ومواصفاته',
+              alignLabelWithHint: true,
             ),
-            const SizedBox(height: 10),
-            DropdownButtonFormField<String>(
-              initialValue: unit,
-              decoration: const InputDecoration(
-                labelText: 'الوحدة الأساسية',
-                prefixIcon: Icon(Icons.straighten_rounded),
+          ),
+          const _ProductFormHeading(
+            icon: Icons.qr_code_2_rounded,
+            title: 'هوية المنتج',
+            caption: 'بيانات اختيارية تسهّل المطابقة والشراء المهني',
+          ),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: sku,
+                  textDirection: TextDirection.ltr,
+                  decoration: const InputDecoration(
+                    labelText: 'رمز المنتج SKU — اختياري',
+                  ),
+                ),
               ),
-              items:
-                  const [
-                        'حبة',
-                        'كيس',
-                        'طن',
-                        'متر',
-                        'متر مربع',
-                        'متر مكعب',
-                        'لفة',
-                        'كرتون',
-                      ]
+              const SizedBox(width: 9),
+              Expanded(
+                child: TextField(
+                  controller: gtin,
+                  keyboardType: TextInputType.number,
+                  textDirection: TextDirection.ltr,
+                  decoration: const InputDecoration(
+                    labelText: 'GTIN / الباركود — اختياري',
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: manufacturer,
+                  decoration: const InputDecoration(
+                    labelText: 'المصنّع أو العلامة — اختياري',
+                  ),
+                ),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: TextField(
+                  controller: origin,
+                  decoration: const InputDecoration(
+                    labelText: 'بلد المنشأ — اختياري',
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: material,
+                  decoration: const InputDecoration(
+                    labelText: 'المادة / التركيبة — اختياري',
+                  ),
+                ),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: TextField(
+                  controller: grade,
+                  decoration: const InputDecoration(
+                    labelText: 'الدرجة / الفئة — اختياري',
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const _ProductFormHeading(
+            icon: Icons.aspect_ratio_rounded,
+            title: 'الخصائص الفيزيائية',
+            caption: 'أضف كل المقاسات المتوفرة؛ أول مقاس يصبح الافتراضي',
+          ),
+          TextField(
+            controller: measurement,
+            minLines: 1,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              labelText: 'المقاسات / الأبعاد — اختياري',
+              hintText: '20 × 20 × 40 سم، 15 × 20 × 40 سم',
+              prefixIcon: Icon(Icons.straighten_rounded),
+            ),
+          ),
+          const _ProductFormHeading(
+            icon: Icons.account_tree_outlined,
+            title: 'الفئات وخيارات المنتج',
+            caption: 'افصل الخيارات بفاصلة واكتب النوع ثم القيمة',
+          ),
+          TextField(
+            controller: variantValue,
+            minLines: 2,
+            maxLines: 4,
+            decoration: const InputDecoration(
+              labelText: 'الخيارات المتوفرة — اختياري',
+              hintText: 'الضغط: 16، الضغط: 20، الكثافة: 18، السماكة: 5 سم',
+              alignLabelWithHint: true,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: TextField(
+                  controller: weight,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'الوزن — اختياري',
+                  ),
+                ),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  initialValue: weightUnit,
+                  decoration: const InputDecoration(labelText: 'وحدة الوزن'),
+                  items: const ['جم', 'كجم', 'طن']
                       .map(
                         (value) =>
                             DropdownMenuItem(value: value, child: Text(value)),
                       )
                       .toList(),
-              onChanged: (value) => setState(() => unit = value ?? unit),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: description,
-              maxLines: 4,
-              decoration: const InputDecoration(
-                labelText: 'وصف المنتج ومواصفاته',
-                alignLabelWithHint: true,
-              ),
-            ),
-            const _ProductFormHeading(
-              icon: Icons.qr_code_2_rounded,
-              title: 'هوية المنتج',
-              caption: 'بيانات اختيارية تسهّل المطابقة والشراء المهني',
-            ),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: sku,
-                    textDirection: TextDirection.ltr,
-                    decoration: const InputDecoration(
-                      labelText: 'رمز المنتج SKU — اختياري',
-                    ),
-                  ),
+                  onChanged: (value) =>
+                      setState(() => weightUnit = value ?? weightUnit),
                 ),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: TextField(
-                    controller: gtin,
-                    keyboardType: TextInputType.number,
-                    textDirection: TextDirection.ltr,
-                    decoration: const InputDecoration(
-                      labelText: 'GTIN / الباركود — اختياري',
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: manufacturer,
-                    decoration: const InputDecoration(
-                      labelText: 'المصنّع أو العلامة — اختياري',
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: TextField(
-                    controller: origin,
-                    decoration: const InputDecoration(
-                      labelText: 'بلد المنشأ — اختياري',
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: material,
-                    decoration: const InputDecoration(
-                      labelText: 'المادة / التركيبة — اختياري',
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: TextField(
-                    controller: grade,
-                    decoration: const InputDecoration(
-                      labelText: 'الدرجة / الفئة — اختياري',
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const _ProductFormHeading(
-              icon: Icons.aspect_ratio_rounded,
-              title: 'الخصائص الفيزيائية',
-              caption: 'أضف كل المقاسات المتوفرة؛ أول مقاس يصبح الافتراضي',
-            ),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: measurement,
-                    onSubmitted: (_) => addMeasurement(),
-                    decoration: const InputDecoration(
-                      labelText: 'قياس / أبعاد — اختياري',
-                      hintText: 'مثال: 20 × 20 × 40 سم',
-                      prefixIcon: Icon(Icons.straighten_rounded),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                FilledButton.icon(
-                  onPressed: addMeasurement,
-                  icon: const Icon(Icons.add_rounded),
-                  label: const Text('إضافة'),
-                ),
-              ],
-            ),
-            if (measurements.isNotEmpty) ...[
-              const SizedBox(height: 9),
-              Wrap(
-                spacing: 7,
-                runSpacing: 7,
-                children: [
-                  for (var index = 0; index < measurements.length; index++)
-                    InputChip(
-                      avatar: index == 0
-                          ? const Icon(Icons.star_rounded, size: 16)
-                          : null,
-                      label: Text(measurements[index]),
-                      onDeleted: () =>
-                          setState(() => measurements.removeAt(index)),
-                    ),
-                ],
               ),
             ],
-            const _ProductFormHeading(
-              icon: Icons.account_tree_outlined,
-              title: 'الفئات وخيارات المنتج',
-              caption:
-                  'متعددة حسب المنتج: مقاس، ضغط، كثافة، سماكة، درجة أو موديل',
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: color,
+                  decoration: const InputDecoration(
+                    labelText: 'اللون / التشطيب — اختياري',
+                  ),
+                ),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: TextField(
+                  controller: packaging,
+                  decoration: const InputDecoration(
+                    labelText: 'التعبئة — اختياري',
+                    hintText: 'مثال: 50 حبة/طبليه',
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const _ProductFormHeading(
+            icon: Icons.sell_outlined,
+            title: 'نوع العرض والتسعير',
+            caption: 'حدد هل المنتج للبيع أو للتأجير',
+          ),
+          SizedBox(
+            width: double.infinity,
+            child: SegmentedButton<String>(
+              segments: const [
+                ButtonSegment(
+                  value: 'sale',
+                  label: Text('بيع'),
+                  icon: Icon(Icons.shopping_bag_outlined),
+                ),
+                ButtonSegment(
+                  value: 'rental',
+                  label: Text('تأجير'),
+                  icon: Icon(Icons.event_repeat_rounded),
+                ),
+              ],
+              selected: {offerType},
+              onSelectionChanged: (value) =>
+                  setState(() => offerType = value.first),
+              showSelectedIcon: false,
             ),
+          ),
+          if (offerType == 'rental') ...[
+            const SizedBox(height: 10),
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
+                  flex: 2,
+                  child: TextField(
+                    controller: rentalDuration,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'مدة التأجير الأساسية',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 9),
+                Expanded(
                   child: DropdownButtonFormField<String>(
-                    initialValue: variantType,
-                    decoration: const InputDecoration(labelText: 'نوع الخيار'),
+                    initialValue: rentalUnit,
+                    decoration: const InputDecoration(labelText: 'المدة'),
                     items:
-                        const [
-                              'المقاس',
-                              'الضغط',
-                              'الكثافة',
-                              'السماكة',
-                              'الدرجة',
-                              'اللون',
-                              'الموديل',
-                              'أخرى',
-                            ]
+                        const {
+                              'day': 'يوم',
+                              'week': 'أسبوع',
+                              'month': 'شهر',
+                              'year': 'سنة',
+                            }.entries
                             .map(
-                              (value) => DropdownMenuItem(
-                                value: value,
-                                child: Text(value),
+                              (item) => DropdownMenuItem(
+                                value: item.key,
+                                child: Text(item.value),
                               ),
                             )
                             .toList(),
                     onChanged: (value) =>
-                        setState(() => variantType = value ?? variantType),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  flex: 2,
-                  child: TextField(
-                    controller: variantValue,
-                    onSubmitted: (_) => addVariant(),
-                    decoration: const InputDecoration(
-                      labelText: 'القيمة',
-                      hintText: 'مثال: ضغط 20 أو 15 سم',
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton.filled(
-                  onPressed: addVariant,
-                  tooltip: 'إضافة الخيار',
-                  icon: const Icon(Icons.add_rounded),
-                ),
-              ],
-            ),
-            if (variants.isNotEmpty) ...[
-              const SizedBox(height: 9),
-              Wrap(
-                spacing: 7,
-                runSpacing: 7,
-                children: [
-                  for (var index = 0; index < variants.length; index++)
-                    InputChip(
-                      label: Text(
-                        '${variants[index]['type']}: ${variants[index]['value']}',
-                      ),
-                      onDeleted: () => setState(() => variants.removeAt(index)),
-                    ),
-                ],
-              ),
-            ],
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: TextField(
-                    controller: weight,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: const InputDecoration(
-                      labelText: 'الوزن — اختياري',
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    initialValue: weightUnit,
-                    decoration: const InputDecoration(labelText: 'وحدة الوزن'),
-                    items: const ['جم', 'كجم', 'طن']
-                        .map(
-                          (value) => DropdownMenuItem(
-                            value: value,
-                            child: Text(value),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) =>
-                        setState(() => weightUnit = value ?? weightUnit),
+                        setState(() => rentalUnit = value ?? rentalUnit),
                   ),
                 ),
               ],
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: color,
-                    decoration: const InputDecoration(
-                      labelText: 'اللون / التشطيب — اختياري',
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: TextField(
-                    controller: packaging,
-                    decoration: const InputDecoration(
-                      labelText: 'التعبئة — اختياري',
-                      hintText: 'مثال: 50 حبة/طبليه',
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const _ProductFormHeading(
-              icon: Icons.sell_outlined,
-              title: 'نوع العرض والتسعير',
-              caption: 'حدد هل المنتج للبيع أو للتأجير',
-            ),
-            SizedBox(
-              width: double.infinity,
-              child: SegmentedButton<String>(
-                segments: const [
-                  ButtonSegment(
-                    value: 'sale',
-                    label: Text('بيع'),
-                    icon: Icon(Icons.shopping_bag_outlined),
-                  ),
-                  ButtonSegment(
-                    value: 'rental',
-                    label: Text('تأجير'),
-                    icon: Icon(Icons.event_repeat_rounded),
-                  ),
-                ],
-                selected: {offerType},
-                onSelectionChanged: (value) =>
-                    setState(() => offerType = value.first),
-                showSelectedIcon: false,
-              ),
-            ),
-            if (offerType == 'rental') ...[
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    flex: 2,
-                    child: TextField(
-                      controller: rentalDuration,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      decoration: const InputDecoration(
-                        labelText: 'مدة التأجير الأساسية',
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 9),
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      initialValue: rentalUnit,
-                      decoration: const InputDecoration(labelText: 'المدة'),
-                      items:
-                          const {
-                                'day': 'يوم',
-                                'week': 'أسبوع',
-                                'month': 'شهر',
-                                'year': 'سنة',
-                              }.entries
-                              .map(
-                                (item) => DropdownMenuItem(
-                                  value: item.key,
-                                  child: Text(item.value),
-                                ),
-                              )
-                              .toList(),
-                      onChanged: (value) =>
-                          setState(() => rentalUnit = value ?? rentalUnit),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: price,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: const InputDecoration(
-                      labelText: 'سعر الوحدة (ر.س)',
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: TextField(
-                    controller: minimum,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: const InputDecoration(
-                      labelText: 'أقل كمية للطلب',
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            DropdownButtonFormField<String>(
-              initialValue: availability,
-              decoration: const InputDecoration(labelText: 'حالة التوفر'),
-              items:
-                  const {
-                        'available': 'متوفر',
-                        'limited': 'كمية محدودة',
-                        'on_request': 'حسب الطلب',
-                        'unavailable': 'غير متوفر حاليًا',
-                      }.entries
-                      .map(
-                        (item) => DropdownMenuItem(
-                          value: item.key,
-                          child: Text(item.value),
-                        ),
-                      )
-                      .toList(),
-              onChanged: (value) =>
-                  setState(() => availability = value ?? availability),
-            ),
-            if (availability == 'limited') ...[
-              const SizedBox(height: 10),
-              TextField(
-                controller: stock,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'كمية المخزون المتاحة',
-                ),
-              ),
-            ],
-            const _ProductFormHeading(
-              icon: Icons.workspace_premium_outlined,
-              title: 'المطابقة والاستخدام الآمن',
-              caption: 'أدخل المرجع الصحيح بحسب فئة المنتج عند توفره',
-            ),
-            TextField(
-              controller: standard,
-              decoration: const InputDecoration(
-                labelText: 'المواصفة أو شهادة المطابقة — اختياري',
-                hintText: 'مثال: SASO / GSO / SBC / ASTM / ISO / EN',
-                prefixIcon: Icon(Icons.verified_outlined),
-              ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: intendedUse,
-              decoration: const InputDecoration(
-                labelText: 'الاستخدام المخصص — اختياري',
-                hintText: 'مثال: جدران داخلية غير حاملة',
-              ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: safety,
-              maxLines: 2,
-              decoration: const InputDecoration(
-                labelText: 'السلامة والمناولة — اختياري',
-                hintText: 'معدات الوقاية أو تحذيرات التركيب والنقل',
-                alignLabelWithHint: true,
-              ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: storage,
-              decoration: const InputDecoration(
-                labelText: 'شروط التخزين — اختياري',
-                hintText: 'مثال: مكان جاف بعيدًا عن الرطوبة',
-              ),
-            ),
-            const _ProductFormHeading(
-              icon: Icons.shield_outlined,
-              title: 'الضمان',
-              caption: 'اختياري ويظهر للعميل والإدارة بوضوح',
-            ),
-            SwitchListTile.adaptive(
-              value: hasWarranty,
-              onChanged: (value) => setState(() => hasWarranty = value),
-              title: const Text(
-                'يتوفر ضمان للمنتج',
-                style: TextStyle(fontWeight: FontWeight.w800),
-              ),
-              contentPadding: EdgeInsets.zero,
-            ),
-            if (hasWarranty) ...[
-              const SizedBox(height: 8),
-              TextField(
-                controller: warrantyDuration,
-                decoration: const InputDecoration(
-                  labelText: 'مدة الضمان',
-                  hintText: 'مثال: سنتان من تاريخ الاستلام',
-                ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: warrantyDetails,
-                maxLines: 2,
-                decoration: const InputDecoration(
-                  labelText: 'شروط وتغطية الضمان — اختياري',
-                  alignLabelWithHint: true,
-                ),
-              ),
-            ],
-            const _ProductFormHeading(
-              icon: Icons.local_shipping_outlined,
-              title: 'التجهيز والتوصيل',
-              caption: 'بيانات مطلوبة قبل إرسال المنتج للمراجعة',
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: leadTime,
-              decoration: const InputDecoration(
-                labelText: 'مدة التجهيز',
-                hintText: 'مثال: خلال 24 ساعة',
-                prefixIcon: Icon(Icons.schedule_outlined),
-              ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: deliveryWindow,
-              decoration: const InputDecoration(
-                labelText: 'مدة التوصيل',
-                hintText: 'مثال: من يومين إلى 3 أيام',
-                prefixIcon: Icon(Icons.local_shipping_outlined),
-              ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: deliveryNotes,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'شروط وتعليمات التوصيل',
-                alignLabelWithHint: true,
-              ),
-            ),
-            const SizedBox(height: 8),
-            SwitchListTile.adaptive(
-              value: vatInclusive,
-              onChanged: (value) => setState(() => vatInclusive = value),
-              title: const Text(
-                'السعر شامل ضريبة القيمة المضافة',
-                style: TextStyle(fontWeight: FontWeight.w800),
-              ),
-              contentPadding: EdgeInsets.zero,
-            ),
-            const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: busy ? null : submit,
-              icon: busy
-                  ? const SizedBox(
-                      width: 19,
-                      height: 19,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Icon(Icons.send_rounded),
-              label: const Text('إرسال المنتج للمراجعة'),
             ),
           ],
-        ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: price,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'سعر الوحدة (ر.س)',
+                  ),
+                ),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: TextField(
+                  controller: minimum,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'أقل كمية للطلب',
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            initialValue: availability,
+            decoration: const InputDecoration(labelText: 'حالة التوفر'),
+            items:
+                const {
+                      'available': 'متوفر',
+                      'limited': 'كمية محدودة',
+                      'on_request': 'حسب الطلب',
+                      'unavailable': 'غير متوفر حاليًا',
+                    }.entries
+                    .map(
+                      (item) => DropdownMenuItem(
+                        value: item.key,
+                        child: Text(item.value),
+                      ),
+                    )
+                    .toList(),
+            onChanged: (value) =>
+                setState(() => availability = value ?? availability),
+          ),
+          if (availability == 'limited') ...[
+            const SizedBox(height: 10),
+            TextField(
+              controller: stock,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: const InputDecoration(
+                labelText: 'كمية المخزون المتاحة',
+              ),
+            ),
+          ],
+          const _ProductFormHeading(
+            icon: Icons.workspace_premium_outlined,
+            title: 'المطابقة والاستخدام الآمن',
+            caption: 'أدخل المرجع الصحيح بحسب فئة المنتج عند توفره',
+          ),
+          TextField(
+            controller: standard,
+            decoration: const InputDecoration(
+              labelText: 'المواصفة أو شهادة المطابقة — اختياري',
+              hintText: 'مثال: SASO / GSO / SBC / ASTM / ISO / EN',
+              prefixIcon: Icon(Icons.verified_outlined),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: intendedUse,
+            decoration: const InputDecoration(
+              labelText: 'الاستخدام المخصص — اختياري',
+              hintText: 'مثال: جدران داخلية غير حاملة',
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: safety,
+            maxLines: 2,
+            decoration: const InputDecoration(
+              labelText: 'السلامة والمناولة — اختياري',
+              hintText: 'معدات الوقاية أو تحذيرات التركيب والنقل',
+              alignLabelWithHint: true,
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: storage,
+            decoration: const InputDecoration(
+              labelText: 'شروط التخزين — اختياري',
+              hintText: 'مثال: مكان جاف بعيدًا عن الرطوبة',
+            ),
+          ),
+          const _ProductFormHeading(
+            icon: Icons.shield_outlined,
+            title: 'الضمان',
+            caption: 'اختياري ويظهر للعميل والإدارة بوضوح',
+          ),
+          SwitchListTile.adaptive(
+            value: hasWarranty,
+            onChanged: (value) => setState(() => hasWarranty = value),
+            title: const Text(
+              'يتوفر ضمان للمنتج',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+            contentPadding: EdgeInsets.zero,
+          ),
+          if (hasWarranty) ...[
+            const SizedBox(height: 8),
+            TextField(
+              controller: warrantyDuration,
+              decoration: const InputDecoration(
+                labelText: 'مدة الضمان',
+                hintText: 'مثال: سنتان من تاريخ الاستلام',
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: warrantyDetails,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                labelText: 'شروط وتغطية الضمان — اختياري',
+                alignLabelWithHint: true,
+              ),
+            ),
+          ],
+          const _ProductFormHeading(
+            icon: Icons.local_shipping_outlined,
+            title: 'التجهيز والتوصيل',
+            caption: 'بيانات مطلوبة قبل إرسال المنتج للمراجعة',
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: leadTime,
+            decoration: const InputDecoration(
+              labelText: 'مدة التجهيز',
+              hintText: 'مثال: خلال 24 ساعة',
+              prefixIcon: Icon(Icons.schedule_outlined),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: deliveryWindow,
+            decoration: const InputDecoration(
+              labelText: 'مدة التوصيل',
+              hintText: 'مثال: من يومين إلى 3 أيام',
+              prefixIcon: Icon(Icons.local_shipping_outlined),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: deliveryNotes,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              labelText: 'شروط وتعليمات التوصيل',
+              alignLabelWithHint: true,
+            ),
+          ),
+          const SizedBox(height: 8),
+          SwitchListTile.adaptive(
+            value: vatInclusive,
+            onChanged: (value) => setState(() => vatInclusive = value),
+            title: const Text(
+              'السعر شامل ضريبة القيمة المضافة',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+            contentPadding: EdgeInsets.zero,
+          ),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: busy ? null : submit,
+            icon: busy
+                ? const SizedBox(
+                    width: 19,
+                    height: 19,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.send_rounded),
+            label: const Text('إرسال المنتج للمراجعة'),
+          ),
+        ],
       ),
     ),
   );
