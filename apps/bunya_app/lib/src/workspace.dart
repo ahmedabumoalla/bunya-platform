@@ -3696,6 +3696,7 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
   String availability = 'available';
   String offerType = 'sale', rentalUnit = 'day', weightUnit = 'كجم';
   bool vatInclusive = true, hasWarranty = false, busy = false;
+  final List<String> measurements = [];
   XFile? image;
   Uint8List? imageBytes;
 
@@ -3758,6 +3759,15 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
     return clean.isEmpty ? null : double.tryParse(clean);
   }
 
+  void addMeasurement() {
+    final value = measurement.text.trim();
+    if (value.isEmpty || measurements.contains(value)) return;
+    setState(() {
+      measurements.add(value);
+      measurement.clear();
+    });
+  }
+
   Future<void> submit() async {
     final unitPrice = number(price.text);
     final minimumOrder = number(minimum.text);
@@ -3808,13 +3818,11 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
     addSpecification('الاستخدام المخصص', intendedUse.text);
     addSpecification('السلامة والمناولة', safety.text);
     addSpecification('شروط التخزين', storage.text);
+    final allMeasurements = <String>{
+      ...measurements,
+      if (measurement.text.trim().isNotEmpty) measurement.text.trim(),
+    }.toList();
     final separators = RegExp(r'[\n,،;]+');
-    final allMeasurements = measurement.text
-        .split(separators)
-        .map((value) => value.trim())
-        .where((value) => value.isNotEmpty)
-        .toSet()
-        .toList();
     final allVariants = variantValue.text
         .split(separators)
         .map((value) => value.trim())
@@ -4132,14 +4140,51 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
           ),
           TextField(
             controller: measurement,
-            minLines: 1,
-            maxLines: 3,
-            decoration: const InputDecoration(
+            onSubmitted: (_) => addMeasurement(),
+            decoration: InputDecoration(
               labelText: 'المقاسات / الأبعاد — اختياري',
-              hintText: '20 × 20 × 40 سم، 15 × 20 × 40 سم',
-              prefixIcon: Icon(Icons.straighten_rounded),
+              hintText: 'مثال: 20 × 20 × 40 سم',
+              prefixIcon: const Icon(Icons.straighten_rounded),
+              suffixIcon: IconButton.filledTonal(
+                onPressed: addMeasurement,
+                tooltip: 'إضافة القياس',
+                icon: const Icon(Icons.add_rounded),
+              ),
             ),
           ),
+          if (measurements.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Column(
+              children: [
+                for (var index = 0; index < measurements.length; index++)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 6),
+                    padding: const EdgeInsetsDirectional.only(start: 12),
+                    decoration: BoxDecoration(
+                      color: BunyaColors.sand,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: BunyaColors.line),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${index == 0 ? 'القياس الافتراضي · ' : ''}${measurements[index]}',
+                            style: const TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () =>
+                              setState(() => measurements.removeAt(index)),
+                          tooltip: 'حذف القياس',
+                          icon: const Icon(Icons.close_rounded, size: 19),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ],
           const _ProductFormHeading(
             icon: Icons.account_tree_outlined,
             title: 'الفئات وخيارات المنتج',
