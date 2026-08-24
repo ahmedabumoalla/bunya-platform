@@ -2577,6 +2577,8 @@ class _ModuleRecordsScreenState extends State<ModuleRecordsScreen> {
     final added = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
+      enableDrag: false,
       backgroundColor: Colors.transparent,
       builder: (_) => _CreateProductSheet(
         repository: widget.repository,
@@ -3893,14 +3895,16 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
 
   @override
   Widget build(BuildContext context) => SafeArea(
-    top: false,
     child: Container(
-      height: MediaQuery.sizeOf(context).height * .95,
+      height: MediaQuery.sizeOf(context).height,
       decoration: const BoxDecoration(
         color: BunyaColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
       ),
       child: ListView(
+        primary: false,
+        physics: const ClampingScrollPhysics(),
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: EdgeInsets.fromLTRB(
           18,
           12,
@@ -3986,7 +3990,12 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
                         ),
                       ],
                     )
-                  : Image.memory(imageBytes!, fit: BoxFit.cover),
+                  : Image.memory(
+                      imageBytes!,
+                      fit: BoxFit.cover,
+                      cacheWidth: 900,
+                      gaplessPlayback: true,
+                    ),
             ),
           ),
           const SizedBox(height: 14),
