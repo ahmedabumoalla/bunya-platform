@@ -2574,13 +2574,12 @@ class _ModuleRecordsScreenState extends State<ModuleRecordsScreen> {
   );
 
   Future<void> addProduct() async {
-    final added = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _CreateProductSheet(
-        repository: widget.repository,
-        providerId: widget.module.filterValue!,
+    final added = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => _CreateProductSheet(
+          repository: widget.repository,
+          providerId: widget.module.filterValue!,
+        ),
       ),
     );
     if (added == true && mounted) {
@@ -3892,15 +3891,11 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
   }
 
   @override
-  Widget build(BuildContext context) => SafeArea(
-    top: false,
-    child: Container(
-      height: MediaQuery.sizeOf(context).height * .95,
-      decoration: const BoxDecoration(
-        color: BunyaColors.surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-      ),
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: BunyaColors.surface,
+    body: SafeArea(
       child: ListView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: EdgeInsets.fromLTRB(
           18,
           12,
