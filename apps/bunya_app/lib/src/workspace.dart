@@ -274,6 +274,7 @@ class WorkspaceRepository {
     required String categoryTone,
     required String baseUnit,
     required String description,
+    required String? sku,
     required double unitPrice,
     required double? minimumOrder,
     required double? stockQuantity,
@@ -282,6 +283,13 @@ class WorkspaceRepository {
     required String deliveryWindow,
     required String deliveryNotes,
     required bool vatInclusive,
+    required String offerType,
+    required double? rentalDuration,
+    required String? rentalDurationUnit,
+    required String? measurement,
+    required List<String> specifications,
+    required String? warrantyDuration,
+    required String? warrantyDetails,
     required Uint8List imageBytes,
     required String imageName,
     required String imageMime,
@@ -305,6 +313,7 @@ class WorkspaceRepository {
             'category_id': categoryId,
             'custom_category': null,
             'slug': 'app-product-$stamp',
+            'sku': sku,
             'name': name,
             'base_unit': baseUnit,
             'short_description': description,
@@ -316,11 +325,17 @@ class WorkspaceRepository {
             'delivery_label': 'يتم تنسيق التسليم مع العميل',
             'delivery_window': deliveryWindow,
             'delivery_notes': deliveryNotes,
-            'offer_type': 'sale',
+            'offer_type': offerType,
             'unit_price': unitPrice,
             'minimum_order': minimumOrder,
             'stock_quantity': stockQuantity,
             'vat_inclusive': vatInclusive,
+            'rental_duration_value': offerType == 'rental'
+                ? rentalDuration
+                : null,
+            'rental_duration_unit': offerType == 'rental'
+                ? rentalDurationUnit
+                : null,
             'review_status': 'draft',
             'is_published': false,
             'is_new': true,
@@ -328,6 +343,43 @@ class WorkspaceRepository {
           .select('id')
           .single();
       productId = '${inserted['id']}';
+      if (measurement?.trim().isNotEmpty == true) {
+        final base = await client
+            .from('product_units')
+            .select('id')
+            .eq('product_id', productId)
+            .eq('is_base', true)
+            .maybeSingle();
+        if (base != null) {
+          await client.from('product_measurements').insert({
+            'product_id': productId,
+            'unit_id': base['id'],
+            'label': measurement!.trim(),
+            'is_default': true,
+            'sort_order': 0,
+          });
+        }
+      }
+      if (specifications.isNotEmpty) {
+        await client.from('product_specifications').insert([
+          for (var index = 0; index < specifications.length; index++)
+            {
+              'product_id': productId,
+              'value': specifications[index],
+              'sort_order': index,
+            },
+        ]);
+      }
+      if (warrantyDuration?.trim().isNotEmpty == true) {
+        await client.from('product_warranties').insert({
+          'product_id': productId,
+          'label': 'ضمان المنتج',
+          'duration': warrantyDuration!.trim(),
+          'details': warrantyDetails?.trim().isNotEmpty == true
+              ? warrantyDetails!.trim()
+              : 'حسب شروط وضمان المزود',
+        });
+      }
       final safeName = imageName.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '-');
       imagePath = '$providerId/$productId/$stamp-$safeName';
       await client.storage
@@ -3600,12 +3652,30 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
   final leadTime = TextEditingController();
   final deliveryWindow = TextEditingController();
   final deliveryNotes = TextEditingController();
+  final sku = TextEditingController();
+  final gtin = TextEditingController();
+  final manufacturer = TextEditingController();
+  final origin = TextEditingController();
+  final material = TextEditingController();
+  final grade = TextEditingController();
+  final measurement = TextEditingController();
+  final weight = TextEditingController();
+  final color = TextEditingController();
+  final packaging = TextEditingController();
+  final standard = TextEditingController();
+  final intendedUse = TextEditingController();
+  final safety = TextEditingController();
+  final storage = TextEditingController();
+  final rentalDuration = TextEditingController();
+  final warrantyDuration = TextEditingController();
+  final warrantyDetails = TextEditingController();
   late final Future<List<Map<String, dynamic>>> categories = widget.repository
       .productCategories();
   String? categoryId, categoryTone;
   String unit = 'حبة';
   String availability = 'available';
-  bool vatInclusive = true, busy = false;
+  String offerType = 'sale', rentalUnit = 'day', weightUnit = 'كجم';
+  bool vatInclusive = true, hasWarranty = false, busy = false;
   XFile? image;
   Uint8List? imageBytes;
 
@@ -3620,6 +3690,23 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
       leadTime,
       deliveryWindow,
       deliveryNotes,
+      sku,
+      gtin,
+      manufacturer,
+      origin,
+      material,
+      grade,
+      measurement,
+      weight,
+      color,
+      packaging,
+      standard,
+      intendedUse,
+      safety,
+      storage,
+      rentalDuration,
+      warrantyDuration,
+      warrantyDetails,
     ]) {
       controller.dispose();
     }
@@ -3654,6 +3741,7 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
     final unitPrice = number(price.text);
     final minimumOrder = number(minimum.text);
     final stockQuantity = number(stock.text);
+    final rentalValue = number(rentalDuration.text);
     if (imageBytes == null || categoryId == null) {
       return _notice(context, 'اختر صورة المنتج وتصنيفه');
     }
@@ -3672,6 +3760,33 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
         (stockQuantity == null || stockQuantity <= 0)) {
       return _notice(context, 'حدد كمية المخزون المتوفرة');
     }
+    if (offerType == 'rental' && (rentalValue == null || rentalValue <= 0)) {
+      return _notice(context, 'حدد مدة التأجير الأساسية');
+    }
+    if (hasWarranty && warrantyDuration.text.trim().isEmpty) {
+      return _notice(context, 'حدد مدة الضمان أو ألغِ خيار الضمان');
+    }
+    final specifications = <String>[];
+    void addSpecification(String label, String value) {
+      if (value.trim().isNotEmpty)
+        specifications.add('$label: ${value.trim()}');
+    }
+
+    addSpecification('GTIN / الباركود', gtin.text);
+    addSpecification('المصنّع / العلامة', manufacturer.text);
+    addSpecification('بلد المنشأ', origin.text);
+    addSpecification('المادة / التركيبة', material.text);
+    addSpecification('الدرجة / الفئة', grade.text);
+    addSpecification(
+      'الوزن',
+      weight.text.trim().isEmpty ? '' : '${weight.text.trim()} $weightUnit',
+    );
+    addSpecification('اللون / التشطيب', color.text);
+    addSpecification('التعبئة والكمية داخل العبوة', packaging.text);
+    addSpecification('المواصفة أو شهادة المطابقة', standard.text);
+    addSpecification('الاستخدام المخصص', intendedUse.text);
+    addSpecification('السلامة والمناولة', safety.text);
+    addSpecification('شروط التخزين', storage.text);
     setState(() => busy = true);
     try {
       final extension = image!.name.toLowerCase();
@@ -3689,6 +3804,7 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
         categoryTone: categoryTone ?? 'tools',
         baseUnit: unit,
         description: description.text.trim(),
+        sku: sku.text.trim().isEmpty ? null : sku.text.trim(),
         unitPrice: unitPrice,
         minimumOrder: minimumOrder,
         stockQuantity: stockQuantity,
@@ -3697,6 +3813,15 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
         deliveryWindow: deliveryWindow.text.trim(),
         deliveryNotes: deliveryNotes.text.trim(),
         vatInclusive: vatInclusive,
+        offerType: offerType,
+        rentalDuration: rentalValue,
+        rentalDurationUnit: offerType == 'rental' ? rentalUnit : null,
+        measurement: measurement.text.trim().isEmpty
+            ? null
+            : measurement.text.trim(),
+        specifications: specifications,
+        warrantyDuration: hasWarranty ? warrantyDuration.text.trim() : null,
+        warrantyDetails: hasWarranty ? warrantyDetails.text.trim() : null,
         imageBytes: imageBytes!,
         imageName: image!.name,
         imageMime: mime,
@@ -3880,6 +4005,215 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
               alignLabelWithHint: true,
             ),
           ),
+          const _ProductFormHeading(
+            icon: Icons.qr_code_2_rounded,
+            title: 'هوية المنتج',
+            caption: 'بيانات اختيارية تسهّل المطابقة والشراء المهني',
+          ),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: sku,
+                  textDirection: TextDirection.ltr,
+                  decoration: const InputDecoration(
+                    labelText: 'رمز المنتج SKU — اختياري',
+                  ),
+                ),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: TextField(
+                  controller: gtin,
+                  keyboardType: TextInputType.number,
+                  textDirection: TextDirection.ltr,
+                  decoration: const InputDecoration(
+                    labelText: 'GTIN / الباركود — اختياري',
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: manufacturer,
+                  decoration: const InputDecoration(
+                    labelText: 'المصنّع أو العلامة — اختياري',
+                  ),
+                ),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: TextField(
+                  controller: origin,
+                  decoration: const InputDecoration(
+                    labelText: 'بلد المنشأ — اختياري',
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: material,
+                  decoration: const InputDecoration(
+                    labelText: 'المادة / التركيبة — اختياري',
+                  ),
+                ),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: TextField(
+                  controller: grade,
+                  decoration: const InputDecoration(
+                    labelText: 'الدرجة / الفئة — اختياري',
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const _ProductFormHeading(
+            icon: Icons.aspect_ratio_rounded,
+            title: 'الخصائص الفيزيائية',
+            caption: 'الأبعاد والوزن واللون والتعبئة كلها اختيارية',
+          ),
+          TextField(
+            controller: measurement,
+            decoration: const InputDecoration(
+              labelText: 'القياسات / الأبعاد — اختياري',
+              hintText: 'مثال: 20 × 20 × 40 سم',
+              prefixIcon: Icon(Icons.straighten_rounded),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: TextField(
+                  controller: weight,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'الوزن — اختياري',
+                  ),
+                ),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  initialValue: weightUnit,
+                  decoration: const InputDecoration(labelText: 'وحدة الوزن'),
+                  items: const ['جم', 'كجم', 'طن']
+                      .map(
+                        (value) =>
+                            DropdownMenuItem(value: value, child: Text(value)),
+                      )
+                      .toList(),
+                  onChanged: (value) =>
+                      setState(() => weightUnit = value ?? weightUnit),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: color,
+                  decoration: const InputDecoration(
+                    labelText: 'اللون / التشطيب — اختياري',
+                  ),
+                ),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: TextField(
+                  controller: packaging,
+                  decoration: const InputDecoration(
+                    labelText: 'التعبئة — اختياري',
+                    hintText: 'مثال: 50 حبة/طبليه',
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const _ProductFormHeading(
+            icon: Icons.sell_outlined,
+            title: 'نوع العرض والتسعير',
+            caption: 'حدد هل المنتج للبيع أو للتأجير',
+          ),
+          SizedBox(
+            width: double.infinity,
+            child: SegmentedButton<String>(
+              segments: const [
+                ButtonSegment(
+                  value: 'sale',
+                  label: Text('بيع'),
+                  icon: Icon(Icons.shopping_bag_outlined),
+                ),
+                ButtonSegment(
+                  value: 'rental',
+                  label: Text('تأجير'),
+                  icon: Icon(Icons.event_repeat_rounded),
+                ),
+              ],
+              selected: {offerType},
+              onSelectionChanged: (value) =>
+                  setState(() => offerType = value.first),
+              showSelectedIcon: false,
+            ),
+          ),
+          if (offerType == 'rental') ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: TextField(
+                    controller: rentalDuration,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'مدة التأجير الأساسية',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    initialValue: rentalUnit,
+                    decoration: const InputDecoration(labelText: 'المدة'),
+                    items:
+                        const {
+                              'day': 'يوم',
+                              'week': 'أسبوع',
+                              'month': 'شهر',
+                              'year': 'سنة',
+                            }.entries
+                            .map(
+                              (item) => DropdownMenuItem(
+                                value: item.key,
+                                child: Text(item.value),
+                              ),
+                            )
+                            .toList(),
+                    onChanged: (value) =>
+                        setState(() => rentalUnit = value ?? rentalUnit),
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 10),
           Row(
             children: [
@@ -3941,6 +4275,83 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
               ),
             ),
           ],
+          const _ProductFormHeading(
+            icon: Icons.workspace_premium_outlined,
+            title: 'المطابقة والاستخدام الآمن',
+            caption: 'أدخل المرجع الصحيح بحسب فئة المنتج عند توفره',
+          ),
+          TextField(
+            controller: standard,
+            decoration: const InputDecoration(
+              labelText: 'المواصفة أو شهادة المطابقة — اختياري',
+              hintText: 'مثال: SASO / GSO / SBC / ASTM / ISO / EN',
+              prefixIcon: Icon(Icons.verified_outlined),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: intendedUse,
+            decoration: const InputDecoration(
+              labelText: 'الاستخدام المخصص — اختياري',
+              hintText: 'مثال: جدران داخلية غير حاملة',
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: safety,
+            maxLines: 2,
+            decoration: const InputDecoration(
+              labelText: 'السلامة والمناولة — اختياري',
+              hintText: 'معدات الوقاية أو تحذيرات التركيب والنقل',
+              alignLabelWithHint: true,
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: storage,
+            decoration: const InputDecoration(
+              labelText: 'شروط التخزين — اختياري',
+              hintText: 'مثال: مكان جاف بعيدًا عن الرطوبة',
+            ),
+          ),
+          const _ProductFormHeading(
+            icon: Icons.shield_outlined,
+            title: 'الضمان',
+            caption: 'اختياري ويظهر للعميل والإدارة بوضوح',
+          ),
+          SwitchListTile.adaptive(
+            value: hasWarranty,
+            onChanged: (value) => setState(() => hasWarranty = value),
+            title: const Text(
+              'يتوفر ضمان للمنتج',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+            contentPadding: EdgeInsets.zero,
+          ),
+          if (hasWarranty) ...[
+            const SizedBox(height: 8),
+            TextField(
+              controller: warrantyDuration,
+              decoration: const InputDecoration(
+                labelText: 'مدة الضمان',
+                hintText: 'مثال: سنتان من تاريخ الاستلام',
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: warrantyDetails,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                labelText: 'شروط وتغطية الضمان — اختياري',
+                alignLabelWithHint: true,
+              ),
+            ),
+          ],
+          const _ProductFormHeading(
+            icon: Icons.local_shipping_outlined,
+            title: 'التجهيز والتوصيل',
+            caption: 'بيانات مطلوبة قبل إرسال المنتج للمراجعة',
+          ),
           const SizedBox(height: 10),
           TextField(
             controller: leadTime,
@@ -3995,6 +4406,57 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
           ),
         ],
       ),
+    ),
+  );
+}
+
+class _ProductFormHeading extends StatelessWidget {
+  const _ProductFormHeading({
+    required this.icon,
+    required this.title,
+    required this.caption,
+  });
+  final IconData icon;
+  final String title, caption;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(2, 24, 2, 10),
+    child: Row(
+      children: [
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: BunyaColors.mint,
+            borderRadius: BorderRadius.circular(13),
+          ),
+          child: Icon(icon, size: 19, color: BunyaColors.forest),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              Text(
+                caption,
+                style: const TextStyle(
+                  color: BunyaColors.muted,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     ),
   );
 }
@@ -4238,6 +4700,30 @@ class _ProductRecordDetailsState extends State<_ProductRecordDetails> {
                       children: [
                         Expanded(
                           child: _ProductFact(
+                            icon: row['offer_type'] == 'rental'
+                                ? Icons.event_repeat_rounded
+                                : Icons.shopping_bag_outlined,
+                            label: 'نوع العرض',
+                            value: row['offer_type'] == 'rental'
+                                ? 'تأجير — ${row['rental_duration_value'] ?? '—'} ${_rentalUnit('${row['rental_duration_unit'] ?? ''}')}'
+                                : 'بيع',
+                          ),
+                        ),
+                        const SizedBox(width: 9),
+                        Expanded(
+                          child: _ProductFact(
+                            icon: Icons.qr_code_2_rounded,
+                            label: 'رمز المنتج SKU',
+                            value: '${row['sku'] ?? 'غير مضاف'}',
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 9),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _ProductFact(
                             icon: Icons.inventory_outlined,
                             label: 'التوفر',
                             value:
@@ -4261,7 +4747,9 @@ class _ProductRecordDetailsState extends State<_ProductRecordDetails> {
                         Expanded(
                           child: _ProductFact(
                             icon: Icons.payments_outlined,
-                            label: 'سعر الوحدة',
+                            label: row['offer_type'] == 'rental'
+                                ? 'سعر مدة التأجير'
+                                : 'سعر الوحدة',
                             value: '${row['unit_price'] ?? '—'} ر.س',
                           ),
                         ),
@@ -4915,6 +5403,14 @@ String _date(Object? value) => value == null
     ? '—'
     : (DateTime.tryParse('$value')?.toLocal().toString().substring(0, 16) ??
           '$value');
+String _rentalUnit(String value) =>
+    const {
+      'day': 'يوم',
+      'week': 'أسبوع',
+      'month': 'شهر',
+      'year': 'سنة',
+    }[value] ??
+    value;
 String _status(String value) =>
     const {
       'pending': 'قيد المراجعة',
