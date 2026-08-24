@@ -48,10 +48,17 @@ class _BunyaAppState extends State<BunyaApp> {
   void initState() {
     super.initState();
     _auth = Supabase.instance.client.auth.onAuthStateChange.listen((event) {
-      if (event.session != null) {
+      if (event.event == AuthChangeEvent.signedIn && event.session != null) {
         unawaited(PushService.registerForCurrentUser());
       }
-      if (mounted) setState(() => authVersion++);
+      if (mounted &&
+          const {
+            AuthChangeEvent.signedIn,
+            AuthChangeEvent.signedOut,
+            AuthChangeEvent.userDeleted,
+          }.contains(event.event)) {
+        setState(() => authVersion++);
+      }
     });
   }
 
@@ -121,6 +128,14 @@ class _BunyaShellState extends State<BunyaShell> {
             );
           }
           final profile = snapshot.data;
+          if (profile?.mustChangePassword == true) {
+            return ChangePasswordScreen(
+              repository: repo,
+              forced: true,
+              onComplete: () =>
+                  setState(() => roleProfile = repo.loadProfile()),
+            );
+          }
           if (profile != null &&
               const {
                 'admin',
@@ -130,6 +145,12 @@ class _BunyaShellState extends State<BunyaShell> {
             return RoleWorkspace(
               profile: profile,
               repository: repo,
+              onChangePassword: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) =>
+                      ChangePasswordScreen(repository: repo, forced: false),
+                ),
+              ),
               onLogout: () async {
                 await repo.signOut();
                 if (mounted) {
@@ -2344,6 +2365,27 @@ class _AccountTabState extends State<AccountTab> {
             ),
             const SizedBox(height: 10),
             OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => ChangePasswordScreen(
+                    repository: widget.repository,
+                    forced: false,
+                  ),
+                ),
+              ),
+              icon: const Icon(Icons.lock_reset_rounded),
+              label: const Text('إعادة تعيين كلمة المرور'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(52),
+                foregroundColor: BunyaColors.forest,
+                side: const BorderSide(color: BunyaColors.line),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(17),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
               onPressed: () async {
                 await widget.repository.signOut();
                 if (mounted) setState(() {});
@@ -2438,17 +2480,8 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       await widget.repository.signIn(email.text, password.text);
       await PushService.registerForCurrentUser();
-      final profile = await widget.repository.loadProfile();
       if (!mounted) return;
-      if (profile?.mustChangePassword == true) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (_) => ChangePasswordScreen(repository: widget.repository),
-          ),
-        );
-      } else {
-        Navigator.pop(context, true);
-      }
+      Navigator.pop(context, true);
     } catch (error) {
       if (mounted) _message(context, _friendlyError(error));
     }
@@ -2560,8 +2593,15 @@ class _LoginScreenState extends State<LoginScreen> {
 }
 
 class ChangePasswordScreen extends StatefulWidget {
-  const ChangePasswordScreen({super.key, required this.repository});
+  const ChangePasswordScreen({
+    super.key,
+    required this.repository,
+    this.forced = true,
+    this.onComplete,
+  });
   final BunyaRepository repository;
+  final bool forced;
+  final VoidCallback? onComplete;
 
   @override
   State<ChangePasswordScreen> createState() => _ChangePasswordScreenState();
@@ -2596,7 +2636,12 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     setState(() => busy = true);
     try {
       await widget.repository.changeTemporaryPassword(value);
-      if (mounted) Navigator.pop(context, true);
+      if (!mounted) return;
+      if (widget.onComplete != null) {
+        widget.onComplete!();
+      } else {
+        Navigator.pop(context, true);
+      }
     } catch (error) {
       if (mounted) _message(context, _friendlyError(error));
     } finally {
@@ -2606,13 +2651,22 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
   @override
   Widget build(BuildContext context) => PopScope(
-    canPop: false,
+    canPop: !widget.forced,
     child: Scaffold(
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(22),
           children: [
-            const SizedBox(height: 45),
+            if (!widget.forced)
+              Align(
+                alignment: Alignment.centerRight,
+                child: IconButton.filledTonal(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              )
+            else
+              const SizedBox(height: 45),
             const CircleAvatar(
               radius: 38,
               backgroundColor: BunyaColors.mint,
@@ -2630,8 +2684,10 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                   ?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'كلمة المرور المرسلة مؤقتة. غيّرها الآن قبل الدخول إلى حسابك.',
+            Text(
+              widget.forced
+                  ? 'كلمة المرور المرسلة مؤقتة. أنشئ كلمة جديدة قبل الدخول إلى حسابك.'
+                  : 'اختر كلمة قوية وآمنة لحماية حسابك في بُنية.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: BunyaColors.muted,
@@ -2689,7 +2745,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                       ),
                     )
                   : const Icon(Icons.check_rounded),
-              label: const Text('حفظ ودخول التطبيق'),
+              label: Text(
+                widget.forced ? 'حفظ ودخول التطبيق' : 'حفظ كلمة المرور الجديدة',
+              ),
             ),
           ],
         ),

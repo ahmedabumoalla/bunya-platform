@@ -437,10 +437,12 @@ class RoleWorkspace extends StatefulWidget {
     super.key,
     required this.profile,
     required this.repository,
+    required this.onChangePassword,
     required this.onLogout,
   });
   final Profile profile;
   final BunyaRepository repository;
+  final VoidCallback onChangePassword;
   final Future<void> Function() onLogout;
 
   @override
@@ -479,6 +481,7 @@ class _RoleWorkspaceState extends State<RoleWorkspace> {
         _WorkspaceAccount(
           profile: widget.profile,
           contextData: role,
+          onChangePassword: widget.onChangePassword,
           onLogout: widget.onLogout,
         ),
       ];
@@ -2520,10 +2523,12 @@ class _WorkspaceAccount extends StatelessWidget {
   const _WorkspaceAccount({
     required this.profile,
     required this.contextData,
+    required this.onChangePassword,
     required this.onLogout,
   });
   final Profile profile;
   final RoleContext contextData;
+  final VoidCallback onChangePassword;
   final Future<void> Function() onLogout;
   @override
   Widget build(BuildContext context) => ListView(
@@ -2543,6 +2548,16 @@ class _WorkspaceAccount extends StatelessWidget {
         },
       ),
       const SizedBox(height: 16),
+      OutlinedButton.icon(
+        onPressed: onChangePassword,
+        icon: const Icon(Icons.lock_reset_rounded),
+        label: const Text('إعادة تعيين كلمة المرور'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: BunyaColors.forest,
+          minimumSize: const Size.fromHeight(52),
+        ),
+      ),
+      const SizedBox(height: 10),
       OutlinedButton.icon(
         onPressed: () async => onLogout(),
         icon: const Icon(Icons.logout_rounded),
