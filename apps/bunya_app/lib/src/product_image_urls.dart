@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -128,21 +129,29 @@ class FastProductImage extends StatelessWidget {
       ),
     );
 
-    if (imageUrl.isEmpty) return empty();
+    final originalUrl = fallbackUrl?.trim() ?? '';
+    // Avoid stale decoded thumbnails in Flutter Web. Native clients keep the
+    // bandwidth-saving transform and both platforms retain a reciprocal
+    // fallback when either source is unavailable.
+    final primaryUrl = kIsWeb && originalUrl.isNotEmpty
+        ? originalUrl
+        : imageUrl;
+    final secondaryUrl = primaryUrl == imageUrl ? originalUrl : imageUrl;
+
+    if (primaryUrl.isEmpty) return empty();
     return CachedNetworkImage(
-      imageUrl: imageUrl,
-      cacheKey: cacheKey,
+      imageUrl: primaryUrl,
+      cacheKey: cacheKey == null ? null : '$cacheKey-primary-v2',
       fit: fit,
       memCacheWidth: memoryWidth,
       maxWidthDiskCache: 640,
       fadeInDuration: Duration.zero,
       placeholder: (_, _) => const ColoredBox(color: Color(0xFFF0E9E0)),
       errorWidget: (_, _, _) {
-        final fallback = fallbackUrl?.trim() ?? '';
-        if (fallback.isEmpty || fallback == imageUrl) return empty();
+        if (secondaryUrl.isEmpty || secondaryUrl == primaryUrl) return empty();
         return CachedNetworkImage(
-          imageUrl: fallback,
-          cacheKey: cacheKey == null ? null : '$cacheKey-original',
+          imageUrl: secondaryUrl,
+          cacheKey: cacheKey == null ? null : '$cacheKey-secondary-v2',
           fit: fit,
           memCacheWidth: memoryWidth,
           maxWidthDiskCache: 640,
