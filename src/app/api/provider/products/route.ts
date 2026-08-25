@@ -244,9 +244,10 @@ export async function POST(request: Request) {
     if (measurements.length) {
       const baseUnitResult = await supabase.from("product_units").select("id").eq("product_id", productId).eq("is_base", true).maybeSingle();
       if (baseUnitResult.error || !baseUnitResult.data) throw new Error("تعذر ربط المقاسات بوحدة المنتج الأساسية.");
+      const baseUnitId = baseUnitResult.data.id;
       const measurementRows = measurements.map((value, index) => ({
         product_id: productId,
-        unit_id: baseUnitResult.data.id,
+        unit_id: baseUnitId,
         label: value,
         is_default: index === 0,
         sort_order: index,
