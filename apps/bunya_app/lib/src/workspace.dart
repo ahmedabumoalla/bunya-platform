@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'data.dart';
+import 'product_image_urls.dart';
 import 'theme.dart';
 
 const _apiUrl = String.fromEnvironment(
@@ -221,23 +222,14 @@ class WorkspaceRepository {
       final path = '${images.first['storage_path'] ?? ''}'.trim();
       if (path.isNotEmpty) paths.add(path);
     }
-    final signedUrls = <String, String>{};
-    if (paths.isNotEmpty) {
-      try {
-        final signed = await client.storage
-            .from('provider-product-images')
-            .createSignedUrls(paths.toList(), 21600);
-        for (final item in signed) {
-          signedUrls[item.path] = item.signedUrl;
-        }
-      } catch (_) {}
-    }
+    final signedUrls = await ProductImageUrls.thumbnails(client, paths);
     for (final row in records) {
       final image = row['_primary_image'];
       if (image is! Map) continue;
       final path = '${image['storage_path'] ?? ''}'.trim();
       final directUrl = '${image['image_url'] ?? ''}'.trim();
-      row['_image_url'] = directUrl.isNotEmpty ? directUrl : signedUrls[path];
+      final thumbnailUrl = (signedUrls[path] ?? '').trim();
+      row['_image_url'] = thumbnailUrl.isNotEmpty ? thumbnailUrl : directUrl;
       row['_image_cache_key'] = path.isNotEmpty ? path : directUrl;
     }
     return records;
@@ -2978,9 +2970,9 @@ class _ProductRecordCard extends StatelessWidget {
                       imageUrl: imageUrl,
                       cacheKey: '${row['_image_cache_key'] ?? imageUrl}',
                       fit: BoxFit.cover,
-                      memCacheWidth: 420,
-                      maxWidthDiskCache: 700,
-                      fadeInDuration: const Duration(milliseconds: 100),
+                      memCacheWidth: 320,
+                      maxWidthDiskCache: 640,
+                      fadeInDuration: Duration.zero,
                       placeholder: (_, _) => const ColoredBox(
                         color: Color(0xFFF0E9E0),
                         child: Center(
@@ -3750,8 +3742,8 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
   Future<void> pickImage() async {
     final selected = await ImagePicker().pickImage(
       source: ImageSource.gallery,
-      imageQuality: 84,
-      maxWidth: 1800,
+      imageQuality: 72,
+      maxWidth: 1280,
     );
     if (selected == null) return;
     final bytes = await selected.readAsBytes();
@@ -4810,8 +4802,8 @@ class _ProductRecordDetailsState extends State<_ProductRecordDetails> {
                               cacheKey:
                                   '${row['_image_cache_key'] ?? imageUrl}',
                               fit: BoxFit.cover,
-                              memCacheWidth: 900,
-                              maxWidthDiskCache: 1200,
+                              memCacheWidth: 640,
+                              maxWidthDiskCache: 640,
                               placeholder: (_, _) => const ColoredBox(
                                 color: Color(0xFFEDE4D8),
                                 child: Center(

@@ -965,9 +965,9 @@ class ProductVisual extends StatelessWidget {
             imageUrl: product.imageUrl!,
             cacheKey: product.imageCacheKey,
             fit: BoxFit.cover,
-            memCacheWidth: 900,
-            maxWidthDiskCache: 1200,
-            fadeInDuration: const Duration(milliseconds: 120),
+            memCacheWidth: 640,
+            maxWidthDiskCache: 640,
+            fadeInDuration: Duration.zero,
             placeholder: (_, _) =>
                 const Center(child: CircularProgressIndicator(strokeWidth: 2)),
             errorWidget: (_, _, _) => const Center(

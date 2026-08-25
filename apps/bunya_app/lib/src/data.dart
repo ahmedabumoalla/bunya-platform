@@ -4,6 +4,8 @@ import 'dart:math';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'product_image_urls.dart';
+
 const _appUrl = String.fromEnvironment(
   'APP_URL',
   defaultValue: 'https://www.buniahksa.com',
@@ -214,22 +216,13 @@ class BunyaRepository {
         .where((path) => path.isNotEmpty)
         .toSet()
         .toList();
-    final signedUrls = <String, String>{};
-    if (paths.isNotEmpty) {
-      try {
-        final signed = await client.storage
-            .from('provider-product-images')
-            .createSignedUrls(paths, 21600);
-        for (final item in signed) {
-          signedUrls[item.path] = item.signedUrl;
-        }
-      } catch (_) {}
-    }
+    final signedUrls = await ProductImageUrls.thumbnails(client, paths);
     final products = prepared.map((item) {
       final row = item.row;
       final path = '${item.image?['storage_path'] ?? ''}'.trim();
       final directUrl = '${item.image?['image_url'] ?? ''}'.trim();
-      final imageUrl = directUrl.isNotEmpty ? directUrl : signedUrls[path];
+      final thumbnailUrl = (signedUrls[path] ?? '').trim();
+      final imageUrl = thumbnailUrl.isNotEmpty ? thumbnailUrl : directUrl;
       return Product(
         id: '${row['id']}',
         name: '${row['name'] ?? 'منتج'}',
