@@ -46,6 +46,8 @@ class WorkspaceRepository {
   WorkspaceRepository(this.client);
   final SupabaseClient client;
 
+  void _changed() => BunyaRepository.notifyDataChanged();
+
   Future<RoleContext> resolve(Profile profile) async {
     final userId = client.auth.currentUser!.id;
     if (profile.role == 'provider') {
@@ -251,6 +253,7 @@ class WorkspaceRepository {
             'app-review-${DateTime.now().microsecondsSinceEpoch}',
       },
     );
+    _changed();
   }
 
   Future<List<Map<String, dynamic>>> productCategories() async {
@@ -427,6 +430,7 @@ class WorkspaceRepository {
         'submit_product_for_review',
         params: {'p_product_id': productId},
       );
+      _changed();
     } catch (_) {
       if (imagePath != null) {
         try {
@@ -451,6 +455,7 @@ class WorkspaceRepository {
       'transition_fulfillment_order',
       params: {'p_fulfillment_id': id, 'p_status': status, 'p_note': note},
     );
+    _changed();
   }
 
   Future<List<Map<String, dynamic>>> providerRfqs(String providerId) async {
@@ -516,6 +521,7 @@ class WorkspaceRepository {
         },
       },
     );
+    _changed();
   }
 
   Future<List<Map<String, dynamic>>> contractorOpportunities() async =>
@@ -566,6 +572,7 @@ class WorkspaceRepository {
         'p_idempotency_key': 'app-${DateTime.now().microsecondsSinceEpoch}',
       },
     );
+    _changed();
   }
 
   Future<List<Map<String, dynamic>>> adminApplications() async {
@@ -616,6 +623,7 @@ class WorkspaceRepository {
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception('${body['message'] ?? 'تعذر تنفيذ القرار'}');
     }
+    _changed();
     return '${body['status'] ?? 'تم التنفيذ'}';
   }
 }
@@ -762,6 +770,15 @@ class _RoleHomeState extends State<_RoleHome> {
   void initState() {
     super.initState();
     metrics = widget.repository.metrics(widget.contextData);
+    AppDataRefresh.revision.addListener(_repositoryChanged);
+  }
+
+  void _repositoryChanged() => refresh();
+
+  @override
+  void dispose() {
+    AppDataRefresh.revision.removeListener(_repositoryChanged);
+    super.dispose();
   }
 
   Future<void> refresh() async {
@@ -907,6 +924,18 @@ class _ProviderRfqsState extends State<_ProviderRfqs> {
   );
   void reload() =>
       setState(() => rows = widget.repository.providerRfqs(widget.providerId));
+
+  @override
+  void initState() {
+    super.initState();
+    AppDataRefresh.revision.addListener(reload);
+  }
+
+  @override
+  void dispose() {
+    AppDataRefresh.revision.removeListener(reload);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) => _FutureList(
@@ -1158,6 +1187,22 @@ class _ContractorOpportunities extends StatefulWidget {
 class _ContractorOpportunitiesState extends State<_ContractorOpportunities> {
   late Future<List<Map<String, dynamic>>> rows = widget.repository
       .contractorOpportunities();
+
+  void reload() =>
+      setState(() => rows = widget.repository.contractorOpportunities());
+
+  @override
+  void initState() {
+    super.initState();
+    AppDataRefresh.revision.addListener(reload);
+  }
+
+  @override
+  void dispose() {
+    AppDataRefresh.revision.removeListener(reload);
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) => _FutureList(
     title: 'فرص المشاريع',
@@ -1295,6 +1340,18 @@ class _AdminApplicationsState extends State<_AdminApplications> {
   String selectedStatus = 'all';
 
   void reload() => setState(() => rows = widget.repository.adminApplications());
+
+  @override
+  void initState() {
+    super.initState();
+    AppDataRefresh.revision.addListener(reload);
+  }
+
+  @override
+  void dispose() {
+    AppDataRefresh.revision.removeListener(reload);
+    super.dispose();
+  }
 
   Future<void> open(Map<String, dynamic> row) async {
     await showModalBottomSheet<void>(
@@ -2570,6 +2627,21 @@ class _ModuleRecordsScreenState extends State<ModuleRecordsScreen> {
     widget.module,
   );
 
+  void reload() =>
+      setState(() => rows = widget.repository.loadModule(widget.module));
+
+  @override
+  void initState() {
+    super.initState();
+    AppDataRefresh.revision.addListener(reload);
+  }
+
+  @override
+  void dispose() {
+    AppDataRefresh.revision.removeListener(reload);
+    super.dispose();
+  }
+
   Future<void> addProduct() async {
     final added = await showModalBottomSheet<bool>(
       context: context,
@@ -2581,7 +2653,7 @@ class _ModuleRecordsScreenState extends State<ModuleRecordsScreen> {
       ),
     );
     if (added == true && mounted) {
-      setState(() => rows = widget.repository.loadModule(widget.module));
+      reload();
     }
   }
 
@@ -2652,6 +2724,20 @@ class _RoleNotificationsState extends State<_RoleNotifications> {
   late Future<List<AppNotification>> rows = widget.repository
       .loadNotifications();
 
+  void reload() => setState(() => rows = widget.repository.loadNotifications());
+
+  @override
+  void initState() {
+    super.initState();
+    AppDataRefresh.revision.addListener(reload);
+  }
+
+  @override
+  void dispose() {
+    AppDataRefresh.revision.removeListener(reload);
+    super.dispose();
+  }
+
   Future<void> open(AppNotification item) async {
     await widget.repository.markNotificationRead(item);
     if (!mounted) return;
@@ -2675,7 +2761,7 @@ class _RoleNotificationsState extends State<_RoleNotifications> {
       );
     }
     if (mounted) {
-      setState(() => rows = widget.repository.loadNotifications());
+      reload();
     }
   }
 

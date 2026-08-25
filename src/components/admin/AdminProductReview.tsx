@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { signProductImageMap } from "@/lib/products/image-urls";
 import { createClient } from "@/lib/supabase/client";
@@ -103,6 +104,7 @@ const number = (value: number | null, digits = 2) => (value === null ? "—" : N
 const date = (value: string) => new Date(value).toLocaleString("ar-SA");
 
 export function AdminProductReview({ initialProductId }: { initialProductId?: string }) {
+  const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -235,13 +237,23 @@ export function AdminProductReview({ initialProductId }: { initialProductId?: st
       return;
     }
     const decisionLabel = reviewDecision === "approved" ? "اعتماد المنتج ونشره" : reviewDecision === "needs_changes" ? "إرسال المنتج للتعديل" : "رفض المنتج";
+    const nextStatus = reviewDecision;
+    setProducts((current) =>
+      current.map((product) =>
+        product.id === selected.id
+          ? { ...product, review_status: nextStatus, is_published: nextStatus === "approved" }
+          : product,
+      ),
+    );
+    setSelected((current) =>
+      current ? { ...current, review_status: nextStatus, is_published: nextStatus === "approved" } : current,
+    );
     setFeedback(`تم ${decisionLabel} وحُفظ القرار في السجل.`);
     setSaving(false);
     setReviewDecision(null);
     setReason("");
-    if (!initialProductId) setSelected(null);
-    setLoading(true);
     setRefreshVersion((value) => value + 1);
+    router.refresh();
   }
 
   return (

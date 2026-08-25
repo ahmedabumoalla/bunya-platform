@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -145,6 +146,14 @@ class JoinSubmission {
   final String id, status;
 }
 
+class AppDataRefresh {
+  AppDataRefresh._();
+
+  static final ValueNotifier<int> revision = ValueNotifier(0);
+
+  static void notify() => revision.value += 1;
+}
+
 class BunyaRepository {
   BunyaRepository([SupabaseClient? value])
     : client = value ?? Supabase.instance.client;
@@ -152,7 +161,16 @@ class BunyaRepository {
   static CatalogData? _catalogCache;
   static DateTime? _catalogCachedAt;
   static Future<CatalogData>? _catalogRequest;
+  static int _catalogGeneration = 0;
   User? get user => client.auth.currentUser;
+
+  static void notifyDataChanged() {
+    _catalogGeneration += 1;
+    _catalogCache = null;
+    _catalogCachedAt = null;
+    _catalogRequest = null;
+    AppDataRefresh.notify();
+  }
 
   Future<CatalogData> loadCatalog({bool forceRefresh = false}) {
     final cachedAt = _catalogCachedAt;
@@ -163,12 +181,15 @@ class BunyaRepository {
       return Future.value(_catalogCache);
     }
     if (_catalogRequest != null) return _catalogRequest!;
-    final request = _fetchCatalog();
+    final generation = _catalogGeneration;
+    final request = _fetchCatalog(generation);
     _catalogRequest = request;
-    return request.whenComplete(() => _catalogRequest = null);
+    return request.whenComplete(() {
+      if (identical(_catalogRequest, request)) _catalogRequest = null;
+    });
   }
 
-  Future<CatalogData> _fetchCatalog() async {
+  Future<CatalogData> _fetchCatalog(int generation) async {
     final results = await Future.wait([
       client
           .from('product_categories')
@@ -250,14 +271,19 @@ class BunyaRepository {
       categoryRows.map((row) => '${(row as Map)['name']}').toList(),
       products,
     );
-    _catalogCache = catalog;
-    _catalogCachedAt = DateTime.now();
+    if (generation == _catalogGeneration) {
+      _catalogCache = catalog;
+      _catalogCachedAt = DateTime.now();
+    }
     return catalog;
   }
 
   Future<void> signIn(String email, String password) async =>
       client.auth.signInWithPassword(email: email.trim(), password: password);
-  Future<void> signOut() => client.auth.signOut();
+  Future<void> signOut() async {
+    await client.auth.signOut();
+    notifyDataChanged();
+  }
 
   Future<Profile?> loadProfile() async {
     if (user == null) return null;
@@ -284,6 +310,7 @@ class BunyaRepository {
     if (completeTemporarySetup) {
       await client.rpc('complete_temporary_password_change');
     }
+    notifyDataChanged();
   }
 
   Future<JoinSubmission> submitJoinApplication({
@@ -313,10 +340,12 @@ class BunyaRepository {
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception('${body['message'] ?? 'تعذر إرسال طلب الانضمام'}');
     }
-    return JoinSubmission(
+    final submission = JoinSubmission(
       id: '${body['applicationId']}',
       status: '${body['status']}',
     );
+    notifyDataChanged();
+    return submission;
   }
 
   Future<List<QuoteSummary>> loadQuotes() async {
@@ -528,6 +557,7 @@ class BunyaRepository {
             'mobile-${user!.id}-${DateTime.now().microsecondsSinceEpoch}',
       },
     );
+    notifyDataChanged();
     return '$result';
   }
 }

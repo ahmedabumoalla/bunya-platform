@@ -96,7 +96,19 @@ class _BunyaShellState extends State<BunyaShell> {
   @override
   void initState() {
     super.initState();
+    AppDataRefresh.revision.addListener(_refreshData);
     if (repo.user != null) roleProfile = repo.loadProfile();
+  }
+
+  void _refreshData() {
+    if (!mounted || repo.user != null) return;
+    setState(() => catalog = repo.loadCatalog(forceRefresh: true));
+  }
+
+  @override
+  void dispose() {
+    AppDataRefresh.revision.removeListener(_refreshData);
+    super.dispose();
   }
 
   Future<bool> ensureAuth() async {
