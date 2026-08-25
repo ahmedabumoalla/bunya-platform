@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
+import { signProductImageMap } from "@/lib/products/image-urls";
 import { createClient } from "@/lib/supabase/client";
 import styles from "./AdminProductReview.module.css";
 
@@ -101,22 +102,6 @@ const badgeTone = (value: string) => (value === "approved" ? styles.success : ["
 const number = (value: number | null, digits = 2) => (value === null ? "—" : Number(value).toLocaleString("ar-SA", { maximumFractionDigits: digits }));
 const date = (value: string) => new Date(value).toLocaleString("ar-SA");
 
-async function signImages(product: Product) {
-  const db = createClient();
-  const ordered = [...(product.product_images || [])].sort((a, b) => Number(b.is_primary) - Number(a.is_primary) || a.sort_order - b.sort_order);
-  const product_images = await Promise.all(
-    ordered.map(async (image) => {
-      if (!image.storage_path) return { ...image, signed_url: image.image_url };
-      const signed = await db.storage.from("provider-product-images").createSignedUrl(image.storage_path, 600);
-      return {
-        ...image,
-        signed_url: signed.data?.signedUrl || image.image_url,
-      };
-    }),
-  );
-  return { ...product, product_images };
-}
-
 export function AdminProductReview({ initialProductId }: { initialProductId?: string }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -134,7 +119,8 @@ export function AdminProductReview({ initialProductId }: { initialProductId?: st
 
   useEffect(() => {
     let active = true;
-    void createClient()
+    const db = createClient();
+    void db
       .from("products")
       .select(productSelection)
       .order("updated_at", { ascending: false })
@@ -146,7 +132,21 @@ export function AdminProductReview({ initialProductId }: { initialProductId?: st
           setLoading(false);
           return;
         }
-        const hydrated = await Promise.all(((result.data || []) as unknown as Product[]).map(signImages));
+        const rawProducts = (result.data || []) as unknown as Product[];
+        const signedUrls = await signProductImageMap(
+          db,
+          rawProducts.flatMap((product) => product.product_images.map((image) => image.storage_path || "")),
+          { width: 720, height: 720, quality: 72 },
+        );
+        const hydrated = rawProducts.map((product) => ({
+          ...product,
+          product_images: [...(product.product_images || [])]
+            .sort((a, b) => Number(b.is_primary) - Number(a.is_primary) || a.sort_order - b.sort_order)
+            .map((image) => ({
+              ...image,
+              signed_url: (image.storage_path ? signedUrls.get(image.storage_path) : null) || image.image_url,
+            })),
+        }));
         if (!active) return;
         setProducts(hydrated);
         setLoading(false);

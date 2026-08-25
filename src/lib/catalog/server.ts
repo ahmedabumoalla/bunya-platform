@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { Product, ProductImage } from "@/lib/bunya-types";
+import { signProductImageMap } from "@/lib/products/image-urls";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -72,18 +73,13 @@ export async function loadPublicCatalog(): Promise<{ categories: string[]; produ
   const unitNames = new Map((units.data ?? []).map((row) => [row.id, row.name]));
   const imageRows = (images.data ?? []) as CatalogImageRow[];
   const storedImages = imageRows.filter((image) => image.storage_path);
-  const signedImageUrls = new Map<string, string>();
-
-  if (storedImages.length > 0) {
-    const admin = createAdminClient();
-    const signed = await admin.storage
-      .from("provider-product-images")
-      .createSignedUrls(storedImages.map((image) => image.storage_path!), 3600);
-
-    for (const image of signed.data ?? []) {
-      if (image.path && image.signedUrl) signedImageUrls.set(image.path, image.signedUrl);
-    }
-  }
+  const signedImageUrls = storedImages.length
+    ? await signProductImageMap(
+        createAdminClient(),
+        storedImages.map((image) => image.storage_path!),
+        { width: 720, height: 720, quality: 72 },
+      )
+    : new Map<string, string>();
 
   const products = rows.map<Product>((row) => ({
     id: row.id,

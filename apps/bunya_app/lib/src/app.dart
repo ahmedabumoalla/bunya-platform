@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -8,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'data.dart';
 import 'join_screen.dart';
+import 'product_image_urls.dart';
 import 'push_service.dart';
 import 'theme.dart';
 import 'workspace.dart';
@@ -961,22 +961,10 @@ class ProductVisual extends StatelessWidget {
               color: BunyaColors.copper.withValues(alpha: .45),
             ),
           )
-        : CachedNetworkImage(
+        : FastProductImage(
             imageUrl: product.imageUrl!,
+            fallbackUrl: product.imageFallbackUrl,
             cacheKey: product.imageCacheKey,
-            fit: BoxFit.cover,
-            memCacheWidth: 640,
-            maxWidthDiskCache: 640,
-            fadeInDuration: Duration.zero,
-            placeholder: (_, _) =>
-                const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-            errorWidget: (_, _, _) => const Center(
-              child: Icon(
-                Icons.domain_rounded,
-                size: 52,
-                color: BunyaColors.copper,
-              ),
-            ),
           ),
   );
 }

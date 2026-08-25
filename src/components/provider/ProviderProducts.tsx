@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { useAuthIdentity } from "@/components/auth/AuthIdentityProvider";
+import { signProductImageMap } from "@/lib/products/image-urls";
 import { createClient } from "@/lib/supabase/client";
 import { optimizeUploadFile } from "@/lib/uploads/client";
 import styles from "./ProviderProducts.module.css";
@@ -189,16 +190,15 @@ export function ProviderProductsList() {
       product_images: Omit<ProviderProductImage, "signed_url">[];
     };
     const orderedImages = [...(product.product_images ?? [])].sort((first, second) => Number(second.is_primary) - Number(first.is_primary) || first.sort_order - second.sort_order);
-    const hydratedImages = await Promise.all(
-      orderedImages.map(async (image) => {
-        if (!image.storage_path) return { ...image, signed_url: image.image_url };
-        const signed = await db.storage.from("provider-product-images").createSignedUrl(image.storage_path, 600);
-        return {
-          ...image,
-          signed_url: signed.data?.signedUrl ?? image.image_url,
-        };
-      }),
+    const signedUrls = await signProductImageMap(
+      db,
+      orderedImages.map((image) => image.storage_path || ""),
+      { width: 1200, height: 900, quality: 76 },
     );
+    const hydratedImages = orderedImages.map((image) => ({
+      ...image,
+      signed_url: (image.storage_path ? signedUrls.get(image.storage_path) : null) || image.image_url,
+    }));
 
     if (detailRequest.current !== requestId) return;
     setDetails({ ...product, product_images: hydratedImages });

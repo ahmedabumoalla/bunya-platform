@@ -4,6 +4,7 @@
 import Link from "next/link";
 import {useCallback,useEffect,useState} from "react";
 import {useAuthIdentity} from "@/components/auth/AuthIdentityProvider";
+import {signProductImage} from "@/lib/products/image-urls";
 import {createClient} from "@/lib/supabase/client";
 import styles from "./ProviderNotifications.module.css";
 
@@ -23,7 +24,7 @@ export function ProviderNotifications(){
     if(result.error){setError(result.error.message);return}
     const notifications=result.data||[];setRows(notifications);
     const ids=[...new Set(notifications.map(row=>itemId(row.action_url)).filter(Boolean))];
-    const contexts=await Promise.all(ids.map(async id=>{const[context,response]=await Promise.all([db.rpc("get_provider_rfq_context",{p_sourcing_item_id:id}),db.rpc("get_my_provider_rfq_response",{p_sourcing_item_id:id})]);if(context.error||!context.data)return null;const value=context.data as unknown as Rfq;let image=value.product_image_url||"";if(!image&&value.product_image_storage_path){const signed=await db.storage.from("provider-product-images").createSignedUrl(value.product_image_storage_path,600);image=signed.data?.signedUrl||""}return[id,{...value,image_url:image,existing_response:(response.data as unknown as Existing)||null}] as const}));
+    const contexts=await Promise.all(ids.map(async id=>{const[context,response]=await Promise.all([db.rpc("get_provider_rfq_context",{p_sourcing_item_id:id}),db.rpc("get_my_provider_rfq_response",{p_sourcing_item_id:id})]);if(context.error||!context.data)return null;const value=context.data as unknown as Rfq;const image=await signProductImage(db,value.product_image_storage_path,value.product_image_url||"",{width:640,height:640,quality:70});return[id,{...value,image_url:image,existing_response:(response.data as unknown as Existing)||null}] as const}));
     setRfqs(Object.fromEntries(contexts.filter(Boolean) as [string,Rfq][]));
   },[identity.userId]);
   useEffect(()=>{void load()},[load]);

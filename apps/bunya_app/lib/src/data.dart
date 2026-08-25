@@ -21,6 +21,7 @@ class Product {
     required this.availability,
     required this.deliveryWindow,
     required this.imageUrl,
+    required this.imageFallbackUrl,
     required this.imageCacheKey,
     required this.isNew,
   });
@@ -32,6 +33,7 @@ class Product {
       availability,
       deliveryWindow;
   final String? imageUrl;
+  final String? imageFallbackUrl;
   final String? imageCacheKey;
   final bool isNew;
 }
@@ -216,7 +218,12 @@ class BunyaRepository {
         .where((path) => path.isNotEmpty)
         .toSet()
         .toList();
-    final signedUrls = await ProductImageUrls.thumbnails(client, paths);
+    final signedResults = await Future.wait([
+      ProductImageUrls.thumbnails(client, paths),
+      ProductImageUrls.originals(client, paths),
+    ]);
+    final signedUrls = signedResults[0];
+    final originalUrls = signedResults[1];
     final products = prepared.map((item) {
       final row = item.row;
       final path = '${item.image?['storage_path'] ?? ''}'.trim();
@@ -232,6 +239,7 @@ class BunyaRepository {
         availability: '${row['availability_summary'] ?? 'حسب التوفر'}',
         deliveryWindow: '${row['delivery_window'] ?? 'يحدد بعد الطلب'}',
         imageUrl: imageUrl,
+        imageFallbackUrl: path.isEmpty ? null : originalUrls[path],
         imageCacheKey: path.isNotEmpty
             ? path
             : (directUrl.isEmpty ? null : directUrl),

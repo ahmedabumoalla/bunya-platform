@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
@@ -222,7 +221,12 @@ class WorkspaceRepository {
       final path = '${images.first['storage_path'] ?? ''}'.trim();
       if (path.isNotEmpty) paths.add(path);
     }
-    final signedUrls = await ProductImageUrls.thumbnails(client, paths);
+    final signedResults = await Future.wait([
+      ProductImageUrls.thumbnails(client, paths),
+      ProductImageUrls.originals(client, paths),
+    ]);
+    final signedUrls = signedResults[0];
+    final originalUrls = signedResults[1];
     for (final row in records) {
       final image = row['_primary_image'];
       if (image is! Map) continue;
@@ -230,6 +234,7 @@ class WorkspaceRepository {
       final directUrl = '${image['image_url'] ?? ''}'.trim();
       final thumbnailUrl = (signedUrls[path] ?? '').trim();
       row['_image_url'] = thumbnailUrl.isNotEmpty ? thumbnailUrl : directUrl;
+      row['_image_fallback_url'] = originalUrls[path] ?? directUrl;
       row['_image_cache_key'] = path.isNotEmpty ? path : directUrl;
     }
     return records;
@@ -2966,26 +2971,11 @@ class _ProductRecordCard extends StatelessWidget {
                         color: BunyaColors.copper,
                       ),
                     )
-                  : CachedNetworkImage(
+                  : FastProductImage(
                       imageUrl: imageUrl,
+                      fallbackUrl: '${row['_image_fallback_url'] ?? ''}',
                       cacheKey: '${row['_image_cache_key'] ?? imageUrl}',
-                      fit: BoxFit.cover,
-                      memCacheWidth: 320,
-                      maxWidthDiskCache: 640,
-                      fadeInDuration: Duration.zero,
-                      placeholder: (_, _) => const ColoredBox(
-                        color: Color(0xFFF0E9E0),
-                        child: Center(
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      ),
-                      errorWidget: (_, _, _) => const ColoredBox(
-                        color: Color(0xFFF0E9E0),
-                        child: Icon(
-                          Icons.broken_image_outlined,
-                          color: BunyaColors.copper,
-                        ),
-                      ),
+                      memoryWidth: 320,
                     ),
             ),
             Expanded(
@@ -4797,29 +4787,12 @@ class _ProductRecordDetailsState extends State<_ProductRecordDetails> {
                                 color: BunyaColors.copper,
                               ),
                             )
-                          : CachedNetworkImage(
+                          : FastProductImage(
                               imageUrl: imageUrl,
+                              fallbackUrl:
+                                  '${row['_image_fallback_url'] ?? ''}',
                               cacheKey:
                                   '${row['_image_cache_key'] ?? imageUrl}',
-                              fit: BoxFit.cover,
-                              memCacheWidth: 640,
-                              maxWidthDiskCache: 640,
-                              placeholder: (_, _) => const ColoredBox(
-                                color: Color(0xFFEDE4D8),
-                                child: Center(
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                ),
-                              ),
-                              errorWidget: (_, _, _) => const ColoredBox(
-                                color: Color(0xFFEDE4D8),
-                                child: Icon(
-                                  Icons.broken_image_outlined,
-                                  size: 58,
-                                  color: BunyaColors.copper,
-                                ),
-                              ),
                             ),
                     ),
                   ),
