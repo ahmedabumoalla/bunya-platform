@@ -78,7 +78,7 @@ const adminRoutes: RouteConfig[] = [
   route("/admin/join-requests/providers", "طلبات انضمام المزودين", "provider_applications", ["company_name", "contact_name", "mobile", "email", "status", "created_at"]),
   route("/admin/join-requests/contractors", "طلبات انضمام المقاولين", "contractor_applications", ["contractor_name", "mobile", "email", "status", "created_at"]),
   route("/admin/drivers", "السائقون", "provider_drivers", ["full_name", "mobile", "email", "status", "must_change_password", "created_at"]),
-  route("/admin/admins", "المدراء", "admin_users", ["profile_id", "role_id", "is_active", "last_active_at", "created_at"]),
+  route("/admin/admins", "المدراء والصلاحيات", "admin_users", ["full_name", "email", "mobile", "role_name", "account_status", "last_active_at", "created_at"], "أسماء المدراء وبيانات التواصل وأدوارهم وحالة حساباتهم."),
   route("/admin/catalog", "التصنيفات", "product_categories", ["name", "slug", "is_active", "sort_order", "created_at"], "إدارة تصنيفات مواد البناء وتنظيم ظهورها في كتالوج المنتجات."),
   route("/admin/products/review", "مراجعة المنتجات", "products", ["name", "sku", "review_status", "is_published", "provider_id", "created_at"]),
   route("/admin/pricing", "الأسعار والتوفر", "provider_product_prices", ["provider_id", "product_id", "unit_price", "vat_inclusive", "expires_at", "freshness_status"]),
@@ -252,7 +252,32 @@ const fieldLabels: Record<string, string> = {
   read_at: "وقت القراءة",
   expected_at: "الموعد المتوقع",
   delivered_at: "وقت التسليم",
+  role_name: "الدور الإداري",
+  role_description: "نطاق الصلاحيات",
+  account_status: "حالة الحساب",
+  last_active_at: "آخر نشاط",
 };
+
+function adminDisplayRow(row: DataRow): DataRow {
+  const profile = row.profile as DataRow | null;
+  const adminRole = row.admin_role as DataRow | null;
+  const date = (value: unknown) => {
+    if (!value) return "غير مسجل";
+    const parsed = new Date(String(value));
+    return Number.isNaN(parsed.getTime()) ? "غير مسجل" : parsed.toLocaleString("ar-SA-u-ca-gregory-nu-latn", { dateStyle: "medium", timeStyle: "short" });
+  };
+  return {
+    id: row.id,
+    full_name: profile?.full_name || profile?.username || "غير متاح",
+    email: profile?.email || "غير مسجل",
+    mobile: profile?.mobile || "غير مسجل",
+    role_name: adminRole?.name_ar || "غير متاح",
+    role_description: adminRole?.description || "غير مسجل",
+    account_status: row.is_active ? "مفعّل" : "موقوف",
+    last_active_at: date(row.last_active_at),
+    created_at: date(row.created_at),
+  };
+}
 
 function resolveRoute(role: AppRole, pathname: string) {
   const routes = roleRoutes[role];
@@ -295,7 +320,10 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
       if (config.rpc) {
         dataResult = await supabase.rpc(config.rpc);
       } else if (config.table) {
-        let query = supabase.from(config.table).select("*").limit(detailId ? 1 : 100);
+        const selection = config.table === "admin_users"
+          ? "id,is_active,last_active_at,created_at,profile:profiles!profile_id(full_name,username,email,mobile),admin_role:admin_roles!role_id(name_ar,description)"
+          : "*";
+        let query = supabase.from(config.table).select(selection).limit(detailId ? 1 : 100);
         if (detailId) query = query.eq("id", detailId);
         dataResult = await query;
       }
@@ -305,7 +333,7 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
         if (dataResult.error) throw dataResult.error;
         const raw = dataResult.data;
         const rows = Array.isArray(raw) ? raw as DataRow[] : raw ? [raw as DataRow] : [];
-        if (active) setState({ loading: false, rows, counts, error: null });
+        if (active) setState({ loading: false, rows: config.table === "admin_users" ? rows.map(adminDisplayRow) : rows, counts, error: null });
       } catch {
         if (active) {
           setState({
@@ -392,7 +420,7 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
     <main className="database-page" data-role={role}>
       <header className="database-page-header">
         <div>
-          <p>Supabase · Live Data</p>
+          <p>{config.table === "admin_users" ? "إدارة الحسابات" : "Supabase · Live Data"}</p>
           <h1>{detailId ? `تفاصيل ${config.title}` : config.title}</h1>
           <span>{config.description}</span>
         </div>
@@ -428,7 +456,7 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
           <EmptyState message={config.empty ?? "لا توجد بيانات حقيقية مسجلة في هذا القسم حتى الآن."} />
         )
       ) : detailId ? (
-        <DetailView row={state.rows[0]} />
+        <DetailView row={config.table === "admin_users" ? Object.fromEntries(Object.entries(state.rows[0]).filter(([key]) => key !== "id")) : state.rows[0]} adminAccount={config.table === "admin_users"} />
       ) : pathname === "/admin/catalog" ? (
         <CatalogGrid rows={state.rows} />
       ) : (
@@ -511,23 +539,23 @@ function RowsTable({ config, rows }: { config: RouteConfig; rows: DataRow[] }) {
   return (
     <section className="database-panel">
       <div className="database-panel-heading">
-        <div><h2>السجلات</h2><p>{rows.length.toLocaleString("ar-SA")} سجل حقيقي</p></div>
-        <span>Live</span>
+        <div><h2>{config.table === "admin_users" ? "حسابات المدراء" : "السجلات"}</h2><p>{rows.length.toLocaleString("ar-SA")} {config.table === "admin_users" ? "حساب إداري" : "سجل حقيقي"}</p></div>
+        <span>{config.table === "admin_users" ? "بيانات محدثة" : "Live"}</span>
       </div>
       <div className="database-table-wrap">
         <table>
-          <thead><tr>{fields.map((field) => <th key={field}>{fieldLabels[field] ?? humanize(field)}</th>)}{config.detail ? <th>التفاصيل</th> : null}</tr></thead>
-          <tbody>{rows.map((row, index) => <tr key={String(row.id ?? index)}>{fields.map((field) => <td key={field}>{formatValue(row[field])}</td>)}{config.detail ? <td>{row.id ? <Link href={`${config.path}/${encodeURIComponent(String(row.id))}`}>فتح السجل</Link> : "—"}</td> : null}</tr>)}</tbody>
+          <thead><tr>{fields.map((field) => <th scope="col" key={field}>{fieldLabels[field] ?? humanize(field)}</th>)}{config.detail ? <th scope="col">التفاصيل</th> : null}</tr></thead>
+          <tbody>{rows.map((row, index) => <tr key={String(row.id ?? index)}>{fields.map((field) => <td key={field}>{field === "email" || field === "mobile" ? <bdi dir="ltr">{formatValue(row[field])}</bdi> : formatValue(row[field])}</td>)}{config.detail ? <td>{row.id ? <Link href={`${config.path}/${encodeURIComponent(String(row.id))}`}>{config.table === "admin_users" ? "عرض بيانات المدير" : "فتح السجل"}</Link> : "—"}</td> : null}</tr>)}</tbody>
         </table>
       </div>
     </section>
   );
 }
 
-function DetailView({ row }: { row: DataRow }) {
+function DetailView({ row, adminAccount = false }: { row: DataRow; adminAccount?: boolean }) {
   return (
     <section className="database-panel database-detail">
-      <div className="database-panel-heading"><div><h2>بيانات السجل</h2><p>القيم المسموح بها لهذا الحساب عبر RLS.</p></div><span>DB</span></div>
+      <div className="database-panel-heading"><div><h2>{adminAccount ? "بيانات المدير وصلاحياته" : "بيانات السجل"}</h2><p>{adminAccount ? "بيانات التواصل والدور الإداري وحالة الحساب." : "القيم المسموح بها لهذا الحساب عبر RLS."}</p></div><span>{adminAccount ? "حساب إداري" : "DB"}</span></div>
       <dl>{Object.entries(row).map(([key, value]) => <div key={key}><dt>{fieldLabels[key] ?? humanize(key)}</dt><dd>{formatValue(value)}</dd></div>)}</dl>
     </section>
   );
