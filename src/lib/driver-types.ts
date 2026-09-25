@@ -84,6 +84,3 @@ export type DriverAdminAction = {
   adminId:string;
   createdAt:string;
 };
-
-export type PwaInstallState = {installed:boolean;dismissedAt?:string;installedAt?:string;platform?:string};
-export type PwaRoleShortcut = {role:"customer"|"provider"|"contractor"|"driver"|"admin";name:string;url:string};

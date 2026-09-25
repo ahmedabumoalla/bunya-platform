@@ -287,9 +287,14 @@ export function ProviderProductsList() {
                   </div>
                 </dl>
                 <p>آخر تحديث: {new Date(product.updated_at).toLocaleString("ar-SA")}</p>
-                <span className={styles.viewHint}>
-                  عرض التفاصيل الكاملة <b aria-hidden>←</b>
-                </span>
+                <div className={styles.cardActions}>
+                  {product.review_status === "approved" ? (
+                    <Link className={styles.changeRequestButton} href={`/merchant/products/${product.id}/change-request`}>
+                      طلب تعديل البيانات
+                    </Link>
+                  ) : <span />}
+                  <span className={styles.viewHint}>عرض التفاصيل <b aria-hidden>←</b></span>
+                </div>
               </div>
             </article>
           ))}
@@ -443,6 +448,11 @@ function ProviderProductDetailsDialog({ product, loading, error, activeImage, on
               <button className="provider-secondary" type="button" onClick={onClose}>
                 إغلاق
               </button>
+              {product.review_status === "approved" ? (
+                <Link className={styles.changeRequestButton} href={`/merchant/products/${product.id}/change-request`}>
+                  طلب تعديل بيانات المنتج
+                </Link>
+              ) : null}
             </footer>
           </div>
         )}

@@ -2,9 +2,12 @@ import { readdir, readFile } from "node:fs/promises";
 import { extname, relative, resolve } from "node:path";
 
 const root = resolve(process.cwd(), "src");
-const allowedPreferenceStorage = new Set([
+const allowedBrowserStorage = new Set([
   "components/ThemeToggle.tsx",
-  "components/PwaInstallPrompt.tsx",
+  "components/LegacyPwaCleanup.tsx",
+  // Ephemeral hand-off between registration and OTP verification; no domain records.
+  "components/AuthFlows.tsx",
+  "components/PhoneVerificationFlow.tsx",
   "components/admin/AdminShell.tsx",
   "components/customer/CustomerShell.tsx",
   "components/provider/ProviderShell.tsx",
@@ -25,7 +28,7 @@ async function walk(directory) {
 async function inspect(path) {
   const name = relative(root, path).replaceAll("\\", "/");
   const source = await readFile(path, "utf8");
-  if ((source.includes("localStorage") || source.includes("sessionStorage")) && !allowedPreferenceStorage.has(name)) {
+  if ((source.includes("localStorage") || source.includes("sessionStorage")) && !allowedBrowserStorage.has(name)) {
     failures.push(`${name}: operational browser storage is forbidden`);
   }
   if (operationalMockImport.test(source)) failures.push(`${name}: imports a retired mock/data-storage module`);

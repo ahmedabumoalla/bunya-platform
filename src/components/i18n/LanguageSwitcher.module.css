@@ -1,0 +1,97 @@
+.switcher {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid color-mix(in srgb, var(--foreground) 18%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--background) 92%, white);
+  color: var(--foreground);
+  box-shadow: 0 8px 24px rgb(24 35 31 / 8%);
+}
+
+.switcher select {
+  min-height: 44px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.icon { color: #b7603b; font-weight: 900; }
+.label { font-size: .78rem; color: var(--muted); font-weight: 800; }
+.compact .label { display: none; }
+
+.mobileHeader { display: none; }
+
+.switcher:focus-within {
+  outline: 2px solid #b7603b;
+  outline-offset: 2px;
+}
+
+.floating {
+  position: fixed;
+  z-index: 1000;
+  inset-inline-end: max(14px, env(safe-area-inset-right));
+  bottom: max(14px, env(safe-area-inset-bottom));
+}
+
+@media (max-width: 640px) {
+  .floating { bottom: calc(82px + env(safe-area-inset-bottom)); }
+  .switcher { background: #fffaf4; }
+}
+
+@media (max-width: 760px) {
+  :global(body:has(.store-header)) .floating { display: none; }
+
+  .mobileHeader {
+    display: flex;
+    grid-column: 2;
+    grid-row: 1;
+    align-items: center;
+    justify-self: end;
+  }
+
+  .mobileHeader .switcher {
+    position: relative;
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+    justify-content: center;
+    gap: 0;
+    padding: 0;
+    box-shadow: none;
+  }
+
+  .mobileHeader .icon {
+    font-size: 20px;
+    line-height: 1;
+    pointer-events: none;
+  }
+
+  .mobileHeader select {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    opacity: 0;
+  }
+
+  :global(.store-home .store-header-layout):has(.mobileHeader) {
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
+  }
+
+  :global(.store-header):has(.mobileHeader) :global(.store-brand) { min-width: 0; }
+
+  :global(html[data-native-app] .store-home .store-header-layout):has(.mobileHeader) {
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
+  }
+
+  :global(html[data-native-app] .store-home .store-header-layout):has(.mobileHeader) :global(.store-header-quote) { grid-column: 3; }
+  :global(html[data-native-app] .store-home .store-header-layout):has(.mobileHeader) :global(.store-menu-button) { grid-column: 4; }
+}

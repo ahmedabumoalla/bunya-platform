@@ -1,10 +1,11 @@
 import "server-only";
 import {sendGreenApiMessage,maskWhatsAppDestination} from "./providers/green-api";
 import {sendResendSensitiveCopy} from "./providers/resend";
+import {OFFICIAL_PLATFORM_URL} from "./site-url";
 import {maskEmail,recordProviderSubmission} from "./submissions";
 
 export async function sendOnboardingCredentials(input:{kind:"provider"|"contractor";applicationId:string;applicantName:string;details:Array<{label:string;value:string}>;email:string;mobile:string;password:string;idempotencyKey:string}){
-  const site=(process.env.APP_URL||process.env.NEXT_PUBLIC_SITE_URL||"https://buniahksa.com").replace(/\/$/,"");
+  const site=OFFICIAL_PLATFORM_URL;
   const role=input.kind==="provider"?"مزود":"مقاول";
   const portal=input.kind==="provider"?"/merchant":"/contractor";
   const details=input.details.map(({label,value})=>`${label}: ${value||"—"}`).join("\n");

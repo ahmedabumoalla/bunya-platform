@@ -13,12 +13,15 @@ import{OpportunityProposal,ProjectProposalDecisions,ProjectRequestForm}from"@/co
 import{AdminContractorCatalogReview,ContractorPortfolioManager,ContractorServicesManager}from"@/components/contractor/ContractorCatalogWorkflows";
 import{AdminSettlements,ContractorFinance,NotificationCenter,SupportCenter}from"@/components/operations/SupportFinanceWorkflows";
 import{ProviderProductCreate,ProviderProductsList}from"@/components/provider/ProviderProducts";
+import{ProviderProductChangeRequest}from"@/components/provider/ProviderProductChangeRequest";
 import{ProviderDriverCreate,ProviderDriversManager}from"@/components/provider/ProviderDrivers";
 import{ProviderFinance,ProviderOrders,ProviderPolicies,ProviderProfile,ProviderQuoteRequests,ProviderQuotes}from"@/components/provider/ProviderWorkspace";
 import{ProviderNotifications}from"@/components/provider/ProviderNotifications";
 import{AdminPolicyManager}from"@/components/admin/AdminPolicies";
 import{AdminUsers}from"@/components/admin/AdminUsers";
 import{AdminProductReview}from"@/components/admin/AdminProductReview";
+import{AdminProductChangeReview}from"@/components/admin/AdminProductChangeReview";
+import{AdminFinanceDashboard}from"@/components/admin/AdminFinanceDashboard";
 import{CustomerAddresses,CustomerBilling,CustomerDashboard,CustomerDeliveries,CustomerOrders,CustomerProfile,CustomerProjectRequests,CustomerQuoteRequestDetail,CustomerQuoteRequests,CustomerQuotes,CustomerSavedContractors}from"@/components/customer/CustomerWorkspace";
 import{ContractorProfileEditor}from"@/components/contractor/ContractorProfileEditor";
 import{ContractorDashboard,ContractorOpportunities,ContractorProjectComments,ContractorProjectDetail,ContractorProjects,ContractorProposalDetail,ContractorProposals,ContractorReviews,ContractorVerification}from"@/components/contractor/ContractorWorkspace";
@@ -271,6 +274,8 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
   const [state, setState] = useState<LoadState>({ loading: true, rows: [], counts: {}, error: null });
   const providerHome = role === "provider" && pathname === "/merchant";
   const providerAccount = providerHome ? identity.details.provider : null;
+  const providerProductChangeMatch = pathname.match(/^\/merchant\/products\/([^/]+)\/change-request$/);
+  const adminProductChangeMatch = pathname.match(/^\/admin\/products\/changes\/([^/]+)$/);
 
   useEffect(() => {
     if (pathname === "/driver/change-password") return;
@@ -331,8 +336,11 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
   if(role==="admin"&&pathname==="/admin/users")return <AdminUsers/>;
   if(role==="admin"&&pathname==="/admin/products/review")return <AdminProductReview/>;
   if(role==="admin"&&pathname.startsWith("/admin/products/review/")&&detailId)return <AdminProductReview initialProductId={detailId}/>;
+  if(role==="admin"&&pathname==="/admin/products/changes")return <AdminProductChangeReview/>;
+  if(role==="admin"&&adminProductChangeMatch)return <AdminProductChangeReview initialRequestId={decodeURIComponent(adminProductChangeMatch[1])}/>;
   if(role==="provider"&&pathname==="/merchant/products")return <ProviderProductsList/>;
   if(role==="provider"&&pathname==="/merchant/products/new")return <ProviderProductCreate/>;
+  if(role==="provider"&&providerProductChangeMatch)return <ProviderProductChangeRequest productId={decodeURIComponent(providerProductChangeMatch[1])}/>;
   if(role==="provider"&&pathname==="/merchant/drivers")return <ProviderDriversManager/>;
   if(role==="provider"&&pathname==="/merchant/drivers/new")return <ProviderDriverCreate/>;
   if(role==="provider"&&pathname.startsWith("/merchant/orders/")&&detailId)return <ProviderFulfillmentWorkflow id={detailId}/>;
@@ -373,7 +381,8 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
   if(role==="admin"&&pathname==="/admin/contractor-portfolio")return <AdminContractorCatalogReview kind="portfolio"/>;
   if(pathname.endsWith("/support"))return <SupportCenter admin={role==="admin"}/>;
   if(role==="contractor"&&pathname==="/contractor/finance")return <ContractorFinance/>;
-  if(role==="admin"&&(pathname==="/admin/settlements/contractors"||pathname==="/admin/finance"))return <AdminSettlements/>;
+  if(role==="admin"&&pathname==="/admin/finance")return <AdminFinanceDashboard/>;
+  if(role==="admin"&&pathname==="/admin/settlements/contractors")return <AdminSettlements/>;
   if(role==="customer"&&pathname==="/customer/notifications")return <NotificationCenter source="customer"/>;
   if(role==="contractor"&&pathname==="/contractor/notifications")return <NotificationCenter source="contractor"/>;
   if(pathname.endsWith("/notifications"))return <NotificationCenter source="general"/>;

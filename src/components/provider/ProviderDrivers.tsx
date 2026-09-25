@@ -20,6 +20,7 @@ type Driver = {
 
 type Credentials = {
   email: string;
+  mobile: string;
   username: string;
   temporaryPassword: string;
   expiresAt: string;
@@ -110,7 +111,7 @@ export function ProviderDriversManager() {
       <header><div><small>@{driver.username}</small><h3>{driver.full_name}</h3><span>{driver.mobile} · {driver.email}</span></div><span className={`provider-status ${statusClasses[driver.status]}`}>{statusLabels[driver.status]}</span></header>
       <dl className="provider-info-grid">
         <div><dt>تاريخ الإضافة</dt><dd>{new Date(driver.created_at).toLocaleString("ar-SA")}</dd></div>
-        <div><dt>آخر نشاط</dt><dd>{driver.last_active_at ? new Date(driver.last_active_at).toLocaleString("ar-SA") : "لم يسجل دخولًا بعد"}</dd></div>
+        <div><dt>آخر نشاط</dt><dd>{driver.last_active_at ? new Date(driver.last_active_at).toLocaleString("ar-SA") : driver.status === "must_change_password" ? "لم يكمل أول دخول بعد" : "الحساب مفعّل ولم يسجل نشاطًا حديثًا"}</dd></div>
         {driver.internal_notes ? <div className="wide"><dt>ملاحظات داخلية</dt><dd>{driver.internal_notes}</dd></div> : null}
       </dl>
       <footer className="provider-driver-actions">
@@ -154,7 +155,7 @@ export function ProviderDriverCreate() {
 
   const copyCredentials = async () => {
     if (!credentials) return;
-    await navigator.clipboard.writeText(`البريد: ${credentials.email}\nاسم المستخدم: ${credentials.username}\nكلمة المرور المؤقتة: ${credentials.temporaryPassword}`);
+    await navigator.clipboard.writeText(`رقم الجوال: ${credentials.mobile}\nالبريد: ${credentials.email}\nاسم المستخدم: ${credentials.username}\nكلمة المرور المؤقتة: ${credentials.temporaryPassword}`);
     setCopied(true);
   };
 
@@ -163,6 +164,7 @@ export function ProviderDriverCreate() {
     <section className="provider-panel provider-driver-credentials" role="status">
       <span className="provider-status provider-status-success">تم إنشاء السائق بنجاح</span>
       <dl>
+        <div><dt>رقم الجوال للدخول</dt><dd dir="ltr">{credentials.mobile}</dd></div>
         <div><dt>البريد</dt><dd dir="ltr">{credentials.email}</dd></div>
         <div><dt>اسم المستخدم</dt><dd dir="ltr">{credentials.username}</dd></div>
         <div><dt>كلمة المرور المؤقتة</dt><dd dir="ltr">{credentials.temporaryPassword}</dd></div>

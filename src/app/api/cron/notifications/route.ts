@@ -1,9 +1,10 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 
-import { dispatchNotificationBatch } from "@/lib/notifications/dispatcher";
+import { dispatchNotificationBatch, dispatchNotificationEvent } from "@/lib/notifications/dispatcher";
 import { dispatchProductReviewNotifications } from "@/lib/notifications/product-review-dispatcher";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { reconcilePendingPaymobPayments } from "@/lib/payments/paymob-reconciliation";
 
 export const runtime = "nodejs";
 
@@ -23,6 +24,13 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const eventId = request.nextUrl.searchParams.get("event");
+    if (eventId) {
+      if (!/^[0-9a-f-]{36}$/i.test(eventId)) {
+        return NextResponse.json({ message: "Invalid event" }, { status: 400 });
+      }
+      return NextResponse.json({ general: await dispatchNotificationEvent(eventId) });
+    }
     const productReviewsOnly = request.nextUrl.searchParams.get("only") === "product-reviews";
     if (productReviewsOnly) {
       return NextResponse.json({
@@ -30,12 +38,14 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    await createAdminClient().rpc("schedule_operational_notifications");
+    const admin = createAdminClient();
+    const payments = await reconcilePendingPaymobPayments(admin, 10);
+    await admin.rpc("schedule_operational_notifications");
     const [general, productReviews] = await Promise.all([
       dispatchNotificationBatch(10),
       dispatchProductReviewNotifications(10),
     ]);
-    return NextResponse.json({ general, productReviews });
+    return NextResponse.json({ payments, general, productReviews });
   } catch {
     return NextResponse.json({ message: "Dispatcher unavailable" }, { status: 503 });
   }

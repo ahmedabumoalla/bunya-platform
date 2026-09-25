@@ -4,6 +4,7 @@ import type { FormEvent } from "react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthIdentity } from "@/components/auth/AuthIdentityProvider";
+import { LogoutButton } from "@/components/auth/LogoutButton";
 import { validatePassword } from "@/lib/bunya-local";
 import { createClient } from "@/lib/supabase/client";
 
@@ -38,15 +39,13 @@ export function DriverChangePassword() {
       setError("تعذر تحديث كلمة المرور. حاول مرة أخرى.");
       return;
     }
-    const { error: profileError } = await supabase
-      .from("provider_drivers")
-      .update({ must_change_password: false, status: "active", updated_at: new Date().toISOString() })
-      .eq("id", identity.details.driver?.driverId ?? "");
+    const { error: profileError } = await supabase.rpc("complete_temporary_password_change");
     if (profileError) {
       setBusy(false);
       setError("تم تغيير كلمة المرور، لكن تعذر تحديث حالة الحساب.");
       return;
     }
+    await supabase.rpc("mark_driver_activity");
     router.replace("/driver");
     router.refresh();
   };
@@ -57,5 +56,6 @@ export function DriverChangePassword() {
     {([ ["current", "كلمة المرور الحالية"], ["password", "كلمة المرور الجديدة"], ["confirm", "تأكيد الجديدة"] ] as const).map(([key, label]) => <label key={key}><span>{label}</span><input type={show[key] ? "text" : "password"} value={form[key]} onChange={(event) => { setForm((current) => ({ ...current, [key]: event.target.value })); setError(""); }} /><small><input type="checkbox" checked={show[key]} onChange={(event) => setShow((current) => ({ ...current, [key]: event.target.checked }))} /> إظهار الحقل</small></label>)}
     <div className="driver-password-strength"><i style={{ width: `${Math.min(100, form.password.length * 10)}%` }} /><span>{form.password && form.password === form.confirm ? "كلمتا المرور متطابقتان" : "استخدم 8 أحرف على الأقل، بينها حرف إنجليزي كبير ورقم"}</span></div>
     {error ? <p className="driver-error">{error}</p> : null}<button className="driver-primary" disabled={busy}>{busy ? "جارٍ الحفظ..." : "حفظ والدخول للوحة"}</button>
+    <LogoutButton className="driver-secondary">تسجيل الخروج</LogoutButton>
   </form></main>;
 }

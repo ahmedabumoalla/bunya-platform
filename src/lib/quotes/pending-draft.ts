@@ -1,7 +1,6 @@
-import type { QuoteRequestItem } from "@/lib/bunya-types";
+import type { QuoteRequestItem, QuoteVariantSelection } from "@/lib/bunya-types";
 
 export type StorefrontQuoteDetails = {
-  city: string;
   locationHint: string;
   mapsUrl: string;
   desiredReceiptAt: string;
@@ -9,6 +8,19 @@ export type StorefrontQuoteDetails = {
   projectName: string;
   recipientName: string;
   recipientMobile: string;
+  siteResponsibleName: string;
+  siteResponsibleMobile: string;
+  contractorName: string;
+  contractorMobile: string;
+  siteHoursStart: string;
+  siteHoursEnd: string;
+  workingHours: string;
+  loadingOption: string;
+  unloadingOption: string;
+  roadAccess: string;
+  accessInstructions: string;
+  driverDepartureLiabilityAccepted: boolean;
+  dataAccuracyAccepted: boolean;
   notes: string;
 };
 
@@ -21,7 +33,6 @@ export type PendingStorefrontQuote = {
 };
 
 export const emptyStorefrontQuoteDetails: StorefrontQuoteDetails = {
-  city: "",
   locationHint: "",
   mapsUrl: "",
   desiredReceiptAt: "",
@@ -29,6 +40,19 @@ export const emptyStorefrontQuoteDetails: StorefrontQuoteDetails = {
   projectName: "",
   recipientName: "",
   recipientMobile: "",
+  siteResponsibleName: "",
+  siteResponsibleMobile: "",
+  contractorName: "",
+  contractorMobile: "",
+  siteHoursStart: "07:00",
+  siteHoursEnd: "16:00",
+  workingHours: "من 07:00 إلى 16:00",
+  loadingOption: "",
+  unloadingOption: "",
+  roadAccess: "",
+  accessInstructions: "",
+  driverDepartureLiabilityAccepted: false,
+  dataAccuracyAccepted: false,
   notes: "",
 };
 
@@ -55,6 +79,28 @@ export function normalizePendingStorefrontQuote(value: unknown): PendingStorefro
     const measurementId = text(item.measurementId, 40);
     const quantity = Number(item.quantity);
     if (!isUuid(productId) || (measurementId && !isUuid(measurementId)) || !Number.isFinite(quantity) || quantity <= 0 || quantity > 1_000_000) return null;
+    const selectedVariants: QuoteVariantSelection[] = [];
+    if (Array.isArray(item.selectedVariants)) {
+      for (const candidateVariant of item.selectedVariants.slice(0, 20)) {
+        if (!candidateVariant || typeof candidateVariant !== "object") return null;
+        const variant = candidateVariant as Record<string, unknown>;
+        const id = text(variant.id, 40);
+        if (!isUuid(id) || !Array.isArray(variant.attributes)) return null;
+        selectedVariants.push({
+          id,
+          name: text(variant.name, 160),
+          attributes: variant.attributes.slice(0, 20).map((candidateAttribute) => {
+            const attribute = candidateAttribute && typeof candidateAttribute === "object"
+              ? candidateAttribute as Record<string, unknown>
+              : {};
+            return {
+              label: text(attribute.label, 80),
+              value: text(attribute.value, 160),
+            };
+          }).filter((attribute) => attribute.label && attribute.value),
+        });
+      }
+    }
     items.push({
       id: text(item.id, 100) || `${productId}-${items.length}`,
       productId,
@@ -63,6 +109,7 @@ export function normalizePendingStorefrontQuote(value: unknown): PendingStorefro
       unit: text(item.unit, 80),
       measurementId,
       measurementLabel: text(item.measurementLabel, 160),
+      selectedVariants,
       desiredReceiptDate: text(item.desiredReceiptDate, 20),
       mapsUrl: text(item.mapsUrl, 1000),
       notes: text(item.notes, 1000) || undefined,
@@ -71,12 +118,13 @@ export function normalizePendingStorefrontQuote(value: unknown): PendingStorefro
   }
 
   const source = raw.details && typeof raw.details === "object" ? raw.details as Record<string, unknown> : {};
+  const siteHoursStart = text(source.siteHoursStart, 5) || "07:00";
+  const siteHoursEnd = text(source.siteHoursEnd, 5) || "16:00";
   return {
     version: 1,
     idempotencyKey,
     items,
     details: {
-      city: text(source.city, 120),
       locationHint: text(source.locationHint, 300),
       mapsUrl: text(source.mapsUrl, 1000),
       desiredReceiptAt: text(source.desiredReceiptAt, 40),
@@ -84,6 +132,19 @@ export function normalizePendingStorefrontQuote(value: unknown): PendingStorefro
       projectName: text(source.projectName, 160),
       recipientName: text(source.recipientName, 160),
       recipientMobile: text(source.recipientMobile, 30),
+      siteResponsibleName: text(source.siteResponsibleName, 160),
+      siteResponsibleMobile: text(source.siteResponsibleMobile, 30),
+      contractorName: text(source.contractorName, 160),
+      contractorMobile: text(source.contractorMobile, 30),
+      siteHoursStart,
+      siteHoursEnd,
+      workingHours: text(source.workingHours, 300) || `من ${siteHoursStart} إلى ${siteHoursEnd}`,
+      loadingOption: text(source.loadingOption, 160),
+      unloadingOption: text(source.unloadingOption, 160),
+      roadAccess: text(source.roadAccess, 160),
+      accessInstructions: text(source.accessInstructions, 500),
+      driverDepartureLiabilityAccepted: source.driverDepartureLiabilityAccepted === true,
+      dataAccuracyAccepted: source.dataAccuracyAccepted === true,
       notes: text(source.notes, 1500),
     },
     savedAt: text(raw.savedAt, 40) || new Date().toISOString(),

@@ -52,7 +52,7 @@ export async function checkGreenApiWhatsApp(value:string):Promise<WhatsAppAvaila
   const config=configuration();if(!config)return{status:"configuration_missing",sanitizedError:"provider_configuration_missing"};
   const chatId=normalizeWhatsAppChatId(value);
   try{
-    const response=await fetch(`${config.apiUrl}/waInstance${config.id}/checkWhatsapp/${config.token}`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({chatId,force:true}),signal:AbortSignal.timeout(6000),cache:"no-store"});
+    const response=await fetch(`${config.apiUrl}/waInstance${config.id}/checkWhatsapp/${config.token}`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({phoneNumber:Number(chatId.replace(/@c\.us$/,"")),force:true}),signal:AbortSignal.timeout(6000),cache:"no-store"});
     const payload=await response.json().catch(()=>({})) as {existsWhatsapp?:boolean};
     if(response.ok&&payload.existsWhatsapp===true)return{status:"available",sanitizedError:null};
     if(response.ok&&payload.existsWhatsapp===false)return{status:"not_available",sanitizedError:"whatsapp_not_available"};

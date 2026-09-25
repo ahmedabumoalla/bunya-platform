@@ -317,8 +317,6 @@ html[data-native-app] :where(.customer-sidebar,.provider-sidebar,.contractor-sid
   }
 
   html[data-native-app] .store-home .store-product-art { aspect-ratio: 1.2; }
-  html[data-native-app] .store-home .pwa-install-prompt { display: none !important; }
-
   html[data-native-app] .native-home-tabs {
     position: fixed;
     inset: auto 0 0;

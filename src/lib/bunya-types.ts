@@ -17,6 +17,28 @@ export type ProductMeasurement = {
   isDefault?: boolean;
 };
 
+export type ProductVariant = {
+  id: string;
+  name: string;
+  sku: string;
+  attributes: Array<{ label: string; value: string }>;
+};
+
+export type QuoteVariantSelection = {
+  id: string;
+  name: string;
+  attributes: Array<{ label: string; value: string }>;
+};
+
+export type ProductDeliveryDetails = {
+  available: boolean;
+  maximumDuration: string | null;
+  pricePerKm: number | null;
+  maximumDistanceKm: number | null;
+  regions: string[];
+  notes: string;
+};
+
 export type DeliveryEstimate = {
   label: string;
   window: string;
@@ -36,6 +58,7 @@ export type Warranty = {
 
 export type Product = {
   id: string;
+  sku: string | null;
   name: string;
   category: ProductCategory;
   unit: string;
@@ -47,12 +70,19 @@ export type Product = {
   leadTime: string;
   specs: string[];
   measurements: ProductMeasurement[];
+  variants: ProductVariant[];
   units: string[];
   delivery: DeliveryEstimate;
+  deliveryDetails: ProductDeliveryDetails;
   regions: AvailableRegion[];
   warranty: Warranty;
   images: ProductImage[];
   deliveryNotes: string;
+  offerType: "بيع" | "تأجير";
+  minimumOrder: number | null;
+  stockQuantity: number | null;
+  vatInclusive: boolean;
+  rentalDuration: string | null;
   isNew?: boolean;
 };
 
@@ -64,6 +94,7 @@ export type QuoteRequestItem = {
   unit: string;
   measurementId: string;
   measurementLabel: string;
+  selectedVariants: QuoteVariantSelection[];
   desiredReceiptDate: string;
   mapsUrl: string;
   notes?: string;
@@ -137,11 +168,16 @@ export type ContractorProfile = {
   city: string;
   badge: string;
   serviceTypes: string[];
+  workRegions: string[];
   yearsExperience: number;
   summary: string;
   workItems: Array<{ title: string; mediaUrl: string | null; mimeType: string | null }>;
   phone: string;
   email: string;
+  mapsUrl: string | null;
+  averageRating: number;
+  projectsCount: number;
+  availability: string;
   subscriptionActive: boolean;
   approvalStatus: "approved" | "pending";
 };

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { resolveSafeReturnTo } from "@/lib/auth/return-to";
-import { maskSaudiPhone, normalizeSaudiPhone } from "@/lib/auth/phone-verification";
+import { maskSaudiPhone, normalizeSaudiPhone, pendingRegistrationCodeSentKey, pendingRegistrationPhoneKey } from "@/lib/auth/phone-verification";
 import { createClient } from "@/lib/supabase/client";
 import { AuthCard, PortalShell } from "@/components/PortalUI";
 
@@ -19,15 +19,8 @@ export function PhoneVerificationFlow({ returnTo }: { returnTo?: string }) {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
-  const requestCode = async (event?: FormEvent) => {
-    event?.preventDefault();
-    if (busy) return;
-    const normalized = normalizeSaudiPhone(phone);
-    if (!normalized) {
-      setError("أدخل رقم جوال سعوديًا صحيحًا، مثل 05xxxxxxxx.");
-      return;
-    }
-
+  const sendCode = useCallback(async (normalized: string) => {
+    setPhone(normalized);
     setBusy(true);
     setError("");
     setMessage("");
@@ -42,11 +35,44 @@ export function PhoneVerificationFlow({ returnTo }: { returnTo?: string }) {
       setError(body.message || "تعذر إرسال رمز التحقق. حاول مجددًا.");
       return;
     }
-
     setRequestedPhone(body.phone || normalized);
     setStep("otp");
     setOtp("");
     setMessage(body.message || "أُرسل رمز التحقق عبر واتساب.");
+  }, []);
+
+  useEffect(() => {
+    const pending = sessionStorage.getItem(pendingRegistrationPhoneKey);
+    if (!pending) return;
+    sessionStorage.removeItem(pendingRegistrationPhoneKey);
+    const codeAlreadySent = sessionStorage.getItem(pendingRegistrationCodeSentKey) === "true";
+    sessionStorage.removeItem(pendingRegistrationCodeSentKey);
+    const normalized = normalizeSaudiPhone(pending);
+    if (!normalized) return;
+    const timer = window.setTimeout(() => {
+      if (codeAlreadySent) {
+        setPhone(normalized);
+        setRequestedPhone(normalized);
+        setStep("otp");
+        setOtp("");
+        setMessage("أُرسل رمز التحقق عبر واتساب. أدخل الرمز الذي وصلك.");
+      } else {
+        void sendCode(normalized);
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [sendCode]);
+
+  const requestCode = async (event?: FormEvent) => {
+    event?.preventDefault();
+    if (busy) return;
+    const normalized = normalizeSaudiPhone(phone);
+    if (!normalized) {
+      setError("أدخل رقم جوال سعوديًا صحيحًا، مثل 05xxxxxxxx.");
+      return;
+    }
+
+    await sendCode(normalized);
   };
 
   const verify = async (event: FormEvent) => {

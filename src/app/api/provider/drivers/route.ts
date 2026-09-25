@@ -1,5 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getAuthIdentity } from "@/lib/auth/server";
+import { NextRequest } from "next/server";
+import { resolveAuthIdentity } from "@/lib/auth/resolve-identity";
+import {
+  authRouteOptions,
+  authRouteResponse,
+  createAuthRequestClient,
+  isLocalAppOrigin,
+} from "@/lib/auth/request-client";
 import { generateTemporaryPassword } from "@/lib/join/admin";
 import {
   assertSameOrigin,
@@ -20,13 +26,15 @@ type DriverBody = {
   internalNotes?: unknown;
 };
 
-async function requireProvider() {
-  const identity = await getAuthIdentity();
+async function requireProvider(request: NextRequest) {
+  const auth = await createAuthRequestClient(request);
+  if (auth.error || !auth.user) throw new PublicJoinError("يلزم تسجيل الدخول بحساب مزود فعّال.", 401);
+  const identity = await resolveAuthIdentity(auth.supabase, auth.user);
   const provider = identity?.details.provider;
   if (!identity || identity.status !== "ready" || !identity.activeRoles.includes("provider") || !provider) {
     throw new PublicJoinError("يلزم تسجيل الدخول بحساب مزود فعّال.", 401);
   }
-  return { identity, provider };
+  return { identity, provider, usesBearer: auth.usesBearer };
 }
 
 function cleanText(value: unknown, min: number, max: number) {
@@ -39,8 +47,8 @@ export async function POST(request: NextRequest) {
   let authUserId: string | null = null;
   let driverId: string | null = null;
   try {
-    assertSameOrigin(request);
-    const { identity, provider } = await requireProvider();
+    const { identity, provider, usesBearer } = await requireProvider(request);
+    if (!usesBearer && !isLocalAppOrigin(request)) assertSameOrigin(request);
     const body = await request.json() as DriverBody;
     const fullName = cleanText(body.fullName, 3, 120);
     const email = normalizeEmail(String(body.email ?? ""));
@@ -61,8 +69,10 @@ export async function POST(request: NextRequest) {
     const password = generateTemporaryPassword();
     const created = await admin.auth.admin.createUser({
       email,
+      phone: mobile,
       password,
       email_confirm: true,
+      phone_confirm: true,
       user_metadata: { full_name: fullName, username, mobile, onboarding_role: "driver" },
     });
     if (created.error || !created.data.user) throw new PublicJoinError("تعذر إنشاء حساب الدخول؛ تحقق من عدم تعارض البريد.", 409);
@@ -133,23 +143,23 @@ export async function POST(request: NextRequest) {
       new_data: { provider_id: provider.providerId, driver_id: driver.data.id },
     });
 
-    return NextResponse.json({
+    return authRouteResponse(request, {
       driver: driver.data,
-      credentials: { email, username, temporaryPassword: password, expiresAt: expiresAt.toISOString() },
-    }, { status: 201 });
+      credentials: { email, mobile, username, temporaryPassword: password, expiresAt: expiresAt.toISOString() },
+    }, 201);
   } catch (error) {
     if (driverId) await createAdminClient().from("provider_drivers").delete().eq("id", driverId);
     if (authUserId) await createAdminClient().auth.admin.deleteUser(authUserId).catch(() => undefined);
-    if (error instanceof PublicJoinError) return NextResponse.json({ error: error.message }, { status: error.status });
+    if (error instanceof PublicJoinError) return authRouteResponse(request, { error: error.message }, error.status);
     console.error("provider_driver_creation_failed", { code: error instanceof Error ? error.message : "unknown" });
-    return NextResponse.json({ error: "تعذر إكمال إنشاء السائق وتم التراجع عن الحساب بأمان." }, { status: 500 });
+    return authRouteResponse(request, { error: "تعذر إكمال إنشاء السائق وتم التراجع عن الحساب بأمان." }, 500);
   }
 }
 
 export async function PATCH(request: NextRequest) {
   try {
-    assertSameOrigin(request);
-    const { identity, provider } = await requireProvider();
+    const { identity, provider, usesBearer } = await requireProvider(request);
+    if (!usesBearer && !isLocalAppOrigin(request)) assertSameOrigin(request);
     const body = await request.json() as { id?: unknown; status?: unknown };
     const id = String(body.id ?? "");
     const requestedStatus = String(body.status ?? "");
@@ -187,10 +197,14 @@ export async function PATCH(request: NextRequest) {
       action: requestedStatus === "suspended" ? "provider_driver_suspended" : "provider_driver_reactivated",
       new_data: { provider_id: provider.providerId, status },
     });
-    return NextResponse.json({ id, status });
+    return authRouteResponse(request, { id, status });
   } catch (error) {
-    if (error instanceof PublicJoinError) return NextResponse.json({ error: error.message }, { status: error.status });
+    if (error instanceof PublicJoinError) return authRouteResponse(request, { error: error.message }, error.status);
     console.error("provider_driver_update_failed", { code: error instanceof Error ? error.message : "unknown" });
-    return NextResponse.json({ error: "تعذر تحديث حالة السائق." }, { status: 500 });
+    return authRouteResponse(request, { error: "تعذر تحديث حالة السائق." }, 500);
   }
+}
+
+export function OPTIONS(request: NextRequest) {
+  return authRouteOptions(request);
 }

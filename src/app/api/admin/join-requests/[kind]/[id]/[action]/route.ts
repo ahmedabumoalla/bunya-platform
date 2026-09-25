@@ -5,6 +5,7 @@ import {
 } from "@/lib/join/admin";
 import { sendJoinApplicantDecision } from "@/lib/notifications/send-join-applicant-decision";
 import { sendOnboardingCredentials } from "@/lib/notifications/send-onboarding-credentials";
+import { OFFICIAL_PLATFORM_URL } from "@/lib/notifications/site-url";
 import {
   isValidJoinUsername,
   normalizeJoinUsername,
@@ -112,11 +113,7 @@ export async function POST(
         { status: 409 },
       );
     await recordReview(auth.admin, auth.userId, kind, id, status, reason);
-    const site = (
-      process.env.APP_URL ||
-      process.env.NEXT_PUBLIC_SITE_URL ||
-      "https://buniahksa.com"
-    ).replace(/\/$/, "");
+    const site = OFFICIAL_PLATFORM_URL;
     if (action === "reject") {
       await sendJoinApplicantDecision({
         kind: kind as "provider" | "contractor",

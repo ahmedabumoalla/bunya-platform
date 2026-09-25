@@ -1,6 +1,7 @@
 import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { encryptDeliveryCode } from "@/lib/delivery/code-vault";
 import { maskWhatsAppDestination, sendGreenApiMessage } from "@/lib/notifications/providers/green-api";
 import { recordProviderSubmission } from "@/lib/notifications/submissions";
 
@@ -24,7 +25,7 @@ async function issueDeliveryCodes(admin:ReturnType<typeof createAdminClient>,ord
   const assignments=await admin.from("provider_delivery_assignments").select("id").eq("order_id",orderId);
   for(const assignment of assignments.data??[]){
     const code=String(randomInt(100000,1000000)),salt=randomBytes(24).toString("hex"),hash=createHash("sha256").update(`${salt}:${code}`).digest("hex");
-    await admin.from("delivery_confirmation_codes").upsert({assignment_id:assignment.id,code_salt:salt,code_hash:hash,expires_at:new Date(Date.now()+7*86400000).toISOString(),max_attempts:5,attempts:0,locked_until:null,verified_at:null,created_at:new Date().toISOString()});
+    await admin.from("delivery_confirmation_codes").upsert({assignment_id:assignment.id,code_salt:salt,code_hash:hash,customer_code_ciphertext:encryptDeliveryCode(code),expires_at:new Date(Date.now()+7*86400000).toISOString(),max_attempts:5,attempts:0,locked_until:null,verified_at:null,created_at:new Date().toISOString()});
     const key=`delivery-code:${eventId}:${assignment.id}`;const result=await sendGreenApiMessage({to:mobile,text:`رمز تأكيد استلام طلبك في منصة بُنية: ${code}\nلا تشارك الرمز إلا بعد استلام الشحنة كاملة.`,idempotencyKey:key});
     await recordProviderSubmission({eventType:"customer.delivery_code_issued",channel:"whatsapp",destinationMasked:maskWhatsAppDestination(mobile),idempotencyKey:key,result});
     if(result.status!=="submitted")await admin.from("outbox_events").insert({aggregate_type:"delivery",aggregate_id:assignment.id,event_type:"admin.delivery_code_delivery_failed",payload:{},idempotency_key:`delivery-code-failed:${eventId}:${assignment.id}`});

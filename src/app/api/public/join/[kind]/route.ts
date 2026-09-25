@@ -35,6 +35,7 @@ export async function OPTIONS(request: NextRequest) {
 
 export async function POST(request: NextRequest, context: { params: Promise<{ kind: string }> }) {
   const uploaded: string[] = [];
+  let createdApplication: { table: "provider_applications" | "contractor_applications"; id: string } | null = null;
   try {
     if (!isLocalAppOrigin(request)) assertSameOrigin(request);
     const { kind } = await context.params;
@@ -58,6 +59,9 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ki
     if (kind === "provider" && !isValidJoinUsername(requestedUsername)) {
       throw new PublicJoinError("اسم المستخدم يجب أن يكون من 4 إلى 40 حرفًا وبدون مسافات. استخدم _ أو - للفصل.", 400);
     }
+    const categories = kind === "provider" ? stringArray(data, "categories") : [];
+    const regions = stringArray(data, "regions");
+    const specialties = kind === "contractor" ? stringArray(data, "specialties") : [];
     const base = kind === "provider"
       ? { applicant_profile_id: null, company_name: requiredText(data, "companyName", 2, 160), contact_name: requiredText(data, "contactName", 2, 120), mobile, email, requested_username: requestedUsername, google_maps_url: requiredText(data, "mapsUrl", 8, 2000), latitude: optionalNumber(data.get("latitude"), -90, 90), longitude: optionalNumber(data.get("longitude"), -180, 180), discount_code: String(data.get("discountCode") || "").trim() || null, delivery_available: data.get("deliveryAvailable") === "true", status: "pending", public_idempotency_key: idempotencyKey }
       : { applicant_profile_id: null, contractor_name: requiredText(data, "contractorName", 3, 160), mobile, email, status: "pending", public_idempotency_key: idempotencyKey };
@@ -67,14 +71,12 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ki
       throw inserted.error;
     }
     const applicationId = inserted.data.id as string;
-    const categories = kind === "provider" ? stringArray(data, "categories") : [];
-    const regions = stringArray(data, "regions");
-    const specialties = kind === "contractor" ? stringArray(data, "specialties") : [];
+    createdApplication = { table, id: applicationId };
     const detailResults = kind === "provider"
       ? [await supabase.from("provider_application_categories").insert(categories.map((name) => ({ application_id: applicationId, custom_category: name }))), ...(data.get("deliveryAvailable") === "true" ? [await supabase.from("provider_delivery_regions").insert(regions.map((name) => ({ application_id: applicationId, region_name: name })))] : [])]
       : [await supabase.from("contractor_work_regions").insert(regions.map((name) => ({ application_id: applicationId, region_name: name }))), await supabase.from("contractor_specialties").insert(specialties.map((name) => ({ application_id: applicationId, specialty_name: name })))];
     const detailError = detailResults.find((result) => result.error)?.error;
-    if (detailError) { await supabase.from(table).delete().eq("id", applicationId); throw detailError; }
+    if (detailError) { await supabase.from(table).delete().eq("id", applicationId); createdApplication = null; throw detailError; }
 
     for (const file of files) {
       const objectPath = `join-applications/${kind}/${applicationId}/${randomObjectName()}`;
@@ -117,7 +119,13 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ki
     await notifyJoinReviewers({ kind, applicationId, applicantEmail: email, applicantName, submittedAt: String(inserted.data.created_at), details: notificationDetails }).catch(() => undefined);
     return NextResponse.json({ applicationId, status: inserted.data.status, submittedAt: inserted.data.created_at }, { status: 201, headers: corsHeaders(request) });
   } catch (error) {
-    if (uploaded.length) { try { await createAdminClient().storage.from("join-applications").remove(uploaded); } catch {} }
+    if (uploaded.length || createdApplication) {
+      try {
+        const admin = createAdminClient();
+        if (uploaded.length) await admin.storage.from("join-applications").remove(uploaded);
+        if (createdApplication) await admin.from(createdApplication.table).delete().eq("id", createdApplication.id);
+      } catch {}
+    }
     if (error instanceof PublicJoinError) return NextResponse.json({ message: error.message }, { status: error.status, headers: corsHeaders(request) });
     return NextResponse.json({ message: "تعذر حفظ الطلب حاليًا. حاول مرة أخرى لاحقًا." }, { status: 500, headers: corsHeaders(request) });
   }

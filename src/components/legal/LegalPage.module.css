@@ -1,0 +1,91 @@
+.page {
+  min-height: 100vh;
+  background: #f6f1e8;
+  color: #17372d;
+  padding: clamp(1rem, 3vw, 2rem);
+}
+
+.shell { width: min(100%, 58rem); margin: 0 auto; }
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  color: #245e4d;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.hero {
+  margin-top: 1rem;
+  border: 1px solid #d6cbb9;
+  border-radius: 1.5rem;
+  background: #fffdf8;
+  padding: clamp(1.4rem, 4vw, 2.7rem);
+  box-shadow: 0 22px 60px rgb(62 45 28 / 9%);
+}
+
+.eyebrow {
+  margin: 0;
+  color: #9a5a39;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.hero h1 { margin: 0.35rem 0 0; font-size: clamp(2rem, 6vw, 3.4rem); line-height: 1.15; }
+.updated { margin: 0.75rem 0 0; color: #67746f; font-size: 0.86rem; }
+
+.identity {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 1.4rem;
+  border-inline-start: 4px solid #b97149;
+  background: #f2eadf;
+  padding: 1rem 1.15rem;
+}
+
+.identity strong, .identity span { overflow-wrap: anywhere; }
+.identity span { color: #53645e; font-size: 0.84rem; line-height: 1.7; }
+.content { display: grid; gap: 1rem; margin-top: 1rem; }
+
+.section {
+  border: 1px solid #ded7cb;
+  border-radius: 1.15rem;
+  background: rgb(255 255 255 / 82%);
+  padding: clamp(1.1rem, 3vw, 1.55rem);
+}
+
+.section h2 { margin: 0; font-size: 1.18rem; }
+.section p, .section li { color: #42574f; line-height: 1.9; }
+.section p { margin: 0.65rem 0 0; }
+.section ul, .section ol { margin: 0.75rem 0 0; padding-inline-start: 1.3rem; }
+.section a { color: #17664f; font-weight: 800; }
+
+.footer {
+  border-top: 1px solid #d9cebd;
+  background: #17372d;
+  color: #fff;
+  padding: 2rem max(1rem, calc((100vw - 80rem) / 2));
+}
+
+.footerGrid {
+  display: grid;
+  grid-template-columns: minmax(15rem, 1.35fr) minmax(12rem, 0.65fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.footer h2, .footer p { margin: 0; }
+.footer h2 { font-size: 1.15rem; }
+.footer p { margin-top: 0.45rem; color: #d4e2dc; font-size: 0.8rem; line-height: 1.8; }
+.footerNav { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.65rem 1rem; }
+.footerNav a { color: #fff; font-size: 0.82rem; font-weight: 800; text-decoration: none; }
+.footerNav a:hover, .footerNav a:focus-visible, .back:hover, .back:focus-visible { text-decoration: underline; text-underline-offset: 0.25rem; }
+.copyright { display: block; margin-top: 1.35rem; color: #aec2b9; font-size: 0.72rem; }
+
+@media (max-width: 700px) {
+  .footer { padding-bottom: 6.5rem; }
+  .footerGrid { grid-template-columns: 1fr; }
+  .footerNav { justify-content: flex-start; }
+}

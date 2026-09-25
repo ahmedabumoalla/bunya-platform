@@ -44,6 +44,8 @@ export default function ChangePasswordPage() {
       return;
     }
 
+    await supabase.rpc("mark_driver_activity");
+
     await supabase.auth.refreshSession();
     router.replace("/login");
     router.refresh();

@@ -14,14 +14,15 @@ export function ContractorsDirectory({ contractors, dataError }: { contractors: 
   const [saved, setSaved] = useState<Set<string>>(new Set());
   const [saveError, setSaveError] = useState("");
   const [busyId, setBusyId] = useState("");
-  const approved = useMemo(() => contractors.filter((item) => item.approvalStatus === "approved" && item.subscriptionActive), [contractors]);
-  const regions = useMemo(() => Array.from(new Set(approved.map((item) => item.city))), [approved]);
+  const approved = useMemo(() => contractors.filter((item) => item.approvalStatus === "approved"), [contractors]);
+  const regions = useMemo(() => Array.from(new Set(approved.flatMap((item) => item.workRegions.length ? item.workRegions : [item.city]))), [approved]);
   const specialties = useMemo(() => Array.from(new Set(approved.flatMap((item) => item.serviceTypes))), [approved]);
   const filtered = useMemo(() => {
     const clean = query.trim().toLocaleLowerCase("ar");
     return approved.filter((item) => {
       const matchesQuery = !clean || [item.displayName, item.commercialName, item.summary, ...item.serviceTypes].some((value) => value.toLocaleLowerCase("ar").includes(clean));
-      return matchesQuery && (region === "الكل" || item.city === region) && (specialty === "الكل" || item.serviceTypes.includes(specialty));
+      const matchesRegion = region === "الكل" || item.city === region || item.workRegions.includes(region);
+      return matchesQuery && matchesRegion && (specialty === "الكل" || item.serviceTypes.includes(specialty));
     });
   }, [approved, query, region, specialty]);
 
@@ -60,10 +61,12 @@ export function ContractorsDirectory({ contractors, dataError }: { contractors: 
         <div className="directory-count"><strong>{filtered.length.toLocaleString("ar-SA")}</strong><span>مقاول مطابق</span></div>
       </div>
       {!dataError && filtered.length ? <div className="contractor-grid">{filtered.map((contractor) => <article className="contractor-profile-card" key={contractor.id}>
-        <div className="contractor-card-top"><span className="contractor-avatar">{contractor.displayName.slice(0, 1)}</span><div><p>{contractor.badge}</p><h2>{contractor.commercialName}</h2><span>{contractor.city} · {contractor.yearsExperience} سنوات خبرة</span></div><strong>معتمد</strong></div>
+        <div className="contractor-card-top"><span className="contractor-avatar">{contractor.displayName.slice(0, 1)}</span><div><p>{contractor.badge}</p><h2>{contractor.commercialName}</h2><span>{contractor.city}{contractor.yearsExperience ? ` · ${contractor.yearsExperience} سنوات خبرة` : ""}</span></div><strong>معتمد</strong></div>
         <p className="contractor-summary">{contractor.summary}</p>
-        <div className="contractor-meta"><section><h3>التخصصات</h3><div>{contractor.serviceTypes.map((item) => <span key={item}>{item}</span>)}</div></section><section><h3>مناطق العمل</h3><div><span>{contractor.city}</span><span>النطاق المحيط</span></div></section></div>
+        <div className="contractor-stats"><span>التقييم <b>{contractor.averageRating.toLocaleString("ar-SA")}/5</b></span><span>المشاريع <b>{contractor.projectsCount.toLocaleString("ar-SA")}</b></span><span>الحالة <b>{contractor.availability === "available" ? "متاح" : "حسب الجدول"}</b></span></div>
+        <div className="contractor-meta"><section><h3>التخصصات</h3><div>{contractor.serviceTypes.length ? contractor.serviceTypes.map((item) => <span key={item}>{item}</span>) : <span>مقاولات عامة</span>}</div></section><section><h3>مناطق العمل</h3><div>{(contractor.workRegions.length ? contractor.workRegions : [contractor.city]).map((item) => <span key={item}>{item}</span>)}</div></section></div>
         {contractor.workItems.length ? <div className="contractor-work">{contractor.workItems.map((item) => <span key={item.title}>{item.mediaUrl&&item.mimeType?.startsWith("image/")?<img src={item.mediaUrl} alt={item.title}/>:null}{item.title}</span>)}</div> : null}
+        <div className="contractor-contact"><a href={`tel:${contractor.phone}`}>اتصال: {contractor.phone}</a><a href={`mailto:${contractor.email}`}>البريد الإلكتروني</a>{contractor.mapsUrl?<a href={contractor.mapsUrl} target="_blank" rel="noreferrer">الموقع على الخريطة</a>:null}</div>
         <div className="directory-card-actions">{userId?<button type="button" disabled={busyId===contractor.id} onClick={()=>void toggleSaved(contractor.id)}>{busyId===contractor.id?"جارٍ الحفظ...":saved.has(contractor.id)?"إزالة من المحفوظات":"حفظ المقاول"}</button>:<Link href="/login">سجّل الدخول لحفظ المقاول</Link>}<Link href="/customer/project-requests/new">إنشاء طلب مشروع</Link></div>
       </article>)}</div> : !dataError ? <div className="directory-empty"><strong>لا توجد نتائج مطابقة</strong><span>غيّر كلمات البحث أو أعد ضبط أحد الفلاتر.</span><button type="button" onClick={() => { setQuery(""); setRegion("الكل"); setSpecialty("الكل"); }}>إعادة ضبط الفلاتر</button></div> : null}
     </section>

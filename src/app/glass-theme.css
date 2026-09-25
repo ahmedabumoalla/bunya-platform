@@ -109,7 +109,7 @@ body::after {
 
 ::selection { background: var(--bunya-accent); color: var(--bunya-text-on-accent); }
 
-:where(.store-home,.portal-page,.contractors-page,.customer-app,.provider-app,.contractor-app,.driver-app,.admin-app,.offline-page,.app-stage) {
+:where(.store-home,.portal-page,.contractors-page,.customer-app,.provider-app,.contractor-app,.driver-app,.admin-app,.app-stage) {
   background: transparent !important;
   color: var(--bunya-text-primary) !important;
 }
@@ -233,12 +233,12 @@ body::after {
   box-shadow: var(--focus-ring) !important;
 }
 
-:where(.customer-modal-backdrop,.provider-modal-backdrop,.contractor-modal-backdrop,.driver-modal-backdrop,.admin-modal-backdrop,.project-policy-backdrop,.store-detail-backdrop,.portal-demo-backdrop,.pwa-install-backdrop) {
+:where(.customer-modal-backdrop,.provider-modal-backdrop,.contractor-modal-backdrop,.driver-modal-backdrop,.admin-modal-backdrop,.project-policy-backdrop,.store-detail-backdrop,.portal-demo-backdrop) {
   background: rgb(63 50 40 / 0.42) !important;
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
 }
-:where(.customer-modal,.provider-modal,.contractor-modal,.driver-modal,.admin-modal,.project-policy-modal,.portal-demo-backdrop>section,.pwa-install-backdrop>section) {
+:where(.customer-modal,.provider-modal,.contractor-modal,.driver-modal,.admin-modal,.project-policy-modal,.portal-demo-backdrop>section) {
   border: 1px solid var(--bunya-border-active) !important;
   background: var(--glass-highlight), rgb(255 253 248 / 0.97) !important;
   box-shadow: var(--bunya-shadow-lg) !important;
@@ -768,24 +768,10 @@ body::after {
 .store-region-row { border-color: var(--bunya-border) !important; background: var(--bunya-bg-soft) !important; color: var(--bunya-text-primary) !important; }
 
 .portal-page,
-.contractors-page,
-.offline-page { min-height: 100dvh; }
+.contractors-page { min-height: 100dvh; }
 .portal-brand small { color: var(--bunya-text-secondary) !important; }
 .portal-orb { opacity: 0.18 !important; filter: sepia(1) saturate(0.55) !important; }
 .portal-route-guard { background: rgb(255 250 242 / 0.88) !important; color: var(--bunya-brand-copper-strong) !important; }
-.pwa-install-card {
-  border-color: var(--bunya-border-active) !important;
-  background: var(--glass-highlight), var(--bunya-surface-strong) !important;
-  box-shadow: var(--bunya-shadow-lg) !important;
-  color: var(--bunya-text-primary) !important;
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  backdrop-filter: blur(var(--glass-blur));
-}
-.pwa-install-card small { color: var(--bunya-text-secondary) !important; }
-.pwa-install-card>button,
-.offline-page a { background: var(--bunya-accent) !important; color: var(--bunya-text-on-accent) !important; }
-.offline-page section { border-color: var(--bunya-border) !important; background: var(--bunya-surface-strong) !important; color: var(--bunya-text-primary) !important; }
-
 /* High-contrast storefront chrome: preserves the former dark layout quality in a warm light system. */
 .store-home .store-header,
 .store-home .store-header-compact {
@@ -819,7 +805,7 @@ body::after {
 .store-home .store-portal-link,
 .store-home .store-icon-button,
 .store-home .store-menu-button {
-  min-height: 2.35rem;
+  min-height: 2.75rem;
   border: 1px solid transparent;
   border-radius: 0.68rem;
   background: transparent;
@@ -1072,12 +1058,6 @@ body::after {
 .store-home .store-detail-visual,
 .store-home .store-thumb {
   color: #302b27 !important;
-}
-
-.store-home .pwa-install-card {
-  border-color: rgb(111 82 57 / 0.16) !important;
-  background: #fffdf9 !important;
-  box-shadow: 0 18px 46px rgb(83 58 37 / 0.12) !important;
 }
 
 /* Portal depth and readability: light surfaces are deliberately more opaque than the storefront. */

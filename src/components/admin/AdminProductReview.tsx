@@ -29,8 +29,10 @@ type Variant = {
 };
 type Specification = { value: string; sort_order: number };
 type Warranty = { label: string; duration: string; details: string } | null;
+type Category = { id: string; name: string };
 type Product = {
   id: string;
+  category_id: string | null;
   name: string;
   sku: string | null;
   base_unit: string;
@@ -56,7 +58,7 @@ type Product = {
   rental_duration_value: number | null;
   rental_duration_unit: string | null;
   providers: { company_name: string } | null;
-  product_categories: { name: string } | null;
+  product_categories: Category | null;
   product_images: ImageRow[];
   product_measurements: Measurement[];
   product_variants: Variant[];
@@ -65,7 +67,7 @@ type Product = {
   product_review_decisions: Decision[];
 };
 
-const productSelection = "id,name,sku,base_unit,unit_price,stock_quantity,review_status,is_published,updated_at,created_at,custom_category,short_description,description,full_description,availability_summary,availability_status,lead_time_label,delivery_label,delivery_window,delivery_notes,offer_type,minimum_order,vat_inclusive,rental_duration_value,rental_duration_unit,providers(company_name),product_categories(name),product_images(id,label,alt_text,image_url,storage_path,is_primary,sort_order),product_measurements(label,is_default,sort_order),product_variants(name,sku,attributes,is_active,sort_order),product_specifications(value,sort_order),product_warranties(label,duration,details),product_review_decisions(outcome,reason,reviewed_at)";
+const productSelection = "id,category_id,name,sku,base_unit,unit_price,stock_quantity,review_status,is_published,updated_at,created_at,custom_category,short_description,description,full_description,availability_summary,availability_status,lead_time_label,delivery_label,delivery_window,delivery_notes,offer_type,minimum_order,vat_inclusive,rental_duration_value,rental_duration_unit,providers(company_name),product_categories(id,name),product_images(id,label,alt_text,image_url,storage_path,is_primary,sort_order),product_measurements(label,is_default,sort_order),product_variants(name,sku,attributes,is_active,sort_order),product_specifications(value,sort_order),product_warranties(label,duration,details),product_review_decisions(outcome,reason,reviewed_at)";
 const labels: Record<string, string> = {
   draft: "مسودة",
   pending_review: "بانتظار المراجعة",
@@ -106,6 +108,7 @@ const date = (value: string) => new Date(value).toLocaleString("ar-SA");
 export function AdminProductReview({ initialProductId }: { initialProductId?: string }) {
   const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [feedback, setFeedback] = useState("");
@@ -117,6 +120,8 @@ export function AdminProductReview({ initialProductId }: { initialProductId?: st
   const [reviewDecision, setReviewDecision] = useState<ReviewDecision | null>(null);
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
+  const [categorySaving, setCategorySaving] = useState(false);
+  const [categoryDraft, setCategoryDraft] = useState("");
   const [refreshVersion, setRefreshVersion] = useState(0);
 
   useEffect(() => {
@@ -163,6 +168,26 @@ export function AdminProductReview({ initialProductId }: { initialProductId?: st
   }, [initialProductId, refreshVersion]);
 
   useEffect(() => {
+    let active = true;
+    void createClient()
+      .from("product_categories")
+      .select("id,name")
+      .eq("is_active", true)
+      .order("sort_order")
+      .then((result) => {
+        if (!active) return;
+        if (result.error) {
+          setError("تعذر تحميل التصنيفات المتاحة.");
+          return;
+        }
+        setCategories((result.data || []) as Category[]);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!selected) return;
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -205,9 +230,38 @@ export function AdminProductReview({ initialProductId }: { initialProductId?: st
     setSelected(product);
     setActiveImage(0);
     setReviewDecision(decision);
+    setCategoryDraft(product.category_id || "");
     setReason(decision === "approved" ? "تمت مراجعة بيانات المنتج واعتمادها." : "");
     setError("");
     setFeedback("");
+  }
+
+  async function saveCategory() {
+    if (!selected || !categoryDraft || categorySaving) return;
+    if (categoryDraft === selected.category_id) {
+      setFeedback("التصنيف المختار محفوظ بالفعل.");
+      return;
+    }
+    setCategorySaving(true);
+    setError("");
+    const result = await createClient().rpc("admin_update_product_category", {
+      p_product_id: selected.id,
+      p_category_id: categoryDraft,
+    });
+    if (result.error) {
+      setError(`تعذر حفظ التصنيف: ${result.error.message}`);
+      setCategorySaving(false);
+      return;
+    }
+    const category = categories.find((item) => item.id === categoryDraft) || null;
+    const update = (product: Product): Product =>
+      product.id === selected.id
+        ? { ...product, category_id: categoryDraft, custom_category: null, product_categories: category }
+        : product;
+    setProducts((current) => current.map(update));
+    setSelected((current) => (current ? update(current) : current));
+    setFeedback("تم تحديث تصنيف المنتج وسيُستخدم في توجيه طلبات التسعير القادمة.");
+    setCategorySaving(false);
   }
 
   function chooseDecision(decision: ReviewDecision) {
@@ -367,7 +421,7 @@ export function AdminProductReview({ initialProductId }: { initialProductId?: st
           </div>
         </section>
       )}
-      {selected ? <ProductDialog product={selected} activeImage={activeImage} reviewDecision={reviewDecision} reason={reason} saving={saving} error={error} onActiveImage={setActiveImage} onChooseDecision={chooseDecision} onReason={setReason} onSubmit={() => void submitReview()} onClose={closeDialog} /> : null}
+      {selected ? <ProductDialog product={selected} categories={categories} categoryDraft={categoryDraft} categorySaving={categorySaving} activeImage={activeImage} reviewDecision={reviewDecision} reason={reason} saving={saving} error={error} onCategoryDraft={setCategoryDraft} onSaveCategory={() => void saveCategory()} onActiveImage={setActiveImage} onChooseDecision={chooseDecision} onReason={setReason} onSubmit={() => void submitReview()} onClose={closeDialog} /> : null}
     </main>
   );
 }
@@ -388,7 +442,7 @@ function ReviewButtons({ onChoose }: { onChoose: (decision: ReviewDecision) => v
   );
 }
 
-function ProductDialog({ product, activeImage, reviewDecision, reason, saving, error, onActiveImage, onChooseDecision, onReason, onSubmit, onClose }: { product: Product; activeImage: number; reviewDecision: ReviewDecision | null; reason: string; saving: boolean; error: string; onActiveImage: (value: number) => void; onChooseDecision: (decision: ReviewDecision) => void; onReason: (value: string) => void; onSubmit: () => void; onClose: () => void }) {
+function ProductDialog({ product, categories, categoryDraft, categorySaving, activeImage, reviewDecision, reason, saving, error, onCategoryDraft, onSaveCategory, onActiveImage, onChooseDecision, onReason, onSubmit, onClose }: { product: Product; categories: Category[]; categoryDraft: string; categorySaving: boolean; activeImage: number; reviewDecision: ReviewDecision | null; reason: string; saving: boolean; error: string; onCategoryDraft: (value: string) => void; onSaveCategory: () => void; onActiveImage: (value: number) => void; onChooseDecision: (decision: ReviewDecision) => void; onReason: (value: string) => void; onSubmit: () => void; onClose: () => void }) {
   const images = product.product_images.filter((item) => item.signed_url);
   const shown = images[Math.min(activeImage, Math.max(0, images.length - 1))];
   const history = [...(product.product_review_decisions || [])].sort((a, b) => +new Date(b.reviewed_at) - +new Date(a.reviewed_at));
@@ -414,6 +468,19 @@ function ProductDialog({ product, activeImage, reviewDecision, reason, saving, e
         </header>
         {product.review_status === "pending_review" ? (
           <section className={styles.decisionArea}>
+            <div className={styles.categoryEditor}>
+              <div>
+                <strong>تصنيف المنتج</strong>
+                <span>يمكن للإدارة تصحيح التصنيف قبل الاعتماد، ويُستخدم التصنيف في توجيه طلب التسعير للمزودين.</span>
+              </div>
+              <select value={categoryDraft} onChange={(event) => onCategoryDraft(event.target.value)} disabled={categorySaving || saving} aria-label="تصنيف المنتج">
+                <option value="" disabled>اختر التصنيف</option>
+                {categories.map((category) => <option value={category.id} key={category.id}>{category.name}</option>)}
+              </select>
+              <button type="button" onClick={onSaveCategory} disabled={!categoryDraft || categoryDraft === product.category_id || categorySaving || saving}>
+                {categorySaving ? "جارٍ الحفظ…" : "حفظ التصنيف"}
+              </button>
+            </div>
             <div className={styles.decisionHeading}>
               <div>
                 <strong>قرار المراجعة</strong>

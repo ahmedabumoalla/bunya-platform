@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { HomeStorefront } from "@/components/HomeStorefront";
+import { PublicLegalFooter } from "@/components/legal/LegalPage";
 import { loadPublicCatalog } from "@/lib/catalog/server";
 
 export const metadata: Metadata = {
@@ -12,7 +13,12 @@ export default async function Home() {
   try {
     catalog = await loadPublicCatalog();
   } catch {}
-  return catalog
-    ? <HomeStorefront categories={catalog.categories} products={catalog.products} />
-    : <HomeStorefront categories={[]} products={[]} dataError="لا يمكن تحميل الكتالوج حاليا. حاول مرة أخرى بعد التحقق من الاتصال." />;
+  return (
+    <>
+      {catalog
+        ? <HomeStorefront categories={catalog.categories} products={catalog.products} />
+        : <HomeStorefront categories={[]} products={[]} dataError="لا يمكن تحميل الكتالوج حاليا. حاول مرة أخرى بعد التحقق من الاتصال." />}
+      <PublicLegalFooter />
+    </>
+  );
 }

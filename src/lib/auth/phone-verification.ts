@@ -1,6 +1,9 @@
 import type { User } from "@supabase/supabase-js";
 import type { AuthIdentity } from "./types";
 
+export const pendingRegistrationPhoneKey = "bunya.pending-registration-phone";
+export const pendingRegistrationCodeSentKey = "bunya.pending-registration-code-sent";
+
 export function normalizeSaudiPhone(value: unknown) {
   let digits = String(value ?? "").replace(/\D/g, "");
   if (digits.startsWith("05")) digits = `966${digits.slice(1)}`;

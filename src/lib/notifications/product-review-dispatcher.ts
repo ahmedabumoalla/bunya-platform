@@ -9,6 +9,7 @@ import {
   sendGreenApiMessage,
   type ProviderSubmission,
 } from "./providers/green-api";
+import { OFFICIAL_PLATFORM_URL } from "./site-url";
 import { recordProviderSubmission } from "./submissions";
 
 const IMAGE_BUCKET = "provider-product-images";
@@ -92,7 +93,7 @@ export async function dispatchProductReviewNotifications(limit = 10) {
       if (!ready.length) throw new Error("admin_mobile_not_ready");
 
       const product = productResult.data as unknown as ProductReviewDetails;
-      const siteUrl = process.env.APP_URL || "https://bunya-platform.vercel.app";
+      const siteUrl = OFFICIAL_PLATFORM_URL;
       const reviewUrl = `${siteUrl}/admin/products/review/${event.aggregate_id}`;
       const text = buildProductReviewMessage(product, reviewUrl);
       const image = await downloadProductImage(admin, imageResult.data as ProductImage | null);

@@ -26,9 +26,7 @@
 .admin-brand > span:first-child,
 .driver-logo > span:first-child,
 .driver-brand > span:first-child,
-.directory-brand > span:first-child,
-.pwa-install-card > div > span:first-child,
-.pwa-install-backdrop section > span {
+.directory-brand > span:first-child {
   overflow: hidden;
   background-color: transparent !important;
   background-image: url("/brand/bunya-mark-color1.png") !important;

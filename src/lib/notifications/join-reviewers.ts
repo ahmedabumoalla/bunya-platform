@@ -3,6 +3,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendGreenApiMessage, maskWhatsAppDestination } from "./providers/green-api";
 import { sendResendSensitiveCopy } from "./providers/resend";
+import { OFFICIAL_PLATFORM_URL } from "./site-url";
 import { maskEmail, recordProviderSubmission } from "./submissions";
 
 type JoinDetail = { label: string; value: string };
@@ -32,7 +33,7 @@ export async function notifyJoinReviewers(input: JoinNotificationInput) {
 
   const kindLabel = input.kind === "provider" ? "مزود" : "مقاول";
   const reviewPath = input.kind === "provider" ? "providers" : "contractors";
-  const site = process.env.APP_URL || process.env.NEXT_PUBLIC_SITE_URL || "https://bunya-platform.vercel.app";
+  const site = OFFICIAL_PLATFORM_URL;
   const details = input.details.map(({ label, value }) => `${label}: ${value || "—"}`).join("\n");
   const adminMessage = `طلب انضمام ${kindLabel} جديد في بُنية\nرقم الطلب الفريد: ${input.applicationId}\nوقت التقديم: ${input.submittedAt}\n\nبيانات مقدم الطلب:\n${details}\n\nالمراجعة: ${site}/admin/join-requests/${reviewPath}`;
 

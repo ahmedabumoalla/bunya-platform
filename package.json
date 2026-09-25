@@ -2,7 +2,9 @@
   "name": "bunya-platform",
   "version": "0.1.0",
   "private": true,
-  "engines": { "node": ">=22.0.0" },
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -14,6 +16,8 @@
     "test:integration": "node tests/workflow-integration.mjs",
     "test:routes": "node scripts/route-smoke.mjs",
     "test:route-audit": "node scripts/audit-routes.mjs",
+    "test:e2e:public": "playwright test --config=playwright.public.config.ts",
+    "test:i18n": "node scripts/check-localization-coverage.mjs",
     "test:migration-hashes": "node scripts/check-migration-hashes.mjs",
     "mobile:sync": "node scripts/sync-mobile-assets.mjs && cap sync",
     "mobile:android": "cap open android",
@@ -29,10 +33,11 @@
     "@supabase/supabase-js": "^2.110.8",
     "ffmpeg-static": "5.2.0",
     "gsap": "^3.15.0",
-    "next": "16.2.9",
+    "nanoid": "3.3.18",
+    "next": "16.3.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "sharp": "0.34.5",
+    "sharp": "0.35.4",
     "three": "0.185.1",
     "ws": "^8.21.3"
   },
@@ -46,7 +51,7 @@
     "@types/react-dom": "^19",
     "@types/ws": "^8.18.1",
     "eslint": "^9",
-    "eslint-config-next": "16.2.9",
+    "eslint-config-next": "16.3.4",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

@@ -56,7 +56,7 @@ export function ProviderShell({ children }: { children: ReactNode }) {
   return <div className={`provider-app ${collapsed ? "provider-app-collapsed" : ""}`}>
     <button className="provider-drawer-backdrop" aria-label="إغلاق القائمة" type="button" data-open={drawerOpen} onClick={() => setDrawerOpen(false)} />
     <aside className="provider-sidebar" data-open={drawerOpen}>
-      <div className="provider-sidebar-brand"><BunyaLogo /><div><small>{companyName}</small></div></div>
+      <div className="provider-sidebar-brand"><BunyaLogo sizes="144px" /><div><small>{companyName}</small></div></div>
       <button className="provider-collapse" type="button" onClick={toggleCollapsed} aria-label={collapsed ? "توسيع القائمة" : "تصغير القائمة"}>{collapsed ? "‹" : "›"}</button>
       <nav aria-label="تنقل لوحة المزود">{navigation.map(([label, href, icon]) => {
         const active = href === "/merchant" ? pathname === href : pathname.startsWith(href);

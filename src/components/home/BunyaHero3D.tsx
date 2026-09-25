@@ -46,7 +46,7 @@ export default function BunyaHero3D() {
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1.05;
       renderer.shadowMap.enabled = !compactMotion;
-      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.shadowMap.type = THREE.PCFShadowMap;
       renderer.domElement.className = "bunya-hero-3d-canvas";
       renderer.domElement.setAttribute("aria-hidden", "true");
       host.appendChild(renderer.domElement);

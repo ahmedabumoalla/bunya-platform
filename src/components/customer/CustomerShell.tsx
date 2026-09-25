@@ -17,7 +17,6 @@ const nav = [
   ["طلبات عروض الأسعار", "/customer/quote-requests", "◫"],
   ["عروض بُنية", "/customer/quotes", "◈"],
   ["الطلبات", "/customer/orders", "▤"],
-  ["التوصيل والاستلام", "/customer/deliveries", "⌖"],
   ["المقاولون المحفوظون", "/customer/contractors", "☆"],
   ["الفواتير والمدفوعات", "/customer/billing", "▧"],
   ["الإشعارات", "/customer/notifications", "◌"],

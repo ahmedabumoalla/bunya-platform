@@ -27,18 +27,28 @@ export async function POST(request: NextRequest) {
   const details = draft.details;
   const desiredAt = new Date(details.desiredReceiptAt);
   const recipientMobile = normalizeSaudiPhone(details.recipientMobile);
-  if (details.city.length < 2) return NextResponse.json({ message: "أدخل المدينة أو المنطقة العامة." }, { status: 400 });
-  if (details.locationHint.length < 2) return NextResponse.json({ message: "أدخل وصفًا واضحًا لموقع التسليم." }, { status: 400 });
+  const responsibleMobile = normalizeSaudiPhone(details.siteResponsibleMobile);
+  const contractorMobile = details.contractorMobile ? normalizeSaudiPhone(details.contractorMobile) : null;
+  if (details.locationHint.length < 3) return NextResponse.json({ message: "أدخل وصفًا واضحًا لمكان التسليم." }, { status: 400 });
   if (!isGoogleMapsUrl(details.mapsUrl)) return NextResponse.json({ message: "أدخل رابط Google Maps صالحًا لموقع التسليم." }, { status: 400 });
   if (!Number.isFinite(desiredAt.getTime()) || desiredAt.getTime() <= Date.now() + 2 * 60 * 60 * 1000) {
     return NextResponse.json({ message: "موعد الاستلام يجب أن يكون بعد أكثر من ساعتين." }, { status: 400 });
   }
   if (details.recipientName.length < 2) return NextResponse.json({ message: "أدخل اسم مستلم الطلب." }, { status: 400 });
   if (!recipientMobile) return NextResponse.json({ message: "أدخل رقم جوال سعوديًا صحيحًا للمستلم." }, { status: 400 });
+  if (details.siteResponsibleName.length < 2) return NextResponse.json({ message: "أدخل اسم المسؤول في الموقع." }, { status: 400 });
+  if (!responsibleMobile) return NextResponse.json({ message: "أدخل رقم جوال سعوديًا صحيحًا لمسؤول الموقع." }, { status: 400 });
+  if (details.contractorName && !contractorMobile) return NextResponse.json({ message: "أدخل رقم جوال صحيحًا للمقاول أو اترك بيانات المقاول فارغة." }, { status: 400 });
+  if (details.contractorMobile && details.contractorName.length < 2) return NextResponse.json({ message: "أدخل اسم المقاول المرتبط برقم التواصل." }, { status: 400 });
+  if (details.workingHours.length < 3) return NextResponse.json({ message: "حدد مواعيد عمل واستلام الموقع." }, { status: 400 });
+  if (!details.loadingOption || !details.unloadingOption) return NextResponse.json({ message: "حدد مسؤولية التحميل وخيار التنزيل في الموقع." }, { status: 400 });
+  if (!details.roadAccess || details.accessInstructions.length < 3) return NextResponse.json({ message: "حدد سهولة الطريق وأضف تعليمات وصول واضحة." }, { status: 400 });
+  if (!details.driverDepartureLiabilityAccepted || !details.dataAccuracyAccepted) {
+    return NextResponse.json({ message: "يجب الموافقة على إقراري مسؤولية الاستلام وصحة البيانات قبل الاعتماد." }, { status: 400 });
+  }
 
   const result = await supabase.rpc("submit_storefront_rfq", {
     p_request: {
-      city: details.city,
       location_hint: details.locationHint,
       google_maps_url: details.mapsUrl,
       desired_receipt_at: desiredAt.toISOString(),
@@ -46,6 +56,17 @@ export async function POST(request: NextRequest) {
       project_name: details.projectName,
       recipient_name: details.recipientName,
       recipient_mobile: recipientMobile,
+      site_responsible_name: details.siteResponsibleName,
+      site_responsible_mobile: responsibleMobile,
+      contractor_name: details.contractorName,
+      contractor_mobile: contractorMobile || "",
+      working_hours: details.workingHours,
+      loading_option: details.loadingOption,
+      unloading_option: details.unloadingOption,
+      road_access: details.roadAccess,
+      access_instructions: details.accessInstructions,
+      driver_departure_liability_accepted: details.driverDepartureLiabilityAccepted,
+      data_accuracy_accepted: details.dataAccuracyAccepted,
       notes: details.notes,
     },
     p_items: draft.items.map((item) => ({
@@ -55,6 +76,7 @@ export async function POST(request: NextRequest) {
       measurement: item.measurementLabel === "بدون قياس إضافي" ? "" : item.measurementLabel,
       unit_id: "",
       measurement_id: item.measurementId,
+      variant_ids: item.selectedVariants.map((variant) => variant.id),
       notes: item.notes || "",
     })),
     p_idempotency_key: draft.idempotencyKey,
@@ -68,7 +90,21 @@ export async function POST(request: NextRequest) {
 
   const token = request.cookies.get(pendingQuoteCookie)?.value;
   await deletePendingQuote(token).catch(() => undefined);
-  const response = NextResponse.json({ requestId: result.data }, { status: 201 });
+  const { data: createdRequest } = await supabase
+    .from("quote_requests")
+    .select("quote_window_label")
+    .eq("id", result.data)
+    .eq("requester_id", auth.user.id)
+    .maybeSingle();
+  const message = createdRequest?.quote_window_label || "تم استلام طلب عرض السعر وبدأ توجيه كل صنف للمزودين المؤهلين.";
+  const response = NextResponse.json(
+    {
+      requestId: result.data,
+      message,
+      outsidePricingHours: message.includes("خلال 24 ساعة"),
+    },
+    { status: 201 },
+  );
   response.cookies.set(pendingQuoteCookie, "", { ...pendingQuoteCookieOptions, maxAge: 0 });
   return response;
 }
