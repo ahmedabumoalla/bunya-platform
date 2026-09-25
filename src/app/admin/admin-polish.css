@@ -426,6 +426,20 @@
 .admin-app .database-table-wrap a,
 .admin-table-wrap a { color: var(--admin-accent-dark); }
 
+.admin-join-table { min-width: 0; overflow-x: auto; padding: 0; }
+.admin-join-table table { width: 100%; border-collapse: collapse; text-align: start; }
+.admin-join-table th,
+.admin-join-table td { padding: 1rem; text-align: start; vertical-align: middle; border-bottom: 1px solid var(--admin-line); }
+.admin-join-table tbody th { position: static; background: transparent; color: var(--admin-text); font-size: 0.85rem; white-space: normal; min-width: 16rem; }
+.admin-join-table tbody th strong { display: block; }
+.admin-join-table tbody th small { display: block; margin-top: 0.35rem; color: var(--admin-muted); font-size: 0.7rem; font-weight: 400; }
+.admin-join-table td > span[dir="ltr"] { display: block; width: max-content; }
+.admin-join-table td { font-size: 0.82rem; white-space: nowrap; }
+.admin-join-table .admin-request-open { min-height: 44px; padding: 0.5rem; cursor: pointer; }
+.admin-join-table:focus-visible,
+.admin-join-table .admin-request-open:focus-visible { outline: 2px solid var(--admin-accent-dark); outline-offset: 2px; }
+.admin-join-table tbody tr:last-child > * { border-bottom: 0; }
+
 .admin-app .database-detail dl { gap: 0.75rem; padding: 1.15rem; }
 .admin-app .database-detail dl div {
   min-height: 5.5rem;

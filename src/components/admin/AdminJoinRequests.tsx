@@ -454,8 +454,9 @@ export function AdminJoinRequests({ kind }: { kind: "provider" | "contractor" })
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="بحث بالاسم أو البريد أو الجوال"
+          aria-label="بحث بالاسم أو البريد أو الجوال"
         />
-        <select value={status} onChange={(event) => setStatus(event.target.value)}>
+        <select aria-label="حالة الطلب" value={status} onChange={(event) => setStatus(event.target.value)}>
           <option value="all">كل الحالات</option>
           <option value="pending">قيد المراجعة</option>
           <option value="needs_changes">بحاجة إلى تعديلات</option>
@@ -467,37 +468,35 @@ export function AdminJoinRequests({ kind }: { kind: "provider" | "contractor" })
       {loading ? (
         <p>جاري التحميل...</p>
       ) : filtered.length ? (
-        <section className="admin-record-grid">
-          {filtered.map((item) => (
-            <article
-              className="admin-panel admin-record-card admin-request-card"
-              key={item.id}
-              role="button"
-              tabIndex={0}
-              aria-label={`عرض تفاصيل الطلب ${item.id}`}
-              onClick={() => setSelected(item)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  setSelected(item);
-                }
-              }}
-            >
-              <header>
-                <div>
-                  <small dir="ltr">{item.id}</small>
-                  <h3>{displayValue(kind === "provider" ? item.company_name : item.contractor_name)}</h3>
-                  <span dir="ltr">{item.email} · {item.mobile}</span>
-                </div>
-                <AdminStatus value={displayStatus(item.status)} />
-              </header>
-              <dl className="admin-record-meta">
-                <Detail label="وقت التقديم">{dateTime(item.created_at)}</Detail>
-                <Detail label="المرفقات">{item.documents.length}</Detail>
-              </dl>
-              <span className="admin-request-open">عرض التفاصيل والإجراءات ←</span>
-            </article>
-          ))}
+        <section className="admin-panel admin-table-wrap admin-join-table" tabIndex={0} aria-label={kind === "provider" ? "طلبات انضمام المزودين" : "طلبات انضمام المقاولين"}>
+          <table>
+            <caption className="sr-only">{kind === "provider" ? "طلبات انضمام المزودين" : "طلبات انضمام المقاولين"}</caption>
+            <thead>
+              <tr>
+                <th scope="col">الاسم</th>
+                <th scope="col">بيانات التواصل</th>
+                <th scope="col">الحالة</th>
+                <th scope="col">وقت التقديم</th>
+                <th scope="col">المرفقات</th>
+                <th scope="col">الإجراءات</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((item) => (
+                <tr key={item.id}>
+                  <th scope="row">
+                    <strong>{displayValue(kind === "provider" ? item.company_name : item.contractor_name)}</strong>
+                    <small dir="ltr">{item.id}</small>
+                  </th>
+                  <td><span dir="ltr">{item.email}</span><span dir="ltr">{item.mobile}</span></td>
+                  <td><AdminStatus value={displayStatus(item.status)} /></td>
+                  <td>{dateTime(item.created_at)}</td>
+                  <td>{item.documents.length}</td>
+                  <td><button type="button" className="admin-request-open" aria-label={`عرض تفاصيل الطلب ${item.id}`} onClick={() => setSelected(item)}>عرض التفاصيل والإجراءات ←</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </section>
       ) : (
         <AdminEmpty text="لا توجد طلبات مطابقة." />

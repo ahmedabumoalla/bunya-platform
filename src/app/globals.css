@@ -57,7 +57,7 @@ html {
 }
 
 html:not([data-native-app]) {
-  --bunya-web-font-increase: 1.5px;
+  --bunya-web-font-increase: 1px;
 }
 
 body {
