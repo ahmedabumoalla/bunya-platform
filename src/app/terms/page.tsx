@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { publishedPolicy } from "@/lib/policies/server";
+import { PublishedPolicyPage } from "@/components/legal/PublishedPolicyPage";
 import { LegalPage, LegalSection, legalIdentity } from "@/components/legal/LegalPage";
 
 export const metadata: Metadata = {
@@ -6,7 +8,9 @@ export const metadata: Metadata = {
   description: "شروط استخدام منصة وتطبيق بُنية التابع لشركة ضفاف الإبداع التجارية.",
 };
 
-export default function TermsPage() {
+export default async function TermsPage() {
+  const policy = await publishedPolicy("terms");
+  if (policy) return <PublishedPolicyPage policy={policy} />;
   return (
     <LegalPage eyebrow="TERMS OF USE" title="شروط الاستخدام">
       <LegalSection title="1. قبول الشروط">

@@ -7,6 +7,7 @@ import { parseGoogleMapsLink } from "@/lib/bunya-local";
 import { optimizeUploadFiles } from "@/lib/uploads/client";
 import { isValidJoinUsername } from "@/lib/join/username";
 import { MultiValueInput, PortalShell } from "./PortalUI";
+import { PolicyLinks } from "@/components/legal/PolicyLinks";
 
 type Errors = Record<string, string>;
 type Result = { applicationId: string; status: string; submittedAt: string };
@@ -15,7 +16,7 @@ const mobilePattern = /^(?:\+?966|0)?5\d{8}$/;
 const quickRegions = ["المنطقة الجنوبية", "المنطقة الوسطى", "المنطقة الغربية", "المنطقة الشرقية", "المنطقة الشمالية"];
 
 function Frame({ eyebrow, title, description, children }: { eyebrow: string; title: string; description: string; children: ReactNode }) {
-  return <PortalShell><section className="portal-card application-card"><header className="portal-heading application-heading"><p>{eyebrow}</p><h1>{title}</h1><span>{description}</span></header>{children}</section></PortalShell>;
+  return <PortalShell><section className="portal-card application-card"><header className="portal-heading application-heading"><p>{eyebrow}</p><h1>{title}</h1><span>{description}</span></header>{children}<PolicyLinks /></section></PortalShell>;
 }
 function Field({ id, label, value, onChange, error, type = "text", placeholder }: { id: string; label: string; value: string; onChange: (value: string) => void; error?: string; type?: string; placeholder?: string }) {
   return <div className="portal-field"><label htmlFor={id}>{label}</label><input id={id} type={type} placeholder={placeholder} value={value} onChange={(event) => onChange(event.target.value)} />{error ? <small className="portal-error">{error}</small> : null}</div>;

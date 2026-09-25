@@ -113,7 +113,7 @@ export function AdminProductReview({ initialProductId }: { initialProductId?: st
   const [error, setError] = useState("");
   const [feedback, setFeedback] = useState("");
   const [query, setQuery] = useState("");
-  const [status, setStatus] = useState("pending_review");
+  const [status, setStatus] = useState("all");
   const [provider, setProvider] = useState("all");
   const [selected, setSelected] = useState<Product | null>(null);
   const [activeImage, setActiveImage] = useState(0);
@@ -341,8 +341,8 @@ export function AdminProductReview({ initialProductId }: { initialProductId?: st
         <label>
           حالة المراجعة
           <select value={status} onChange={(event) => setStatus(event.target.value)}>
-            <option value="pending_review">بانتظار المراجعة</option>
             <option value="all">جميع الحالات</option>
+            <option value="pending_review">بانتظار المراجعة</option>
             <option value="approved">معتمد</option>
             <option value="needs_changes">يحتاج تعديلات</option>
             <option value="rejected">مرفوض</option>
@@ -417,7 +417,8 @@ export function AdminProductReview({ initialProductId }: { initialProductId?: st
         <section className={styles.empty}>
           <div>
             <h2>لا توجد منتجات مطابقة</h2>
-            <p>{products.length ? "غيّر البحث أو الفلاتر لعرض منتجات أخرى." : "لا توجد منتجات مسجلة في الكتالوج."}</p>
+            <p>{products.length ? `يوجد ${products.length.toLocaleString("ar-SA")} منتج في الكتالوج، لكن لا يطابق البحث أو الحالة المختارة.` : "لا توجد منتجات مسجلة في الكتالوج."}</p>
+            {products.length > 0 && <button type="button" className={styles.button} onClick={() => { setQuery(""); setStatus("all"); setProvider("all"); }}>عرض جميع المنتجات</button>}
           </div>
         </section>
       )}

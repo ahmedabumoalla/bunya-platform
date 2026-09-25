@@ -22,7 +22,8 @@ const nav = [
   ["الإشعارات", "/customer/notifications", "◌"],
   ["العناوين", "/customer/addresses", "◇"],
   ["الملف الشخصي", "/customer/profile", "♙"],
-  ["الدعم والسياسات", "/customer/support", "?"],
+  ["السياسات", "/customer/policies", "§"],
+  ["الدعم والتذاكر", "/customer/support", "?"],
 ] as const;
 
 export function CustomerShell({ children }: { children: ReactNode }) {

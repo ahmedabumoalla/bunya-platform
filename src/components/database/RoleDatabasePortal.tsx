@@ -23,6 +23,8 @@ import{AdminProductReview}from"@/components/admin/AdminProductReview";
 import{AdminProductChangeReview}from"@/components/admin/AdminProductChangeReview";
 import{AdminFinanceDashboard}from"@/components/admin/AdminFinanceDashboard";
 import { AdminCatalog } from "@/components/admin/AdminCatalog";
+import { AdminRecords } from "@/components/admin/AdminRecords";
+import { adminRecordPages } from "@/lib/admin/records";
 import{CustomerAddresses,CustomerBilling,CustomerDashboard,CustomerDeliveries,CustomerOrders,CustomerProfile,CustomerProjectRequests,CustomerQuoteRequestDetail,CustomerQuoteRequests,CustomerQuotes,CustomerSavedContractors}from"@/components/customer/CustomerWorkspace";
 import{ContractorProfileEditor}from"@/components/contractor/ContractorProfileEditor";
 import{ContractorDashboard,ContractorOpportunities,ContractorProjectComments,ContractorProjectDetail,ContractorProjects,ContractorProposalDetail,ContractorProposals,ContractorReviews,ContractorVerification}from"@/components/contractor/ContractorWorkspace";
@@ -305,6 +307,8 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
 
   useEffect(() => {
     if (pathname === "/driver/change-password") return;
+    if (role === "admin" && adminRecordPages[config.path]) return;
+    if (pathname.endsWith("/policies")) return;
     let active = true;
     const load = async () => {
       setState({ loading: true, rows: [], counts: {}, error: null });
@@ -348,8 +352,11 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
     };
     void load();
     return () => { active = false; };
-  }, [config, detailId, pathname]);
+  }, [config, detailId, pathname, role]);
 
+  if (role === "admin" && adminRecordPages[config.path]) return <AdminRecords key={pathname} path={config.path} id={detailId} />;
+  if (role === "customer" && pathname === "/customer/policies") return <ProviderPolicies audience="customer" />;
+  if (role === "contractor" && pathname === "/contractor/policies") return <ProviderPolicies audience="contractor" />;
   if (pathname === "/driver/change-password") return children;
   if(role==="customer"&&pathname.endsWith("/payment"))return children;
   if(role==="customer"&&pathname==="/customer")return <CustomerDashboard/>;

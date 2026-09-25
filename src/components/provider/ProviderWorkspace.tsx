@@ -15,6 +15,7 @@ import styles from "./ProviderWorkspace.module.css";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { intlLocale } from "@/lib/i18n/config";
 import { localizedSnapshot } from "@/lib/i18n/content";
+import { policyForAudience, policyParagraphs, type PolicyAudience } from "@/lib/policies/registry";
 
 type Row = Record<string, any>;
 const db = createClient();
@@ -758,7 +759,7 @@ export function ProviderFinance() {
   );
 }
 
-export function ProviderPolicies() {
+export function ProviderPolicies({ audience = "provider" }: { audience?: PolicyAudience }) {
   const [rows, setRows] = useState<Row[]>([]),
     [selected, setSelected] = useState<Row | null>(null),
     [error, setError] = useState("");
@@ -773,34 +774,20 @@ export function ProviderPolicies() {
         .order("published_at", { ascending: false });
       if (r.error) setError(r.error.message);
       else {
-        setRows(r.data || []);
-        setSelected(r.data?.[0] || null);
+        const policies = (r.data ?? []).filter(policy => policyForAudience(policy.policy_key, audience));
+        setRows(policies);
+        setSelected(policies[0] || null);
       }
     })();
-  }, []);
-  const body = useMemo(
-    () =>
-      Array.isArray(selected?.body)
-        ? selected?.body
-            .map((x: any) =>
-              typeof x === "string"
-                ? x
-                : x.title
-                  ? `${x.title}\n${x.content || x.text || ""}`
-                  : JSON.stringify(x, null, 2),
-            )
-            .join("\n\n")
-        : typeof selected?.body === "string"
-          ? selected.body
-          : JSON.stringify(selected?.body || "", null, 2),
-    [selected],
-  );
+  }, [audience]);
+  const body = useMemo(() => policyParagraphs(selected?.body).join("\n\n"), [selected]);
   return (
     <Shell
       title="السياسات"
       description="آخر النسخ المنشورة من الإدارة، وتظهر هنا فور نشرها."
     >
       <ErrorBox value={error} />
+      <nav className={styles.actions} aria-label="الوثائق الأساسية"><Link href="/terms">شروط الاستخدام</Link><Link href="/privacy">الخصوصية</Link><Link href={`/policies?audience=${audience}`}>مركز السياسات</Link></nav>
       {rows.length ? (
         <div className={styles.grid}>
           <section className={styles.panel}>

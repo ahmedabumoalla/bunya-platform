@@ -24,7 +24,8 @@ const nav = [
   ["الإشعارات", "/contractor/notifications", "◌"],
   ["الملف المهني", "/contractor/profile", "♙"],
   ["المستندات والتحقق", "/contractor/verification", "✓"],
-  ["الدعم والسياسات", "/contractor/support", "?"],
+  ["السياسات", "/contractor/policies", "§"],
+  ["الدعم والتذاكر", "/contractor/support", "?"],
 ] as const;
 
 export function ContractorShell({ children }: { children: ReactNode }) {

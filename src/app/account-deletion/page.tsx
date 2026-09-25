@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { publishedPolicy } from "@/lib/policies/server";
+import { PublishedPolicyPage } from "@/components/legal/PublishedPolicyPage";
 import { LegalPage, LegalSection, legalIdentity } from "@/components/legal/LegalPage";
 
 export const metadata: Metadata = {
@@ -8,7 +10,9 @@ export const metadata: Metadata = {
 
 const deletionSubject = encodeURIComponent("طلب حذف حساب بُنية والبيانات المرتبطة به");
 
-export default function AccountDeletionPage() {
+export default async function AccountDeletionPage() {
+  const policy = await publishedPolicy("account-deletion");
+  if (policy) return <PublishedPolicyPage policy={policy} />;
   return (
     <LegalPage eyebrow="ACCOUNT & DATA DELETION" title="حذف الحساب والبيانات">
       <LegalSection title="اطلب حذف حسابك">

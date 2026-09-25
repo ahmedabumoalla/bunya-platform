@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import styles from "./LegalPage.module.css";
 
-type LegalPageProps = { title: string; eyebrow: string; children: ReactNode };
+type LegalPageProps = { title: string; eyebrow: string; children: ReactNode; updatedAt?: string };
 
 export const legalIdentity = {
   brandAr: "بُنية",
@@ -13,7 +13,7 @@ export const legalIdentity = {
   email: "support@buniahksa.com",
 } as const;
 
-export function LegalPage({ title, eyebrow, children }: LegalPageProps) {
+export function LegalPage({ title, eyebrow, children, updatedAt }: LegalPageProps) {
   return (
     <main className={styles.page}>
       <div className={styles.shell}>
@@ -21,7 +21,7 @@ export function LegalPage({ title, eyebrow, children }: LegalPageProps) {
         <header className={styles.hero}>
           <p className={styles.eyebrow}>{eyebrow}</p>
           <h1>{title}</h1>
-          <p className={styles.updated}>آخر تحديث: 2 سبتمبر 2026</p>
+          <p className={styles.updated}>{updatedAt ? `آخر تحديث: ${new Date(updatedAt).toLocaleDateString("ar-SA-u-ca-gregory")}` : "وثائق وسياسات بُنية"}</p>
           <div className={styles.identity}>
             <strong>{legalIdentity.brandAr} — علامة ومنصة تديرها {legalIdentity.companyAr}</strong>
             <span dir="ltr">{legalIdentity.brandEn} is operated by {legalIdentity.companyEn}</span>
@@ -51,6 +51,7 @@ export function PublicLegalFooter() {
           <Link href="/privacy">سياسة الخصوصية</Link>
           <Link href="/terms">شروط الاستخدام</Link>
           <Link href="/account-deletion">حذف الحساب والبيانات</Link>
+          <Link href="/policies">جميع السياسات</Link>
           <a href={`mailto:${legalIdentity.email}`}>الدعم</a>
         </nav>
       </div>
