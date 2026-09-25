@@ -22,6 +22,7 @@ import{AdminUsers}from"@/components/admin/AdminUsers";
 import{AdminProductReview}from"@/components/admin/AdminProductReview";
 import{AdminProductChangeReview}from"@/components/admin/AdminProductChangeReview";
 import{AdminFinanceDashboard}from"@/components/admin/AdminFinanceDashboard";
+import { AdminCatalog } from "@/components/admin/AdminCatalog";
 import{CustomerAddresses,CustomerBilling,CustomerDashboard,CustomerDeliveries,CustomerOrders,CustomerProfile,CustomerProjectRequests,CustomerQuoteRequestDetail,CustomerQuoteRequests,CustomerQuotes,CustomerSavedContractors}from"@/components/customer/CustomerWorkspace";
 import{ContractorProfileEditor}from"@/components/contractor/ContractorProfileEditor";
 import{ContractorDashboard,ContractorOpportunities,ContractorProjectComments,ContractorProjectDetail,ContractorProjects,ContractorProposalDetail,ContractorProposals,ContractorReviews,ContractorVerification}from"@/components/contractor/ContractorWorkspace";
@@ -418,14 +419,14 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
   const viewer = identity.profile?.fullName ?? identity.profile?.username ?? "مستخدم بُنية";
   return (
     <main className="database-page" data-role={role}>
-      <header className="database-page-header">
+      {pathname !== "/admin/catalog" && <header className="database-page-header">
         <div>
           <p>{config.table === "admin_users" ? "إدارة الحسابات" : "Supabase · Live Data"}</p>
           <h1>{detailId ? `تفاصيل ${config.title}` : config.title}</h1>
           <span>{config.description}</span>
         </div>
         <aside><small>الحساب الحالي</small><strong>{viewer}</strong></aside>
-      </header>
+      </header>}
 
       {config.metrics?.length ? (
         <section className="database-metrics" aria-label="المؤشرات الحقيقية">
@@ -458,7 +459,7 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
       ) : detailId ? (
         <DetailView row={config.table === "admin_users" ? Object.fromEntries(Object.entries(state.rows[0]).filter(([key]) => key !== "id")) : state.rows[0]} adminAccount={config.table === "admin_users"} />
       ) : pathname === "/admin/catalog" ? (
-        <CatalogGrid rows={state.rows} />
+        <AdminCatalog rows={state.rows} />
       ) : (
         <RowsTable config={config} rows={state.rows} />
       )}
@@ -516,22 +517,6 @@ function ProviderOperationsEmpty() {
       </div>
     </section>
   );
-}
-
-function CatalogGrid({ rows }: { rows: DataRow[] }) {
-  const active = rows.filter((row) => row.is_active === true).length;
-  return <section className="admin-catalog-panel">
-    <header>
-      <div><p>هيكلة الكتالوج</p><h2>تصنيفات المنتجات</h2><span>{rows.length.toLocaleString("ar-SA")} تصنيف · {active.toLocaleString("ar-SA")} نشط</span></div>
-      <nav><Link href="/admin/products/review">مراجعة المنتجات</Link><Link href="/admin/pricing">الأسعار والتوفر</Link></nav>
-    </header>
-    <div className="admin-catalog-grid">{rows.map((row, index) => <article key={String(row.id ?? index)}>
-      <div className="admin-catalog-icon" aria-hidden>{String(row.name ?? "ت").slice(0, 1)}</div>
-      <div className="admin-catalog-copy"><small>ترتيب {formatValue(row.sort_order)}</small><h3>{formatValue(row.name)}</h3><code dir="ltr">{formatValue(row.slug)}</code></div>
-      <span className="admin-catalog-status" data-active={row.is_active === true}>{row.is_active === true ? "نشط" : "غير نشط"}</span>
-      <footer><small>أضيف {formatValue(row.created_at)}</small>{row.id ? <Link href={`/admin/catalog/${encodeURIComponent(String(row.id))}`}>عرض التفاصيل</Link> : null}</footer>
-    </article>)}</div>
-  </section>;
 }
 
 function RowsTable({ config, rows }: { config: RouteConfig; rows: DataRow[] }) {
