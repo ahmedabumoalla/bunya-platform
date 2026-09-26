@@ -10,7 +10,8 @@
 
 - المستودع: https://github.com/ahmedabumoalla/bunya-platform — الفرع `main`.
 - مشروع Vercel: `bunya-platform`، الموقع https://www.buniahksa.com.
-- حالة هذا التسليم: جاهز للرفع؛ تُسجّل نتيجة بدء النشر بعد تأكيدها من Vercel.
+- تم رفع تحديث المصدر [8cde1a6](https://github.com/ahmedabumoalla/bunya-platform/commit/8cde1a60c85267d60570fae5571d764ae128ffcc) إلى main في 27 سبتمبر 2026.
+- أكد فحص حالة نفس التحديث عبر GitHub أن Vercel أعاد success / Deployment has completed: [النشر المؤكد](https://vercel.com/ahmedabumoallas-projects/bunya-platform/YVxt1LK1cePAFADCY9Qkp9A7yRVq). تحديث توثيق نتيجة النشر فقط يأتي بعد هذا الإصدار؛ لم تُجرَ اختبارات إضافية بعد بدء النشر.
 - Vercel ينشر منصة Next.js؛ رفع مصدر Flutter إلى GitHub لا ينشره في متاجر الجوال.
 
 ## تشغيل محلي
