@@ -28,6 +28,10 @@ import { AdminOperations } from "@/components/admin/AdminOperations";
 import { AdminNotifications } from "@/components/admin/AdminNotifications";
 import { AdminDashboard } from "@/components/admin/AdminDashboard";
 import { AdminRecords } from "@/components/admin/AdminRecords";
+import { CustomerPolicies } from "@/components/customer/CustomerPolicies";
+import { CustomerNotifications } from "@/components/customer/CustomerNotifications";
+import { CustomerSupport } from "@/components/customer/CustomerSupport";
+import { CustomerOrderDetail } from "@/components/customer/CustomerOrderDetail";
 import { adminRecordPages } from "@/lib/admin/records";
 import{CustomerAddresses,CustomerBilling,CustomerDashboard,CustomerDeliveries,CustomerOrders,CustomerProfile,CustomerProjectRequests,CustomerQuoteRequestDetail,CustomerQuoteRequests,CustomerQuotes,CustomerSavedContractors}from"@/components/customer/CustomerWorkspace";
 import{ContractorProfileEditor}from"@/components/contractor/ContractorProfileEditor";
@@ -311,6 +315,8 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
 
   useEffect(() => {
     if (pathname === "/driver/change-password") return;
+    // Dedicated customer views own their session-scoped queries and states.
+    if (role === "customer") return;
     if (role === "admin" && (config.path === "/admin" || (adminRecordPages[config.path] && (config.path !== "/admin/catalog" || detailId)) || ["/admin/users", "/admin/join-requests/providers", "/admin/join-requests/contractors", "/admin/products/review", "/admin/products/changes", "/admin/operations", "/admin/notifications", "/admin/support", "/admin/finance", "/admin/settlements/contractors"].includes(pathname) || pathname.startsWith("/admin/products/"))) return;
     if (pathname.endsWith("/policies")) return;
     let active = true;
@@ -360,14 +366,15 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
 
   if (role === "admin" && pathname === "/admin") return <AdminDashboard />;
   if (role === "admin" && adminRecordPages[config.path] && (config.path !== "/admin/catalog" || detailId)) return <AdminRecords key={pathname} path={config.path} id={detailId} />;
-  if (role === "customer" && pathname === "/customer/policies") return <ProviderPolicies audience="customer" />;
+  if (role === "customer" && pathname === "/customer/policies") return <CustomerPolicies />;
+  if (role === "customer" && pathname === "/customer/support") return <CustomerSupport />;
   if (role === "contractor" && pathname === "/contractor/policies") return <ProviderPolicies audience="contractor" />;
   if (pathname === "/driver/change-password") return children;
   if(role==="customer"&&pathname.endsWith("/payment"))return children;
   if(role==="customer"&&pathname==="/customer")return <CustomerDashboard/>;
   if(role==="customer"&&pathname==="/customer/quote-request/new")return <CustomerRfqForm/>;
   if(role==="provider"&&pathname.startsWith("/merchant/quote-requests/")&&detailId)return <ProviderRfqResponse id={detailId}/>;
-  if(role==="customer"&&pathname.startsWith("/customer/quotes/")&&detailId)return <CustomerQuoteDecision id={detailId}/>;
+  if(role==="customer"&&pathname.startsWith("/customer/quotes/")&&detailId)return <CustomerQuoteDecision key={detailId} id={detailId}/>;
   if(role==="admin"&&pathname.startsWith("/admin/sourcing/")&&detailId)return <AdminQuoteAssembly id={detailId}/>;
   if(role==="admin"&&pathname==="/admin/operations")return <AdminOperations/>;
   if(role==="driver"&&pathname==="/driver")return <DriverDeliveryWorkflow/>;
@@ -395,10 +402,11 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
   if(role==="admin"&&pathname==="/admin/policies")return <AdminPolicyManager/>;
   if(role==="customer"&&pathname==="/customer/project-requests/new")return <ProjectRequestForm/>;
   if(role==="customer"&&pathname==="/customer/project-requests")return <CustomerProjectRequests/>;
-  if(role==="customer"&&pathname.startsWith("/customer/quote-requests/")&&detailId)return <CustomerQuoteRequestDetail id={detailId}/>;
+  if(role==="customer"&&pathname.startsWith("/customer/quote-requests/")&&detailId)return <CustomerQuoteRequestDetail key={detailId} id={detailId}/>;
   if(role==="customer"&&pathname==="/customer/quote-requests")return <CustomerQuoteRequests/>;
   if(role==="customer"&&pathname==="/customer/quotes")return <CustomerQuotes/>;
   if(role==="customer"&&pathname==="/customer/orders")return <CustomerOrders/>;
+  if(role==="customer"&&pathname.startsWith("/customer/orders/")&&detailId)return <CustomerOrderDetail key={detailId} id={detailId}/>;
   if(role==="customer"&&pathname==="/customer/deliveries")return <CustomerDeliveries/>;
   if(role==="customer"&&pathname==="/customer/contractors")return <CustomerSavedContractors/>;
   if(role==="customer"&&pathname==="/customer/billing")return <CustomerBilling/>;
@@ -414,7 +422,7 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
   if(role==="contractor"&&pathname==="/contractor/project-comments")return <ContractorProjectComments/>;
   if(role==="contractor"&&pathname==="/contractor/reviews")return <ContractorReviews/>;
   if(role==="contractor"&&pathname==="/contractor/verification")return <ContractorVerification/>;
-  if(role==="customer"&&pathname.startsWith("/customer/project-requests/")&&detailId)return <ProjectProposalDecisions id={detailId}/>;
+  if(role==="customer"&&pathname.startsWith("/customer/project-requests/")&&detailId)return <ProjectProposalDecisions key={detailId} id={detailId}/>;
   if(role==="contractor"&&pathname==="/contractor/services")return <ContractorServicesManager/>;
   if(role==="contractor"&&pathname==="/contractor/portfolio")return <ContractorPortfolioManager/>;
   if(role==="contractor"&&pathname==="/contractor/profile")return <ContractorProfileEditor/>;
@@ -424,7 +432,7 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
   if(role==="contractor"&&pathname==="/contractor/finance")return <ContractorFinance/>;
   if(role==="admin"&&pathname==="/admin/finance")return <AdminFinanceDashboard/>;
   if(role==="admin"&&pathname==="/admin/settlements/contractors")return <AdminSettlements/>;
-  if(role==="customer"&&pathname==="/customer/notifications")return <NotificationCenter source="customer"/>;
+  if(role==="customer"&&pathname==="/customer/notifications")return <CustomerNotifications/>;
   if(role==="contractor"&&pathname==="/contractor/notifications")return <NotificationCenter source="contractor"/>;
   if(role==="admin"&&pathname==="/admin/notifications")return <AdminNotifications/>;
   if(pathname.endsWith("/notifications"))return <NotificationCenter source="general"/>;

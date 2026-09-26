@@ -4,6 +4,7 @@ type ProductImageSize = {
   width?: number;
   height?: number;
   quality?: number;
+  resize?: "cover" | "contain";
 };
 
 const signedImageCache = new Map<string, { url: string; expiresAt: number }>();
@@ -19,12 +20,13 @@ export async function signProductImage(
   const width = size.width ?? 640;
   const height = size.height ?? 640;
   const quality = size.quality ?? 70;
-  const key = `${path}:${width}:${height}:${quality}`;
+  const resize = size.resize ?? "cover";
+  const key = `${path}:${width}:${height}:${quality}:${resize}`;
   const cached = signedImageCache.get(key);
   if (cached && cached.expiresAt > Date.now()) return cached.url;
 
   const signed = await db.storage.from("provider-product-images").createSignedUrl(path, 21600, {
-    transform: { width, height, resize: "cover", quality },
+    transform: { width, height, resize, quality },
   });
   const url = signed.data?.signedUrl || fallback;
   if (url) signedImageCache.set(key, { url, expiresAt: Date.now() + 19_800_000 });

@@ -4,4 +4,5 @@ import {AuthIdentityProvider} from "@/components/auth/AuthIdentityProvider";
 import {RoleDatabasePortal} from "@/components/database/RoleDatabasePortal";
 import {requirePortalRole} from "@/lib/auth/server";
 import "./customer.css";
+import "./customer-experience.css";
 export default async function CustomerLayout({children}:{children:ReactNode}){const identity=await requirePortalRole("customer");return <AuthIdentityProvider identity={identity}><CustomerShell><RoleDatabasePortal role="customer"/>{children}</CustomerShell></AuthIdentityProvider>}
