@@ -16,6 +16,7 @@ export function AdminPolicyManager() {
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refresh, setRefresh] = useState(0);
+  const [preview, setPreview] = useState<{ title: string; summary: string; paragraphs: string[] } | null>(null);
   const target = policyDestinations.find(item => item.key === destination);
   useEffect(() => {
     let active = true;
@@ -50,11 +51,11 @@ export function AdminPolicyManager() {
       const result = editing ? await db.from("platform_policies").update(record).eq("id", editing.id).select("id").single() : await db.from("platform_policies").insert(record).select("id").single();
       if (result.error) throw result.error;
       setMessage(published ? `نُشرت السياسة في: ${target?.location ?? "مركز السياسات"}.` : "حُفظت مسودة السياسة. لن تظهر للمستخدمين حتى نشرها.");
-      formElement.reset(); setEditing(null); setDestination("terms"); setRefresh(value => value + 1);
+      formElement.reset(); setEditing(null); setPreview(null); setDestination("terms"); setRefresh(value => value + 1);
     } catch { setError("تعذر حفظ السياسة. تأكد من صلاحياتك، أو افتح السياسة الموجودة لتعديلها بدل تكرارها."); }
     finally { setBusy(false); }
   }
-  function edit(policy: Policy | null) { setEditing(policy); setDestination(policy?.policy_key ?? "terms"); setMessage(""); setError(""); }
+  function edit(policy: Policy | null) { setEditing(policy); setDestination(policy?.policy_key ?? "terms"); setMessage(""); setError(""); setPreview(null); }
 
   return <main className={styles.page}>
     <header className={styles.hero}><div><span>حوكمة المنصة</span><h1>السياسات وأماكن ظهورها</h1><p>اختر نوع السياسة، وأضف محتواها، ثم انشرها في الصفحات المرتبطة بها تلقائيًا.</p></div><Link href="/policies" target="_blank" rel="noreferrer">فتح مركز السياسات ↗</Link></header>
@@ -69,8 +70,14 @@ export function AdminPolicyManager() {
           <label className={styles.wide}>ملخص مختصر<textarea name="summary" required rows={2} defaultValue={editing?.summary ?? ""} /></label>
           <label className={styles.wide}>محتوى السياسة<textarea name="body" required rows={10} defaultValue={policyParagraphs(editing?.body).join("\n\n")} placeholder="اكتب النص المعتمد، وافصل بين الفقرات بسطر فارغ." /></label>
           <label className={styles.publish}><input type="checkbox" name="published" defaultChecked={editing?.is_published ?? false} /><span><strong>نشر السياسة للمستخدمين</strong><small>اتركه غير محدد لحفظ مسودة فقط.</small></span></label>
-          <div className={styles.actions}><button type="submit" disabled={busy}>{busy ? "جارٍ الحفظ…" : "حفظ السياسة"}</button>{editing && <button type="button" disabled={busy} onClick={() => edit(null)}>إلغاء التعديل</button>}</div>
+          <div className={styles.actions}><button type="submit" disabled={busy}>{busy ? "جارٍ الحفظ…" : "حفظ السياسة"}</button><button type="button" disabled={busy} onClick={event => {
+            const form = event.currentTarget.form;
+            if (!form) return;
+            const data = new FormData(form);
+            setPreview({ title: String(data.get("title") ?? ""), summary: String(data.get("summary") ?? ""), paragraphs: policyParagraphs(String(data.get("body") ?? "")) });
+          }}>معاينة النص قبل الحفظ</button>{editing && <button type="button" disabled={busy} onClick={() => edit(null)}>إلغاء التعديل</button>}</div>
         </form>
+        {preview && <article className={styles.preview} aria-label="معاينة محتوى السياسة"><header><span>معاينة فقط · لم تُحفظ التعديلات</span><button type="button" onClick={() => setPreview(null)}>إغلاق المعاينة</button></header><h3>{preview.title || "عنوان السياسة"}</h3><p>{preview.summary}</p>{preview.paragraphs.map((paragraph, index) => <p key={index}>{paragraph}</p>)}{!preview.paragraphs.length && <p>أضف نص السياسة ثم اضغط معاينة.</p>}</article>}
       </section>
       <aside className={styles.panel}><h2>السياسات المسجلة <span>{rows.length}</span></h2>{loading ? <p>جارٍ التحميل…</p> : rows.length ? <div className={styles.list}>{rows.map(row => <button type="button" key={row.id} disabled={busy} onClick={() => edit(row)} aria-pressed={editing?.id === row.id}><header><strong>{row.title}</strong><span data-published={row.is_published}>{row.is_published ? "منشورة" : "مسودة"}</span></header><p>{policyDestinations.find(item => item.key === row.policy_key)?.location ?? "مركز السياسات"}</p><small>الإصدار {row.version} · تعديل السياسة ←</small></button>)}</div> : <div className={styles.empty}><strong>ابدأ بأول سياسة</strong><p>السياسات المحفوظة تظهر هنا. تبقى صفحات الشروط والخصوصية الأساسية متاحة حتى تنشر بديلًا لها.</p></div>}</aside>
     </div>

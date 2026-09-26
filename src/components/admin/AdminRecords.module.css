@@ -46,3 +46,8 @@
 .page :is(a, button, input, select, [tabindex]):focus-visible { outline: 2px solid #a46136; outline-offset: 3px; }
 @media (max-width: 1100px) { .hero { align-items: start; flex-direction: column; } .details { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 600px) { .hero { padding: 22px; } .hero h1 { font-size: 25px; } .headerActions { flex-wrap: wrap; gap: 12px; } .details { grid-template-columns: 1fr; padding-inline: 20px; } .toolbar { padding: 18px; } .toolbar label:nth-child(2) { flex: 1; } .tableWrap th, .tableWrap td { padding: 14px; } .error { align-items: stretch; flex-direction: column; } }
+
+.page .sortButton { gap: 10px; min-height: 36px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: inherit; font: inherit; text-align: start; }
+.sortButton span { color: #7a8a70; font-size: 15px; }
+.details dd { font-weight: 500; }
+.details > div:has(dd .unreadable) { border-inline-start: 3px solid #c39645; padding-inline-start: 16px; }

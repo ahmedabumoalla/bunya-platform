@@ -19,6 +19,7 @@ export function AdminRecords({ path, id }: { path: string; id: string | null }) 
   const [count, setCount] = useState(0);
   const [refresh, setRefresh] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [sort, setSort] = useState<{ key: string; ascending: boolean } | null>(null);
   useEffect(() => {
     let active = true;
     async function load() {
@@ -40,7 +41,12 @@ export function AdminRecords({ path, id }: { path: string; id: string | null }) 
   const filtered = useMemo(() => rows.filter(row =>
     (status === "all" || String(recordValue(row, config.status ?? "status")) === status) &&
     config.columns.some(field => formatRecordField(row, field).toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
-  ), [rows, status, query, config]);
+  ).sort((a, b) => {
+    if (!sort) return 0;
+    const left = recordValue(a, sort.key), right = recordValue(b, sort.key);
+    const result = typeof left === "number" && typeof right === "number" ? left - right : String(left ?? "").localeCompare(String(right ?? ""), "ar", { numeric: true });
+    return sort.ascending ? result : -result;
+  }), [rows, status, query, config, sort]);
   const statuses = [...new Set(rows.map(row => recordValue(row, config.status ?? "status")).filter(value => value != null).map(String))];
   const row = rows[0];
   const fields = [...config.columns, ...(config.details ?? [])];
@@ -77,8 +83,8 @@ export function AdminRecords({ path, id }: { path: string; id: string | null }) 
       </nav>
     </> : <div className={styles.empty}><h2>السجل غير متاح</h2><p>قد يكون محذوفًا أو غير متاح لصلاحيات حسابك.</p><Link href={path}>العودة للقائمة</Link></div> : <>
       <section className={styles.panel}>
-        <div className={styles.toolbar}><label>البحث في هذه الصفحة<input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="ابحث بالاسم أو رقم العملية…" /></label>{config.status && <label>الحالة<select value={status} onChange={event => setStatus(event.target.value)}><option value="all">جميع الحالات</option>{statuses.map(value => <option value={value} key={value}>{stateLabels[value] ?? "حالة غير مصنفة"}</option>)}</select></label>}<span role="status">{filtered.length.toLocaleString("ar-SA")} سجل ظاهر</span></div>
-        {filtered.length ? <div className={styles.tableWrap} tabIndex={0} role="region" aria-label={config.title}><table><caption className="sr-only">{config.title}</caption><thead><tr>{config.columns.map(field => <th scope="col" key={field.key}>{field.label}</th>)}{path !== "/admin/settings" && <th scope="col">التفاصيل</th>}</tr></thead><tbody>{filtered.map((item, index) => <tr key={String(item.id ?? item.setting_key ?? index)}>{config.columns.map((field, column) => <td key={field.key} data-primary={column === 0}>{field.kind === "status" ? <Status row={item} field={field} /> : <Value row={item} field={field} />}</td>)}{path !== "/admin/settings" && <td><Link className={styles.detailLink} href={`${path}/${encodeURIComponent(String(item.id))}`} aria-label={`عرض تفاصيل ${formatRecordField(item, config.columns[0])}`}>عرض التفاصيل ←</Link></td>}</tr>)}</tbody></table></div> : <div className={styles.empty}><h2>{rows.length ? "لا توجد نتائج تطابق البحث" : "لا توجد سجلات بعد"}</h2><p>{rows.length ? "جرّب تغيير البحث أو اختيار جميع الحالات." : config.empty}</p>{rows.length > 0 && <button type="button" onClick={() => { setQuery(""); setStatus("all"); }}>عرض الكل</button>}</div>}
+        <div className={styles.toolbar}><label>البحث في هذه الصفحة<input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="ابحث بالاسم أو رقم العملية…" /></label>{config.status && <label>الحالة<select value={status} onChange={event => setStatus(event.target.value)}><option value="all">جميع الحالات</option>{statuses.map(value => <option value={value} key={value}>{stateLabels[value] ?? "حالة غير مصنفة"}</option>)}</select></label>}<span role="status">{filtered.length.toLocaleString("en-US")} من {rows.length.toLocaleString("en-US")} في هذه الصفحة</span>{(query || status !== "all") && <button type="button" onClick={() => { setQuery(""); setStatus("all"); }}>مسح الفلاتر</button>}</div>
+        {filtered.length ? <div className={styles.tableWrap} tabIndex={0} role="region" aria-label={config.title}><table><caption className="sr-only">{config.title}</caption><thead><tr>{config.columns.map(field => <th scope="col" key={field.key} aria-sort={sort?.key === field.key ? sort.ascending ? "ascending" : "descending" : "none"}><button className={styles.sortButton} type="button" onClick={() => setSort(current => ({ key: field.key, ascending: current?.key === field.key ? !current.ascending : true }))} title="ترتيب السجلات في هذه الصفحة">{field.label}<span aria-hidden="true">{sort?.key === field.key ? sort.ascending ? "↑" : "↓" : "↕"}</span></button></th>)}{path !== "/admin/settings" && <th scope="col">التفاصيل</th>}</tr></thead><tbody>{filtered.map((item, index) => <tr key={String(item.id ?? item.setting_key ?? index)}>{config.columns.map((field, column) => <td key={field.key} data-primary={column === 0}>{field.kind === "status" ? <Status row={item} field={field} /> : <Value row={item} field={field} />}</td>)}{path !== "/admin/settings" && <td><Link className={styles.detailLink} href={`${path}/${encodeURIComponent(String(item.id))}`} aria-label={`عرض تفاصيل ${formatRecordField(item, config.columns[0])}`}>عرض التفاصيل ←</Link></td>}</tr>)}</tbody></table></div> : <div className={styles.empty}><h2>{rows.length ? "لا توجد نتائج تطابق البحث" : "لا توجد سجلات بعد"}</h2><p>{rows.length ? "جرّب تغيير البحث أو اختيار جميع الحالات." : config.empty}</p>{rows.length > 0 && <button type="button" onClick={() => { setQuery(""); setStatus("all"); }}>عرض الكل</button>}</div>}
         {count > 50 && <footer className={styles.pagination}><button type="button" disabled={page === 0} onClick={() => { setPage(value => value - 1); setStatus("all"); setQuery(""); }}>السابق</button><span>صفحة {page + 1} من {Math.ceil(count / 50)}</span><button type="button" disabled={(page + 1) * 50 >= count} onClick={() => { setPage(value => value + 1); setStatus("all"); setQuery(""); }}>التالي</button></footer>}
       </section>
     </>}
@@ -87,10 +93,10 @@ export function AdminRecords({ path, id }: { path: string; id: string | null }) 
 
 function Value({ row, field }: { row: AdminRow; field: RecordField }) {
   const value = formatRecordField(row, field);
-  return <span className={value === unreadableText ? styles.unreadable : undefined}><bdi>{value}</bdi></span>;
+  return <span className={value === unreadableText ? styles.unreadable : undefined}><bdi dir={field.kind === "money" || field.kind === "percent" ? "ltr" : undefined}>{value}</bdi></span>;
 }
 function Status({ row, field }: { row: AdminRow; field: RecordField }) {
   const raw = String(recordValue(row, field.key) ?? "");
-  const tone = ["paid", "accepted", "completed", "delivered", "valid", "confirmed"].includes(raw) ? "success" : ["rejected", "cancelled", "failed", "expired", "failed_delivery"].includes(raw) ? "muted" : "pending";
+  const tone = ["paid", "accepted", "approved", "completed", "delivered", "valid", "confirmed", "resolved", "transferred"].includes(raw) ? "success" : ["rejected", "cancelled", "failed", "expired", "failed_delivery"].includes(raw) ? "muted" : "pending";
   return <span className={styles.badge} data-tone={tone}>{readableText(formatRecordField(row, field))}</span>;
 }

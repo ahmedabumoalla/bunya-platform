@@ -1,4 +1,9 @@
 .page { display: grid; gap: 22px; color: #193d33; }
+.preview { margin-top: 24px; border-top: 2px solid #9aa887; padding-top: 24px; }
+.preview header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; font-size: 12px; color: #637653; }
+.preview button { background: #fff; border: 1px solid #c8d7be; border-radius: 8px; padding: 8px 12px; }
+.preview h3 { font-size: 22px; margin-block: 24px 16px; }
+.preview p { white-space: pre-wrap; line-height: 2; font-size: 14px; overflow-wrap: anywhere; }
 .hero { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px; padding: 30px; background: #f8faf7; border: 1px solid #dfe5df; border-radius: 20px; }
 .hero span { color: #8d4e2f; font-size: 12px; }
 .hero h1 { font-size: clamp(24px, 2.2vw, 34px); margin: 10px 0; font-weight: 600; }

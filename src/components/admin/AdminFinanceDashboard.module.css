@@ -335,3 +335,8 @@
     width: 100%;
   }
 }
+
+.hero { --bunya-text-primary: #fffaf3; --bunya-text-secondary: #d9e5df; }
+.hero :is(h1,strong) { color: #fffaf3 !important; }
+.hero :is(p,small) { color: #d9e5df !important; }
+.hero h1 { font-size: clamp(26px, 2.5vw, 36px); line-height: 1.5; font-weight: 600; }

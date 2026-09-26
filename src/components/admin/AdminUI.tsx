@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 
 export function AdminHeader({ eyebrow, title, description, action }: { eyebrow: string; title: string; description: string; action?: ReactNode }) {
@@ -31,6 +32,8 @@ export function AdminDecisionDialog({
   busy = false,
   successMessage = "",
   errorMessage = "",
+  reasonLabel = "السبب أو التعديل المطلوب",
+  minimumReasonLength = 5,
 }: {
   title: string;
   description: string;
@@ -43,22 +46,42 @@ export function AdminDecisionDialog({
   busy?: boolean;
   successMessage?: string;
   errorMessage?: string;
+  reasonLabel?: string;
+  minimumReasonLength?: number;
 }) {
   const completed = Boolean(successMessage);
+  const titleId = useId();
+  const dialogRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const dialog = dialogRef.current;
+    dialog?.focus();
+    return () => { document.body.style.overflow = previousOverflow; previous?.focus(); };
+  }, []);
 
   return createPortal(
     <div className="admin-modal-backdrop">
-      <section className="admin-modal admin-decision-modal" role="dialog" aria-modal="true" aria-busy={busy}>
-        <h3>{title}</h3>
+      <section ref={dialogRef} tabIndex={-1} className="admin-modal admin-decision-modal" role="dialog" aria-modal="true" aria-labelledby={titleId} aria-busy={busy} onKeyDown={event => {
+        if (event.key === "Escape" && !busy && !completed) { event.stopPropagation(); onCancel(); }
+        if (event.key !== "Tab") return;
+        const items = [...event.currentTarget.querySelectorAll<HTMLElement>("button:not(:disabled), textarea:not(:disabled), a[href]")];
+        const first = items[0], last = items[items.length - 1];
+        if (!items.length) { event.preventDefault(); return; }
+        if (event.shiftKey && (document.activeElement === first || document.activeElement === event.currentTarget)) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      }}>
+        <h3 id={titleId}>{title}</h3>
         <p>{description}</p>
         {requiresReason && !completed ? (
           <label>
-            <span>السبب أو التعديل المطلوب</span>
+            <span>{reasonLabel}</span>
             <textarea
               value={reason}
               onChange={(event) => onReason(event.target.value)}
               rows={4}
-              placeholder="اكتب توضيحًا واضحًا لمقدم الطلب..."
+              placeholder={reasonLabel}
               autoFocus
               disabled={busy}
             />
@@ -77,7 +100,7 @@ export function AdminDecisionDialog({
             type="button"
             className="admin-action-button admin-action-approve"
             onClick={() => void onConfirm()}
-            disabled={busy || completed || (requiresReason && reason.trim().length < 5)}
+            disabled={busy || completed || (requiresReason && reason.trim().length < minimumReasonLength)}
           >
             {completed ? (
               <><span className="admin-action-check" aria-hidden="true">✓</span> تمت العملية</>

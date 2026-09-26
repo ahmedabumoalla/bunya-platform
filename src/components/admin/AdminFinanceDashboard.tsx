@@ -124,36 +124,36 @@ export function AdminFinanceDashboard() {
         </div>
         <div className={styles.heroProfit}>
           <span>إجمالي أرباح بُنية</span>
-          <strong>{money(totals.profit)}</strong>
-          <small>{number.format(totals.transactions)} عملية مدفوعة</small>
+          <strong>{loading ? "…" : error ? "غير متاح" : money(totals.profit)}</strong>
+          <small>{loading ? "…" : error ? "—" : number.format(totals.transactions)} عملية مدفوعة</small>
         </div>
       </section>
 
       <section className={styles.summary} aria-label="ملخص المركز المالي">
         <article>
           <span>إجمالي قيمة التوريد</span>
-          <strong>{money(totals.gross)}</strong>
+          <strong>{loading ? "…" : error ? "غير متاح" : money(totals.gross)}</strong>
           <small>قبل خصم عمولة بُنية</small>
         </article>
         <article>
           <span>عمولة بُنية</span>
-          <strong>{money(totals.profit)}</strong>
+          <strong>{loading ? "…" : error ? "غير متاح" : money(totals.profit)}</strong>
           <small>أرباح المنصة المسجلة</small>
         </article>
         <article>
           <span>أرصدة المزودين لدينا</span>
-          <strong>{money(totals.balance)}</strong>
+          <strong>{loading ? "…" : error ? "غير متاح" : money(totals.balance)}</strong>
           <small>بعد خصم عمولة بُنية</small>
         </article>
         <article>
           <span>المتاح للصرف</span>
-          <strong>{money(totals.available)}</strong>
+          <strong>{loading ? "…" : error ? "غير متاح" : money(totals.available)}</strong>
           <small>بعد حجز طلبات التسوية</small>
         </article>
       </section>
 
-      {error ? <div className={styles.error}>{error}</div> : null}
-      {message ? <div className={styles.success}>{message}</div> : null}
+      {error ? <div role="alert" className={styles.error}>{error}</div> : null}
+      {message ? <div role="status" className={styles.success}>{message}</div> : null}
 
       <section className={styles.ledger}>
         <header className={styles.ledgerHeader}>

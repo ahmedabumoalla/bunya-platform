@@ -1,6 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 "use client";
 
+import { useDialogFocus } from "./useDialogFocus";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -58,7 +59,7 @@ function displayValue(value: unknown) {
 function dateTime(value: unknown) {
   if (!value) return "—";
   const date = new Date(String(value));
-  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString("ar-SA");
+  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString("ar-SA-u-ca-gregory-nu-latn", { timeZone: "Asia/Riyadh", dateStyle: "medium", timeStyle: "short" });
 }
 
 function Detail({ label, children, dir }: { label: string; children: ReactNode; dir?: "ltr" | "rtl" }) {
@@ -88,13 +89,14 @@ function RequestActions({ item, onAction }: { item: Application; onAction: (acti
 }
 
 function DocumentPreview({ preview, onClose }: { preview: DocumentPreviewState; onClose: () => void }) {
+  const dialogRef = useDialogFocus();
   const isImage = preview.mimeType?.startsWith("image/");
   const isPdf = preview.mimeType === "application/pdf" || preview.name.toLowerCase().endsWith(".pdf");
 
   return createPortal(
     <div className="admin-modal-backdrop admin-document-preview-backdrop" onMouseDown={onClose}>
       <section
-        className="admin-document-preview-modal"
+        ref={dialogRef} tabIndex={-1} onKeyDown={event => { if(event.key === "Escape") { event.stopPropagation(); onClose(); } }} className="admin-document-preview-modal"
         role="dialog"
         aria-modal="true"
         aria-labelledby="admin-document-preview-title"
@@ -146,6 +148,7 @@ function RequestDetails({
   onClose: () => void;
   onAction: (action: string) => void;
 }) {
+  const dialogRef = useDialogFocus();
   const categories = (item.provider_application_categories as Row[] | undefined) ?? [];
   const deliveryRegions = (item.provider_delivery_regions as Row[] | undefined) ?? [];
   const workRegions = (item.contractor_work_regions as Row[] | undefined) ?? [];
@@ -190,7 +193,7 @@ function RequestDetails({
   return createPortal(
     <div className="admin-modal-backdrop admin-request-modal-backdrop" onMouseDown={onClose}>
       <section
-        className="admin-modal admin-request-modal"
+        ref={dialogRef} tabIndex={-1} className="admin-modal admin-request-modal"
         role="dialog"
         aria-modal="true"
         aria-labelledby={`request-title-${item.id}`}
@@ -200,7 +203,7 @@ function RequestDetails({
           <div>
             <p>{kind === "provider" ? "طلب انضمام مزود" : "طلب انضمام مقاول"}</p>
             <h3 id={`request-title-${item.id}`}>{name}</h3>
-            <small dir="ltr">رقم الطلب: {item.id}</small>
+            <small dir="ltr">مرجع الطلب: {item.id.slice(0, 8).toUpperCase()}</small>
           </div>
           <div>
             <AdminStatus value={displayStatus(item.status)} />
@@ -486,13 +489,13 @@ export function AdminJoinRequests({ kind }: { kind: "provider" | "contractor" })
                 <tr key={item.id}>
                   <th scope="row">
                     <strong>{displayValue(kind === "provider" ? item.company_name : item.contractor_name)}</strong>
-                    <small dir="ltr">{item.id}</small>
+                    <small>{kind === "provider" ? "منشأة توريد" : "مقاول"}</small>
                   </th>
                   <td><span dir="ltr">{item.email}</span><span dir="ltr">{item.mobile}</span></td>
                   <td><AdminStatus value={displayStatus(item.status)} /></td>
                   <td>{dateTime(item.created_at)}</td>
                   <td>{item.documents.length}</td>
-                  <td><button type="button" className="admin-request-open" aria-label={`عرض تفاصيل الطلب ${item.id}`} onClick={() => setSelected(item)}>عرض التفاصيل والإجراءات ←</button></td>
+                  <td><button type="button" className="admin-request-open" aria-label={`عرض تفاصيل ${kind === "provider" ? item.company_name : item.contractor_name}`} onClick={() => setSelected(item)}>عرض التفاصيل والإجراءات ←</button></td>
                 </tr>
               ))}
             </tbody>

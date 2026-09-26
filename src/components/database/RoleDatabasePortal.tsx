@@ -6,12 +6,12 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useAuthIdentity } from "@/components/auth/AuthIdentityProvider";
 import type { AppRole } from "@/lib/auth/types";
 import { createClient } from "@/lib/supabase/client";
-import {AdminDeliveryCode,AdminOutbox,AdminQuoteAssembly,CustomerQuoteDecision,CustomerRfqForm,DriverDeliveryWorkflow,ProviderFulfillmentWorkflow} from "@/components/commerce/CommerceActions";
+import {AdminDeliveryCode,AdminQuoteAssembly,CustomerQuoteDecision,CustomerRfqForm,DriverDeliveryWorkflow,ProviderFulfillmentWorkflow} from "@/components/commerce/CommerceActions";
 import {ProviderRfqResponse} from "@/components/commerce/ProviderRfqResponse";
 import {AdminJoinRequests} from "@/components/admin/AdminJoinRequests";
 import{OpportunityProposal,ProjectProposalDecisions,ProjectRequestForm}from"@/components/contractor/ContractorWorkflows";
 import{AdminContractorCatalogReview,ContractorPortfolioManager,ContractorServicesManager}from"@/components/contractor/ContractorCatalogWorkflows";
-import{AdminSettlements,ContractorFinance,NotificationCenter,SupportCenter}from"@/components/operations/SupportFinanceWorkflows";
+import{ContractorFinance,NotificationCenter,SupportCenter}from"@/components/operations/SupportFinanceWorkflows";
 import{ProviderProductCreate,ProviderProductsList}from"@/components/provider/ProviderProducts";
 import{ProviderProductChangeRequest}from"@/components/provider/ProviderProductChangeRequest";
 import{ProviderDriverCreate,ProviderDriversManager}from"@/components/provider/ProviderDrivers";
@@ -23,6 +23,10 @@ import{AdminProductReview}from"@/components/admin/AdminProductReview";
 import{AdminProductChangeReview}from"@/components/admin/AdminProductChangeReview";
 import{AdminFinanceDashboard}from"@/components/admin/AdminFinanceDashboard";
 import { AdminCatalog } from "@/components/admin/AdminCatalog";
+import { AdminSettlements } from "@/components/admin/AdminSettlements";
+import { AdminOperations } from "@/components/admin/AdminOperations";
+import { AdminNotifications } from "@/components/admin/AdminNotifications";
+import { AdminDashboard } from "@/components/admin/AdminDashboard";
 import { AdminRecords } from "@/components/admin/AdminRecords";
 import { adminRecordPages } from "@/lib/admin/records";
 import{CustomerAddresses,CustomerBilling,CustomerDashboard,CustomerDeliveries,CustomerOrders,CustomerProfile,CustomerProjectRequests,CustomerQuoteRequestDetail,CustomerQuoteRequests,CustomerQuotes,CustomerSavedContractors}from"@/components/customer/CustomerWorkspace";
@@ -105,7 +109,7 @@ const adminRoutes: RouteConfig[] = [
   route("/admin/notifications", "الإشعارات", "notifications", ["recipient_profile_id", "title", "body", "read_at", "created_at"]),
   route("/admin/support", "تذاكر الدعم", "support_tickets", ["ticket_code", "requester_profile_id", "subject", "priority", "status", "created_at"]),
   route("/admin/policies", "السياسات", "platform_policies", ["policy_key", "title", "is_active", "created_at", "updated_at"]),
-  route("/admin/audit", "سجل التدقيق", "audit_logs", ["actor_profile_id", "action", "entity_type", "entity_id", "created_at"], undefined, false),
+  route("/admin/audit", "سجل التدقيق", "audit_logs", ["action", "entity_table", "occurred_at"], "سجل العمليات الإدارية ومنفذيها.", true),
   route("/admin/settings", "إعدادات المنصة", "platform_settings", ["setting_key", "section", "value", "is_sensitive", "updated_at"], undefined, false),
   route("/admin/operations", "الأحداث التشغيلية", "admin_operation_events", ["operation_type", "operation_id", "status", "error_message", "occurred_at"], undefined, false),
   route("/admin/alerts", "التنبيهات الإدارية", "admin_alerts", ["alert_type", "title", "priority", "status", "created_at"]),
@@ -307,7 +311,7 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
 
   useEffect(() => {
     if (pathname === "/driver/change-password") return;
-    if (role === "admin" && adminRecordPages[config.path]) return;
+    if (role === "admin" && (config.path === "/admin" || (adminRecordPages[config.path] && (config.path !== "/admin/catalog" || detailId)) || ["/admin/users", "/admin/join-requests/providers", "/admin/join-requests/contractors", "/admin/products/review", "/admin/products/changes", "/admin/operations", "/admin/notifications", "/admin/support", "/admin/finance", "/admin/settlements/contractors"].includes(pathname) || pathname.startsWith("/admin/products/"))) return;
     if (pathname.endsWith("/policies")) return;
     let active = true;
     const load = async () => {
@@ -354,7 +358,8 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
     return () => { active = false; };
   }, [config, detailId, pathname, role]);
 
-  if (role === "admin" && adminRecordPages[config.path]) return <AdminRecords key={pathname} path={config.path} id={detailId} />;
+  if (role === "admin" && pathname === "/admin") return <AdminDashboard />;
+  if (role === "admin" && adminRecordPages[config.path] && (config.path !== "/admin/catalog" || detailId)) return <AdminRecords key={pathname} path={config.path} id={detailId} />;
   if (role === "customer" && pathname === "/customer/policies") return <ProviderPolicies audience="customer" />;
   if (role === "contractor" && pathname === "/contractor/policies") return <ProviderPolicies audience="contractor" />;
   if (pathname === "/driver/change-password") return children;
@@ -364,7 +369,7 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
   if(role==="provider"&&pathname.startsWith("/merchant/quote-requests/")&&detailId)return <ProviderRfqResponse id={detailId}/>;
   if(role==="customer"&&pathname.startsWith("/customer/quotes/")&&detailId)return <CustomerQuoteDecision id={detailId}/>;
   if(role==="admin"&&pathname.startsWith("/admin/sourcing/")&&detailId)return <AdminQuoteAssembly id={detailId}/>;
-  if(role==="admin"&&pathname==="/admin/operations")return <AdminOutbox/>;
+  if(role==="admin"&&pathname==="/admin/operations")return <AdminOperations/>;
   if(role==="driver"&&pathname==="/driver")return <DriverDeliveryWorkflow/>;
   if(role==="admin"&&pathname.startsWith("/admin/delivery-codes/")&&detailId)return <AdminDeliveryCode id={detailId}/>;
   if(role==="admin"&&pathname==="/admin/join-requests/providers")return <AdminJoinRequests kind="provider"/>;
@@ -421,6 +426,7 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
   if(role==="admin"&&pathname==="/admin/settlements/contractors")return <AdminSettlements/>;
   if(role==="customer"&&pathname==="/customer/notifications")return <NotificationCenter source="customer"/>;
   if(role==="contractor"&&pathname==="/contractor/notifications")return <NotificationCenter source="contractor"/>;
+  if(role==="admin"&&pathname==="/admin/notifications")return <AdminNotifications/>;
   if(pathname.endsWith("/notifications"))return <NotificationCenter source="general"/>;
 
   const viewer = identity.profile?.fullName ?? identity.profile?.username ?? "مستخدم بُنية";

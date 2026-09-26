@@ -1,0 +1,11 @@
+type AdminNavItem = readonly [label: string, href: string, icon: string];
+type AdminNavGroup = readonly [label: string, items: readonly AdminNavItem[]];
+export const adminGroups: readonly AdminNavGroup[] = [
+  ["القيادة والتشغيل", [["مركز القيادة", "/admin", "home"], ["مركز العمليات", "/admin/operations", "flow"], ["التنبيهات الحرجة", "/admin/alerts", "alert"]]],
+  ["المستخدمون والانضمام", [["المستخدمون", "/admin/users", "users"], ["طلبات المزودين", "/admin/join-requests/providers", "grid"], ["طلبات المقاولين", "/admin/join-requests/contractors", "document"], ["السائقون", "/admin/drivers", "truck"], ["المدراء والصلاحيات", "/admin/admins", "shield"]]],
+  ["المنتجات والتوريد", [["التصنيفات والمنتجات", "/admin/catalog", "grid"], ["مراجعة المنتجات", "/admin/products/review", "check"], ["الأسعار والتوفر", "/admin/pricing", "money"], ["محرك التوريد", "/admin/sourcing", "flow"], ["عروض بُنية", "/admin/bunya-quotes", "document"]]],
+  ["الطلبات والتنفيذ", [["طلبات المنتجات", "/admin/quote-requests", "document"], ["الطلبات", "/admin/orders", "document"], ["التوصيل والسائقون", "/admin/deliveries", "truck"], ["مراقبة التوصيل", "/admin/delivery-monitoring", "truck"], ["أكواد التسليم", "/admin/delivery-codes", "shield"]]],
+  ["المقاولات", [["مراجعة الخدمات", "/admin/contractor-services", "check"], ["مراجعة معرض الأعمال", "/admin/contractor-portfolio", "document"], ["طلبات المشاريع", "/admin/project-requests", "grid"], ["فرص المشاريع", "/admin/contractor-opportunities", "document"], ["عروض المقاولين", "/admin/contractor-proposals", "money"], ["المشاريع", "/admin/contractor-projects", "document"], ["مراجعة التعليقات", "/admin/project-comments", "document"], ["مستندات المقاولين", "/admin/contractor-documents", "document"], ["التقييمات", "/admin/reviews", "star"]]],
+  ["المالية", [["المالية والأرباح", "/admin/finance", "flow"], ["تصفيات المزودين", "/admin/settlements/providers", "money"], ["تصفيات المقاولين", "/admin/settlements/contractors", "money"], ["الفواتير والاسترجاعات", "/admin/invoices", "document"]]],
+  ["التواصل والحوكمة", [["الإشعارات", "/admin/notifications", "bell"], ["الدعم والتذاكر", "/admin/support", "support"], ["السياسات", "/admin/policies", "shield"], ["سجل التدقيق", "/admin/audit", "document"], ["إعدادات المنصة", "/admin/settings", "settings"]]],
+];

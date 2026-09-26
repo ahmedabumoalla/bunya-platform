@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { signProductImageMap } from "@/lib/products/image-urls";
 import { createClient } from "@/lib/supabase/client";
+import { useDialogFocus } from "./useDialogFocus";
 import styles from "./AdminProductReview.module.css";
 
 type ReviewDecision = "approved" | "needs_changes" | "rejected";
@@ -321,22 +322,22 @@ export function AdminProductReview({ initialProductId }: { initialProductId?: st
         <aside>
           <div className={styles.metric}>
             <small>بانتظار المراجعة</small>
-            <strong>{counts.pending.toLocaleString("ar-SA")}</strong>
+            <strong>{loading ? "…" : counts.pending.toLocaleString("en-US")}</strong>
           </div>
           <div className={styles.metric}>
             <small>معتمدة</small>
-            <strong>{counts.approved.toLocaleString("ar-SA")}</strong>
+            <strong>{loading ? "…" : counts.approved.toLocaleString("en-US")}</strong>
           </div>
           <div className={styles.metric}>
             <small>حالات أخرى</small>
-            <strong>{counts.other.toLocaleString("ar-SA")}</strong>
+            <strong>{loading ? "…" : counts.other.toLocaleString("en-US")}</strong>
           </div>
         </aside>
       </header>
       <section className={styles.filters}>
         <label>
           البحث
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="اسم المنتج، SKU، المنشأة أو التصنيف" />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="اسم المنتج، رمزه، المنشأة أو التصنيف" />
         </label>
         <label>
           حالة المراجعة
@@ -362,8 +363,8 @@ export function AdminProductReview({ initialProductId }: { initialProductId?: st
           </select>
         </label>
       </section>
-      {feedback ? <div className={styles.feedback}>{feedback}</div> : null}
-      {error && !selected ? <div className={styles.error}>{error}</div> : null}
+      {feedback ? <div className={styles.feedback} role="status">{feedback}</div> : null}
+      {error && !selected ? <div className={styles.error} role="alert">{error}</div> : null}
       {loading ? (
         <div className={styles.loading}>جارٍ تحميل صور المنتجات وتفاصيلها…</div>
       ) : filtered.length ? (
@@ -398,7 +399,7 @@ export function AdminProductReview({ initialProductId }: { initialProductId?: st
                     <Fact name="السعر" value={product.unit_price === null ? "غير محدد" : `${number(product.unit_price)} ر.س`} />
                     <Fact name="المخزون" value={product.stock_quantity === null ? "غير محدد" : `${number(product.stock_quantity, 3)} ${product.base_unit}`} />
                     <Fact name="نوع العرض" value={label(product.offer_type)} />
-                    <Fact name="SKU" value={product.sku || "—"} />
+                    <Fact name="رمز المنتج" value={product.sku || "—"} />
                   </dl>
                   <p className={styles.description}>{product.full_description || product.description || product.short_description}</p>
                   {product.review_status === "pending_review" ? <ReviewButtons onChoose={(decision) => open(product, decision)} /> : null}
@@ -444,6 +445,7 @@ function ReviewButtons({ onChoose }: { onChoose: (decision: ReviewDecision) => v
 }
 
 function ProductDialog({ product, categories, categoryDraft, categorySaving, activeImage, reviewDecision, reason, saving, error, onCategoryDraft, onSaveCategory, onActiveImage, onChooseDecision, onReason, onSubmit, onClose }: { product: Product; categories: Category[]; categoryDraft: string; categorySaving: boolean; activeImage: number; reviewDecision: ReviewDecision | null; reason: string; saving: boolean; error: string; onCategoryDraft: (value: string) => void; onSaveCategory: () => void; onActiveImage: (value: number) => void; onChooseDecision: (decision: ReviewDecision) => void; onReason: (value: string) => void; onSubmit: () => void; onClose: () => void }) {
+  const dialogRef = useDialogFocus();
   const images = product.product_images.filter((item) => item.signed_url);
   const shown = images[Math.min(activeImage, Math.max(0, images.length - 1))];
   const history = [...(product.product_review_decisions || [])].sort((a, b) => +new Date(b.reviewed_at) - +new Date(a.reviewed_at));
@@ -454,7 +456,7 @@ function ProductDialog({ product, categories, categoryDraft, categorySaving, act
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <section className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="admin-product-title">
+      <section ref={dialogRef} tabIndex={-1} className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="admin-product-title">
         <button className={styles.close} type="button" onClick={onClose} disabled={saving} aria-label="إغلاق">
           ×
         </button>
