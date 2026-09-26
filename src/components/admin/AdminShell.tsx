@@ -1,6 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -43,8 +44,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!drawer) return;
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const unlockScroll = lockBodyScroll();
     const sidebar = sidebarRef.current;
     const menu = menuRef.current;
     sidebar?.querySelector<HTMLButtonElement>("button")?.focus();
@@ -57,7 +57,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
     }
     document.addEventListener("keydown", keyboard);
-    return () => { document.body.style.overflow = previous; document.removeEventListener("keydown", keyboard); menu?.focus(); };
+    return () => { unlockScroll(); document.removeEventListener("keydown", keyboard); menu?.focus(); };
   }, [drawer]);
 
   useEffect(() => {

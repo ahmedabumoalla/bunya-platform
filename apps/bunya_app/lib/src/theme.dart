@@ -1,5 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+
+const bunyaSystemUiOverlayStyle = SystemUiOverlayStyle(
+  statusBarColor: Colors.transparent,
+  statusBarIconBrightness: Brightness.dark,
+  statusBarBrightness: Brightness.light,
+  systemNavigationBarColor: BunyaColors.sand,
+  systemNavigationBarIconBrightness: Brightness.dark,
+  systemNavigationBarDividerColor: Colors.transparent,
+);
 
 abstract final class BunyaColors {
   static const ink = Color(0xFF18231F);
@@ -14,8 +24,14 @@ abstract final class BunyaColors {
   static const danger = Color(0xFFB33A3A);
 }
 
-ThemeData bunyaTheme() {
-  final text = GoogleFonts.cairoTextTheme().apply(
+ThemeData bunyaTheme({Locale locale = const Locale('ar')}) {
+  final defaultText = ThemeData.light().textTheme;
+  final baseText = locale.languageCode == 'ar'
+      ? defaultText.apply(fontFamily: 'IBMPlexSansArabic')
+      : locale.languageCode == 'ur'
+      ? GoogleFonts.cairoTextTheme()
+      : defaultText;
+  final text = baseText.apply(
     bodyColor: BunyaColors.ink,
     displayColor: BunyaColors.ink,
   );
@@ -71,7 +87,11 @@ ThemeData bunyaTheme() {
       backgroundColor: BunyaColors.surface,
       indicatorColor: const Color(0xFFF0DDCF),
       labelTextStyle: WidgetStatePropertyAll(
-        text.labelSmall?.copyWith(fontWeight: FontWeight.w800),
+        text.labelSmall?.copyWith(
+          fontSize: 10,
+          height: 1.05,
+          fontWeight: FontWeight.w800,
+        ),
       ),
     ),
     snackBarTheme: SnackBarThemeData(

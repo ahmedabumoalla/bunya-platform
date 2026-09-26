@@ -9,17 +9,37 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 abstract final class PushService {
   static bool _ready = false;
   static StreamSubscription<String>? _refresh;
+  static StreamSubscription<RemoteMessage>? _opened;
+  static bool _openNotificationsPending = false;
+  static final ValueNotifier<int> notificationOpenRevision = ValueNotifier(0);
 
   static Future<void> initialize() async {
     if (kIsWeb) return;
     try {
       await Firebase.initializeApp();
       _ready = true;
+      _opened ??= FirebaseMessaging.onMessageOpenedApp.listen((_) {
+        _requestNotificationsPage();
+      });
+      final initialMessage = await FirebaseMessaging.instance
+          .getInitialMessage();
+      if (initialMessage != null) _requestNotificationsPage();
       await registerForCurrentUser();
       _refresh ??= FirebaseMessaging.instance.onTokenRefresh.listen(_saveToken);
     } catch (_) {
       _ready = false;
     }
+  }
+
+  static void _requestNotificationsPage() {
+    _openNotificationsPending = true;
+    notificationOpenRevision.value++;
+  }
+
+  static bool consumeNotificationsPageRequest() {
+    if (!_openNotificationsPending) return false;
+    _openNotificationsPending = false;
+    return true;
   }
 
   static Future<void> registerForCurrentUser() async {

@@ -1671,3 +1671,10 @@ body > .admin-modal-backdrop {
     width: 100%;
   }
 }
+
+/* Preserve legible labels when product/payout controls are unavailable. */
+:is(.provider-primary,.provider-secondary,.provider-danger,.contractor-primary,.contractor-secondary):disabled,
+:is(.provider-app,.contractor-app) .ops-form button:disabled {
+  background: #e4ebe6 !important; color: #43584c !important;
+  border-color: #bccbc2 !important; opacity: 1; box-shadow: none !important; cursor: not-allowed;
+}

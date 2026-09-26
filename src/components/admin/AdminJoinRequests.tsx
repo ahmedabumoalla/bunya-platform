@@ -1,9 +1,11 @@
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 "use client";
 
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
 import { useDialogFocus } from "./useDialogFocus";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import "./join-request-dialog.css";
 import {
   AdminDecisionDialog,
   AdminEmpty,
@@ -76,9 +78,9 @@ function RequestActions({ item, onAction }: { item: Application; onAction: (acti
     <div className="admin-request-modal-actions">
       {["pending", "needs_changes"].includes(item.status) ? (
         <>
-          <button type="button" className="admin-action-button admin-action-approve" onClick={() => onAction("approve")}>✓ موافقة</button>
-          <button type="button" className="admin-action-button admin-action-reject" onClick={() => onAction("reject")}>✕ رفض</button>
-          <button type="button" className="admin-action-button admin-action-revision" onClick={() => onAction("needs-changes")}>✎ طلب تعديل</button>
+          <button type="button" className="admin-action-button admin-action-approve" onClick={() => onAction("approve")}>موافقة على الطلب</button>
+          <button type="button" className="admin-action-button admin-action-revision" onClick={() => onAction("needs-changes")}>طلب تعديل</button>
+          <button type="button" className="admin-action-button admin-action-reject" onClick={() => onAction("reject")}>رفض الطلب</button>
         </>
       ) : null}
       {item.status === "approved" ? (
@@ -203,7 +205,7 @@ function RequestDetails({
           <div>
             <p>{kind === "provider" ? "طلب انضمام مزود" : "طلب انضمام مقاول"}</p>
             <h3 id={`request-title-${item.id}`}>{name}</h3>
-            <small dir="ltr">مرجع الطلب: {item.id.slice(0, 8).toUpperCase()}</small>
+            <small>مرجع الطلب <bdi>{item.id.slice(0, 8).toUpperCase()}</bdi></small>
           </div>
           <div>
             <AdminStatus value={displayStatus(item.status)} />
@@ -213,7 +215,8 @@ function RequestDetails({
           </div>
         </header>
 
-        <section className="admin-request-section">
+        <div className="admin-request-modal-body">
+        <section className="admin-request-section admin-request-applicant">
           <h4>بيانات مقدم الطلب</h4>
           <dl className="admin-request-detail-grid">
             {kind === "provider" ? (
@@ -226,7 +229,7 @@ function RequestDetails({
             )}
             <Detail label="البريد الإلكتروني" dir="ltr">{displayValue(item.email)}</Detail>
             <Detail label="رقم الجوال" dir="ltr">{displayValue(item.mobile)}</Detail>
-            <Detail label="اسم المستخدم المطلوب">{displayValue(item.requested_username)}</Detail>
+            <Detail label="اسم المستخدم المطلوب">{item.requested_username ? displayValue(item.requested_username) : "لم يُحدد"}</Detail>
             {kind === "provider" ? (
               <Detail label="كود الخصم">{displayValue(item.discount_code)}</Detail>
             ) : null}
@@ -263,24 +266,22 @@ function RequestDetails({
 
         <section className="admin-request-section">
           <h4>{kind === "provider" ? "التصنيفات المتوفرة" : "مناطق العمل والتخصصات"}</h4>
-          <div className="admin-request-chips">
-            {kind === "provider"
-              ? categories.map((category, index) => {
+          {kind === "contractor" ? (
+            <div className="admin-request-coverage">
+              <div><h5>مناطق العمل</h5><div className="admin-request-chips">{workRegions.length ? workRegions.map((entry, index) => <span key={index}>{displayValue(entry.region_name)}</span>) : <p>لم تُحدد مناطق العمل.</p>}</div></div>
+              <div><h5>التخصصات</h5><div className="admin-request-chips">{specialties.length ? specialties.map((entry, index) => <span key={index}>{displayValue(entry.specialty_name)}</span>) : <p>لم تُحدد التخصصات.</p>}</div></div>
+            </div>
+          ) : <div className="admin-request-chips">
+            {categories.map((category, index) => {
                   const relation = category.product_categories as Row | null;
                   return (
                     <span key={`${displayValue(category.custom_category)}-${index}`}>
                       {displayValue(relation?.name ?? category.custom_category)}
                     </span>
                   );
-                })
-              : [...workRegions, ...specialties].map((entry, index) => (
-                  <span key={`${displayValue(entry.region_name ?? entry.specialty_name)}-${index}`}>
-                    {displayValue(entry.region_name ?? entry.specialty_name)}
-                  </span>
-                ))}
-            {kind === "provider" && !categories.length ? <span>لا توجد تصنيفات مسجلة</span> : null}
-            {kind === "contractor" && !workRegions.length && !specialties.length ? <span>لا توجد بيانات مسجلة</span> : null}
-          </div>
+                })}
+            {!categories.length ? <span>لا توجد تصنيفات مسجلة</span> : null}
+          </div>}
         </section>
 
         <section className="admin-request-section">
@@ -290,12 +291,14 @@ function RequestDetails({
               item.documents.map((document) =>
                 document.url ? (
                   <button type="button" onClick={() => void openDocument(document)} key={document.id}>
-                    <span>{document.name}</span>
+                    <em className="admin-request-file-type" aria-hidden="true">{/\.pdf$/i.test(document.name) ? "PDF" : /\.(png|jpe?g|webp|heic)$/i.test(document.name) ? "صورة" : "ملف"}</em>
+                    <span dir="auto">{document.name}</span>
                     <b>عرض المستند</b>
                   </button>
                 ) : (
                   <div key={document.id}>
-                    <span>{document.name}</span>
+                    <em className="admin-request-file-type" aria-hidden="true">ملف</em>
+                    <span dir="auto">{document.name}</span>
                     <b>تعذر إنشاء رابط العرض</b>
                   </div>
                 ),
@@ -306,8 +309,11 @@ function RequestDetails({
           </div>
         </section>
 
-        <section className="admin-request-section">
+        <section className="admin-request-section admin-request-review">
           <h4>المراجعة وحالة إنشاء الحساب</h4>
+          {!item.reviewed_at && !item.review_notes && !item.onboarding ? (
+            <p className="admin-request-pending-note">لم تُسجّل مراجعة بعد. راجع بيانات الطلب والمستندات، ثم اختر القرار المناسب من الأزرار أدناه.</p>
+          ) : (
           <dl className="admin-request-detail-grid">
             <Detail label="وقت آخر مراجعة">{dateTime(item.reviewed_at)}</Detail>
             <Detail label="ملاحظات المراجع">{displayValue(item.review_notes)}</Detail>
@@ -320,6 +326,7 @@ function RequestDetails({
               </>
             ) : null}
           </dl>
+          )}
           {reviews.length ? (
             <div className="admin-request-review-list">
               <h5>سجل القرارات</h5>
@@ -333,6 +340,7 @@ function RequestDetails({
             </div>
           ) : null}
         </section>
+        </div>
 
         <footer className="admin-request-modal-footer">
           <button onClick={onClose}>إغلاق</button>
@@ -375,14 +383,13 @@ export function AdminJoinRequests({ kind }: { kind: "provider" | "contractor" })
 
   useEffect(() => {
     if (!selected) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const unlockScroll = lockBodyScroll();
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !pending) setSelected(null);
     };
     window.addEventListener("keydown", closeOnEscape);
     return () => {
-      document.body.style.overflow = previousOverflow;
+      unlockScroll();
       window.removeEventListener("keydown", closeOnEscape);
     };
   }, [selected, pending]);

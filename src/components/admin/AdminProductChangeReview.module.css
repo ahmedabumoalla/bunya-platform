@@ -3,3 +3,6 @@
 .changes h3 { --bunya-text-primary: #fff; color: #fff !important; }
 .hero { background: #fff; border-color: #dfe5df; box-shadow: none; }
 .diff section.after { background: #f0f5ea; }
+
+.decision button:disabled { background: #e4ebe6; color: #43584c; border-color: #bccbc2; opacity: 1; cursor: not-allowed; }
+.decision button:focus-visible { outline: 3px solid #548367; outline-offset: 3px; }

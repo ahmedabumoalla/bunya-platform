@@ -1,15 +1,21 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'brand_logo.dart';
 import 'data.dart';
 import 'product_image_urls.dart';
+import 'push_service.dart';
 import 'theme.dart';
+import 'localization.dart';
 
 const _apiUrl = String.fromEnvironment(
   'APP_URL',
@@ -48,6 +54,84 @@ class WorkspaceRepository {
 
   void _changed() => BunyaRepository.notifyDataChanged();
 
+  Future<String> startQuotePayment(
+    String quoteId, {
+    required bool acceptFirst,
+    String? returnUrl,
+  }) async {
+    if (acceptFirst) {
+      final current = await client
+          .from('bunya_customer_quotes')
+          .select('status')
+          .eq('id', quoteId)
+          .single();
+      final currentStatus = '${current['status'] ?? ''}';
+      if (currentStatus == 'ready' || currentStatus == 'customer_review') {
+        final accepted = await client.rpc(
+          'accept_customer_quote',
+          params: {
+            'p_quote_id': quoteId,
+            'p_idempotency_key':
+                'mobile-${DateTime.now().microsecondsSinceEpoch}',
+          },
+        );
+        if (accepted == null) throw Exception('payment_accept_failed');
+      } else if (currentStatus != 'accepted') {
+        throw Exception('payment_quote_unavailable');
+      }
+    }
+    final token = client.auth.currentSession?.accessToken;
+    if (token == null || token.isEmpty) {
+      throw Exception('payment_session_expired');
+    }
+    final response = await http.post(
+      Uri.parse(
+        '${_apiUrl.replaceFirst(RegExp(r'/$'), '')}/api/payments/paymob/intention',
+      ),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'quoteId': quoteId,
+        if (returnUrl != null && returnUrl.trim().isNotEmpty)
+          'returnUrl': returnUrl.trim(),
+      }),
+    );
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    if (body['status'] == 'succeeded') return 'succeeded';
+    final checkoutUrl = '${body['checkoutUrl'] ?? ''}'.trim();
+    if (response.statusCode < 200 ||
+        response.statusCode >= 300 ||
+        checkoutUrl.isEmpty) {
+      throw Exception('${body['message'] ?? 'payment_start_failed'}');
+    }
+    _changed();
+    return checkoutUrl;
+  }
+
+  Future<String> reconcileQuotePayment(String quoteId) async {
+    final token = client.auth.currentSession?.accessToken;
+    if (token == null || token.isEmpty) return 'pending';
+    final response = await http.post(
+      Uri.parse(
+        '${_apiUrl.replaceFirst(RegExp(r'/$'), '')}/api/payments/paymob/reconcile',
+      ),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'quoteId': quoteId}),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      return 'pending';
+    }
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final status = '${body['status'] ?? 'pending'}';
+    _changed();
+    return status;
+  }
+
   Future<RoleContext> resolve(Profile profile) async {
     final userId = client.auth.currentUser!.id;
     if (profile.role == 'provider') {
@@ -78,6 +162,22 @@ class WorkspaceRepository {
         role: 'contractor',
         name: '${row?['display_name'] ?? profile.name}',
         entityId: row == null ? null : '${row['id']}',
+      );
+    }
+    if (profile.role == 'driver') {
+      final row = await client
+          .from('provider_driver_accounts')
+          .select('driver_id,provider_drivers(full_name,provider_id)')
+          .eq('auth_user_id', userId)
+          .limit(1)
+          .maybeSingle();
+      final driver = row?['provider_drivers'];
+      return RoleContext(
+        role: 'driver',
+        name: driver is Map
+            ? '${driver['full_name'] ?? profile.name}'
+            : profile.name,
+        entityId: row == null ? null : '${row['driver_id']}',
       );
     }
     if (profile.role == 'admin') {
@@ -158,6 +258,29 @@ class WorkspaceRepository {
       ]);
       return {'الفرص': values[0], 'العروض': values[1], 'المشاريع': values[2]};
     }
+    if (context.role == 'driver') {
+      try {
+        final rows = await driverDeliveries();
+        return {
+          'المهام النشطة': rows
+              .where(
+                (row) => !const {
+                  'delivered',
+                  'failed_delivery',
+                }.contains('${row['delivery_status']}'),
+              )
+              .length,
+          'وصلت للموقع': rows
+              .where((row) => row['delivery_status'] == 'arrived')
+              .length,
+          'تم تسليمها': rows
+              .where((row) => row['delivery_status'] == 'delivered')
+              .length,
+        };
+      } catch (_) {
+        return {'المهام النشطة': -1, 'وصلت للموقع': -1, 'تم تسليمها': -1};
+      }
+    }
     final values = await Future.wait<int>([
       count(
         'provider_applications',
@@ -182,15 +305,22 @@ class WorkspaceRepository {
     };
   }
 
-  Future<List<Map<String, dynamic>>> loadModule(WorkspaceModule module) async {
+  Future<List<Map<String, dynamic>>> loadModule(
+    WorkspaceModule module, {
+    String? recordId,
+  }) async {
     final isProducts = module.table == 'products';
+    final isProductChanges = module.table == 'product_change_requests';
     final isQuoteRequests = module.table == 'quote_requests';
     final selection = isProducts
-        ? '*,providers(company_name,contact_name,mobile,email),product_categories(name,slug),product_images(image_url,storage_path,is_primary,sort_order),product_units(name,is_base,sort_order),product_measurements(label,is_default,product_units(name)),product_variants(name,sku,attributes,is_active,sort_order),product_specifications(value,sort_order),product_warranties(label,duration,details),product_availability_regions(city,scope),product_delivery_configs(is_available,maximum_duration,duration_unit,price_per_km,maximum_distance_km,notes),product_delivery_regions(region_name),product_review_history(from_status,to_status,notes,changed_at)'
+        ? '*,providers(company_name,contact_name,mobile,email),product_categories(id,name,slug),product_images(id,label,alt_text,tone,image_url,storage_path,file_name,mime_type,file_size_bytes,is_primary,sort_order),product_units(name,is_base,sort_order),product_measurements(label,is_default,sort_order,product_units(name)),product_variants(name,sku,attributes,is_active,sort_order),product_specifications(value,sort_order),product_warranties(label,duration,details),product_availability_regions(city,scope),product_delivery_configs(is_available,maximum_duration,duration_unit,price_per_km,maximum_distance_km,notes),product_delivery_regions(region_name),product_review_history(from_status,to_status,notes,changed_at),product_change_requests(id,status,created_at)'
+        : isProductChanges
+        ? '*,products(id,name,sku),providers(company_name)'
         : isQuoteRequests
-        ? '*,quote_request_items(product_name_snapshot,measurement_label_snapshot,unit_name_snapshot,quantity,notes),bunya_customer_quotes(quote_code,subtotal,vat_amount,delivery_fee,total,valid_until,expected_delivery_at,status,processing_stage)'
+        ? '*,quote_request_items(product_name_snapshot,product_name_translations,measurement_label_snapshot,measurement_label_translations,variant_label_snapshot,variant_selections,unit_name_snapshot,unit_name_translations,quantity,notes),bunya_customer_quotes(id,quote_code,subtotal,vat_amount,delivery_fee,total,valid_until,expected_delivery_at,status,processing_stage,orders(id,order_code,payment_status))'
         : '*';
     dynamic query = client.from(module.table).select(selection);
+    if (recordId != null) query = query.eq('id', recordId);
     if (module.filterField != null && module.filterValue != null) {
       query = query.eq(module.filterField!, module.filterValue!);
     }
@@ -237,9 +367,27 @@ class WorkspaceRepository {
       final thumbnailUrl = (signedUrls[path] ?? '').trim();
       row['_image_url'] = thumbnailUrl.isNotEmpty ? thumbnailUrl : directUrl;
       row['_image_fallback_url'] = originalUrls[path] ?? directUrl;
-      row['_image_cache_key'] = path.isNotEmpty ? path : directUrl;
+      final imageId = '${image['id'] ?? ''}'.trim();
+      row['_image_cache_key'] = path.isNotEmpty
+          ? '$path:$imageId'
+          : '$directUrl:$imageId';
     }
     return records;
+  }
+
+  Future<List<Map<String, dynamic>>> loadAdminProviderFinance() async {
+    final result = await client.rpc('admin_provider_financial_summary');
+    return (result as List)
+        .map((row) => Map<String, dynamic>.from(row as Map))
+        .toList();
+  }
+
+  Future<void> setProviderCommission(String providerId, double rate) async {
+    await client.rpc(
+      'admin_set_provider_commission',
+      params: {'p_provider_id': providerId, 'p_rate': rate},
+    );
+    _changed();
   }
 
   Future<void> reviewProduct(String id, String decision, String reason) async {
@@ -252,6 +400,176 @@ class WorkspaceRepository {
         'p_idempotency_key':
             'app-review-${DateTime.now().microsecondsSinceEpoch}',
       },
+    );
+    _changed();
+  }
+
+  Future<void> requestProductChange({
+    required Map<String, dynamic> product,
+    required String name,
+    required String categoryId,
+    required String? customCategory,
+    required String baseUnit,
+    required String description,
+    required String? sku,
+    required double unitPrice,
+    required double? minimumOrder,
+    required double? stockQuantity,
+    required String availabilityStatus,
+    required String leadTime,
+    required String deliveryWindow,
+    required String deliveryNotes,
+    required bool vatInclusive,
+    required String offerType,
+    required double? rentalDuration,
+    required String? rentalDurationUnit,
+    required List<String> measurements,
+    required List<Map<String, String>> variants,
+    required List<String> specifications,
+    required String? warrantyDuration,
+    required String? warrantyDetails,
+    required List<String> retainedImageIds,
+    required List<Map<String, String>> availabilityRegions,
+    required List<String> deliveryRegions,
+    required bool deliveryAvailable,
+    required double? deliveryMaximumDuration,
+    required String? deliveryDurationUnit,
+    required double? deliveryPricePerKm,
+    required double? deliveryMaximumDistanceKm,
+    required String? deliveryConfigNotes,
+    required String? requestNote,
+    Uint8List? imageBytes,
+    String? imageName,
+    String? imageMime,
+  }) async {
+    final token = client.auth.currentSession?.accessToken;
+    if (token == null || token.isEmpty) {
+      throw Exception('انتهت جلسة الدخول. سجل الدخول ثم أعد المحاولة.');
+    }
+    final productId = '${product['id']}';
+    final uri = Uri.parse(
+      '${_apiUrl.replaceFirst(RegExp(r'/$'), '')}/api/provider/products/$productId/change-requests',
+    );
+    final request = http.MultipartRequest('POST', uri)
+      ..headers['Authorization'] = 'Bearer $token'
+      ..headers['Idempotency-Key'] =
+          'app-product-change-${DateTime.now().microsecondsSinceEpoch}';
+    String encodeNumber(double? value) => value == null ? '' : value.toString();
+    request.fields.addAll({
+      'name': name,
+      'category_id': categoryId,
+      'custom_category': customCategory ?? '',
+      'base_unit': baseUnit,
+      'description': description,
+      'sku': sku ?? '',
+      'unit_price': encodeNumber(unitPrice),
+      'minimum_order': encodeNumber(minimumOrder),
+      'stock_quantity': encodeNumber(stockQuantity),
+      'availability_status': availabilityStatus,
+      'lead_time_label': leadTime,
+      'delivery_window': deliveryWindow,
+      'delivery_notes': deliveryNotes,
+      'vat_inclusive': '$vatInclusive',
+      'offer_type': offerType,
+      'rental_duration_value': encodeNumber(rentalDuration),
+      'rental_duration_unit': rentalDurationUnit ?? '',
+      'measurements': jsonEncode(measurements),
+      'variants': jsonEncode(variants),
+      'retained_image_ids': jsonEncode(retainedImageIds),
+      'availability_regions': jsonEncode(availabilityRegions),
+      'delivery_regions': jsonEncode([
+        for (final region in deliveryRegions) {'region_name': region},
+      ]),
+      'delivery_available': '$deliveryAvailable',
+      'delivery_maximum_duration': encodeNumber(deliveryMaximumDuration),
+      'delivery_duration_unit': deliveryDurationUnit ?? '',
+      'delivery_price_per_km': encodeNumber(deliveryPricePerKm),
+      'delivery_maximum_distance_km': encodeNumber(deliveryMaximumDistanceKm),
+      'delivery_config_notes': deliveryConfigNotes ?? '',
+      'warranty_duration': warrantyDuration ?? '',
+      'warranty_details': warrantyDetails ?? '',
+      'request_note': requestNote ?? '',
+    });
+    const specificationInputs = {
+      'GTIN / الباركود': 'gtin',
+      'المصنّع / العلامة': 'manufacturer',
+      'بلد المنشأ': 'country_of_origin',
+      'المادة / التركيبة': 'material',
+      'الدرجة / الفئة': 'grade',
+      'الوزن': 'weight',
+      'اللون / التشطيب': 'color',
+      'التعبئة': 'packaging',
+      'المواصفة أو شهادة المطابقة': 'standard_reference',
+      'الاستخدام المخصص': 'intended_use',
+      'السلامة والمناولة': 'safety_notes',
+      'شروط التخزين': 'storage_conditions',
+    };
+    for (final specification in specifications) {
+      for (final entry in specificationInputs.entries) {
+        final prefix = '${entry.key}:';
+        if (specification.startsWith(prefix)) {
+          request.fields[entry.value] = specification
+              .substring(prefix.length)
+              .trim();
+        }
+      }
+    }
+    if (imageBytes != null && imageName != null && imageMime != null) {
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'images',
+          imageBytes,
+          filename: imageName,
+          contentType: MediaType.parse(imageMime),
+        ),
+      );
+    }
+    final streamed = await request.send();
+    final response = await http.Response.fromStream(streamed);
+    final payload = jsonDecode(response.body) as Map<String, dynamic>;
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('${payload['error'] ?? 'تعذر إرسال طلب تعديل المنتج.'}');
+    }
+    _changed();
+  }
+
+  Future<void> reviewProductChange(
+    String id,
+    String decision,
+    String reason,
+  ) async {
+    final token = client.auth.currentSession?.accessToken;
+    if (token == null || token.isEmpty) {
+      throw Exception('انتهت جلسة الدخول. سجل الدخول ثم أعد المحاولة.');
+    }
+    final response = await http.post(
+      Uri.parse(
+        '${_apiUrl.replaceFirst(RegExp(r'/$'), '')}/api/admin/product-change-requests/$id/review',
+      ),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+        'Idempotency-Key':
+            'app-product-change-review-${DateTime.now().microsecondsSinceEpoch}',
+      },
+      body: jsonEncode({'decision': decision, 'reason': reason}),
+    );
+    final payload = jsonDecode(response.body) as Map<String, dynamic>;
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception(
+        '${payload['error'] ?? 'تعذر حفظ قرار مراجعة التعديلات.'}',
+      );
+    }
+    _changed();
+  }
+
+  Future<void> updateProductCategory(
+    String productId,
+    String categoryId,
+  ) async {
+    await client.rpc(
+      'admin_update_product_category',
+      params: {'p_product_id': productId, 'p_category_id': categoryId},
     );
     _changed();
   }
@@ -458,17 +776,69 @@ class WorkspaceRepository {
     _changed();
   }
 
-  Future<List<Map<String, dynamic>>> providerRfqs(String providerId) async {
-    final rows = await client
-        .from('internal_sourcing_request_targets')
+  Future<Map<String, dynamic>?> providerDeliveryForFulfillment(
+    String fulfillmentId,
+  ) async {
+    final row = await client
+        .from('provider_delivery_assignments')
         .select(
-          'sourcing_request_item_id,targeted_at,response_deadline_at,internal_sourcing_request_items(id,quantity,unit_snapshot,measurement_snapshot,delivery_region,required_at,quote_request_items(product_name_snapshot,notes),internal_sourcing_requests(internal_code),provider_pricing_responses(id,status,unit_price))',
+          'id,status,expected_at,assigned_at,delivered_at,assigned_driver_id,provider_drivers(full_name,mobile)',
         )
-        .eq('provider_id', providerId)
-        .order('response_deadline_at');
+        .eq('fulfillment_order_id', fulfillmentId)
+        .maybeSingle();
+    return row == null ? null : Map<String, dynamic>.from(row);
+  }
+
+  Future<List<Map<String, dynamic>>> providerDrivers() async {
+    final rows = await client
+        .from('provider_drivers')
+        .select('id,full_name,mobile,status,must_change_password')
+        .order('full_name');
     return (rows as List)
         .map((row) => Map<String, dynamic>.from(row as Map))
         .toList();
+  }
+
+  Future<String> assignDeliveryDriver(
+    String fulfillmentId,
+    String driverId,
+  ) async {
+    final token = client.auth.currentSession?.accessToken;
+    if (token == null || token.isEmpty) {
+      throw Exception('انتهت جلسة الدخول. سجل الدخول مجددًا.');
+    }
+    final response = await http.post(
+      Uri.parse('$_apiUrl/api/provider/deliveries/assign-driver'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'fulfillmentId': fulfillmentId, 'driverId': driverId}),
+    );
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception(
+        '${body['error'] ?? 'تعذر إسناد السائق وإرسال الإشعارات'}',
+      );
+    }
+    _changed();
+    return '${body['message'] ?? 'تم إسناد الطلب للسائق.'}';
+  }
+
+  Future<List<Map<String, dynamic>>> providerRfqs(String providerId) async {
+    final rows = await client.rpc('get_my_provider_rfq_list');
+    final values = (rows as List)
+        .map((row) => Map<String, dynamic>.from(row as Map))
+        .toList();
+    final images = await ProductImageUrls.thumbnails(
+      client,
+      values.map((row) => '${row['product_image_storage_path'] ?? ''}'),
+    );
+    for (final row in values) {
+      final path = '${row['product_image_storage_path'] ?? ''}';
+      row['signed_image_url'] = images[path] ?? '';
+    }
+    return values;
   }
 
   Future<Map<String, dynamic>> providerRfq(String id) async {
@@ -483,6 +853,11 @@ class WorkspaceRepository {
       ),
     ]);
     final target = Map<String, dynamic>.from(results[0] as Map);
+    final path = '${target['product_image_storage_path'] ?? ''}';
+    if (path.isNotEmpty) {
+      final images = await ProductImageUrls.thumbnails(client, [path]);
+      target['signed_image_url'] = images[path] ?? '';
+    }
     if (results[1] is Map) {
       target['existing_response'] = Map<String, dynamic>.from(
         results[1] as Map,
@@ -499,9 +874,12 @@ class WorkspaceRepository {
     required int preparationHours,
     required int deliveryHours,
     required String notes,
+    bool revision = false,
   }) async {
     await client.rpc(
-      'submit_provider_pricing_response',
+      revision
+          ? 'revise_provider_pricing_response'
+          : 'submit_provider_pricing_response',
       params: {
         'p_sourcing_item_id': id,
         'p_response': {
@@ -514,7 +892,7 @@ class WorkspaceRepository {
           'delivery_fee': deliveryFee,
           'region_eligible': true,
           'price_expires_at': DateTime.now()
-              .add(const Duration(hours: 24))
+              .add(const Duration(hours: 72))
               .toUtc()
               .toIso8601String(),
           'notes': notes,
@@ -575,6 +953,84 @@ class WorkspaceRepository {
     _changed();
   }
 
+  Future<List<Map<String, dynamic>>> driverDeliveries() async {
+    try {
+      await client.rpc('mark_driver_activity');
+    } catch (_) {}
+    final rows = await client.rpc('get_my_driver_deliveries');
+    return (rows as List)
+        .map((row) => Map<String, dynamic>.from(row as Map))
+        .toList();
+  }
+
+  Future<void> transitionDelivery(String id, String status) async {
+    await client.rpc(
+      'transition_delivery_assignment',
+      params: {'p_assignment_id': id, 'p_status': status, 'p_note': null},
+    );
+    _changed();
+  }
+
+  Future<bool> confirmDelivery(String id, String code) async {
+    final token = client.auth.currentSession?.accessToken;
+    if (token == null || token.isEmpty) {
+      throw Exception('انتهت جلسة الدخول. سجل الدخول مجددًا.');
+    }
+    final response = await http.post(
+      Uri.parse(
+        '${_apiUrl.replaceFirst(RegExp(r'/$'), '')}/api/deliveries/$id/confirm',
+      ),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'code': code.replaceAll(RegExp(r'\D'), '')}),
+    );
+    Map<String, dynamic> body = const {};
+    try {
+      body = jsonDecode(response.body) as Map<String, dynamic>;
+    } catch (_) {
+      throw Exception('تعذر قراءة استجابة تأكيد التسليم من المنصة.');
+    }
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('${body['error'] ?? 'تعذر تأكيد التسليم حاليًا.'}');
+    }
+    final accepted = body['accepted'] == true;
+    if (accepted) _changed();
+    return accepted;
+  }
+
+  Future<Map<String, dynamic>> createProviderDriver({
+    required String fullName,
+    required String mobile,
+    required String email,
+    required String username,
+    String internalNotes = '',
+  }) async {
+    final token = client.auth.currentSession!.accessToken;
+    final response = await http.post(
+      Uri.parse('$_apiUrl/api/provider/drivers'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+        'Idempotency-Key': 'driver-${DateTime.now().microsecondsSinceEpoch}',
+      },
+      body: jsonEncode({
+        'fullName': fullName.trim(),
+        'mobile': mobile.trim(),
+        'email': email.trim().toLowerCase(),
+        'username': username.trim(),
+        'internalNotes': internalNotes.trim(),
+      }),
+    );
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('${body['error'] ?? 'تعذر إنشاء حساب السائق'}');
+    }
+    _changed();
+    return Map<String, dynamic>.from(body['credentials'] as Map);
+  }
+
   Future<List<Map<String, dynamic>>> adminApplications() async {
     final token = client.auth.currentSession!.accessToken;
     final responses = await Future.wait([
@@ -628,6 +1084,962 @@ class WorkspaceRepository {
   }
 }
 
+class DriverDeliveriesScreen extends StatefulWidget {
+  const DriverDeliveriesScreen({super.key, required this.repository});
+  final WorkspaceRepository repository;
+
+  @override
+  State<DriverDeliveriesScreen> createState() => _DriverDeliveriesScreenState();
+}
+
+class _DriverDeliveriesScreenState extends State<DriverDeliveriesScreen> {
+  late Future<List<Map<String, dynamic>>> rows = widget.repository
+      .driverDeliveries();
+  final Map<String, String> codes = {};
+  String busyId = '';
+
+  Future<void> reload() async {
+    setState(() {
+      rows = widget.repository.driverDeliveries();
+    });
+    await rows;
+  }
+
+  Future<void> move(String id, String status) async {
+    setState(() => busyId = id);
+    try {
+      await widget.repository.transitionDelivery(id, status);
+      if (mounted) _notice(context, context.tr('deliveryStatusUpdated'));
+      await reload();
+    } catch (error) {
+      if (mounted) _notice(context, _clean(error));
+    } finally {
+      if (mounted) setState(() => busyId = '');
+    }
+  }
+
+  Future<void> confirm(String id) async {
+    final code = (codes[id] ?? '').replaceAll(RegExp(r'\D'), '');
+    if (code.length < 4) {
+      _notice(context, context.tr('enterDeliveryCode'));
+      return;
+    }
+    setState(() => busyId = id);
+    try {
+      final accepted = await widget.repository.confirmDelivery(id, code);
+      if (!mounted) return;
+      _notice(
+        context,
+        accepted
+            ? context.tr('deliveryCompleted')
+            : context.tr('invalidDeliveryCode'),
+      );
+      if (accepted) await reload();
+    } catch (error) {
+      if (mounted) _notice(context, _clean(error));
+    } finally {
+      if (mounted) setState(() => busyId = '');
+    }
+  }
+
+  Future<void> openExternal(Uri uri, String failureMessage) async {
+    try {
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!opened && mounted) _notice(context, failureMessage);
+    } catch (_) {
+      if (mounted) _notice(context, failureMessage);
+    }
+  }
+
+  Future<void> showCompletedDeliveries(
+    List<Map<String, dynamic>> deliveries,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFFF7F1E8),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (sheetContext) => FractionallySizedBox(
+        heightFactor: .78,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(20, 18, 12, 10),
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: const BoxDecoration(
+                      color: BunyaColors.mint,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.inventory_2_outlined,
+                      color: BunyaColors.forest,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          context.tr('completedDeliveries'),
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        Text(
+                          '${deliveries.length}',
+                          style: const TextStyle(
+                            color: BunyaColors.muted,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: MaterialLocalizations.of(sheetContext)
+                        .closeButtonTooltip,
+                    onPressed: () => Navigator.pop(sheetContext),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: deliveries.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: _Empty(text: context.tr('noCompletedDeliveries')),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: deliveries.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 10),
+                      itemBuilder: (_, index) =>
+                          _DriverArchivedCard(row: deliveries[index]),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) => FutureBuilder<List<Map<String, dynamic>>>(
+    future: rows,
+    builder: (context, snapshot) {
+      if (snapshot.connectionState == ConnectionState.waiting) {
+        return const Center(child: CircularProgressIndicator());
+      }
+      if (snapshot.hasError) {
+        return Center(child: Text(_clean(snapshot.error!)));
+      }
+      final deliveries = snapshot.data ?? const [];
+      final completedDeliveries = deliveries
+          .where(
+            (row) => const {
+              'delivered',
+              'failed_delivery',
+            }.contains('${row['delivery_status']}'),
+          )
+          .toList();
+      final activeDeliveries = deliveries
+          .where(
+            (row) => !const {
+              'delivered',
+              'failed_delivery',
+            }.contains('${row['delivery_status']}'),
+          )
+          .toList();
+      return RefreshIndicator(
+        onRefresh: reload,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            _DetailHeader(
+              title: context.tr('deliveryTasks'),
+              caption: context.tr('deliveryTasksCaption'),
+              trailing: _DriverArchiveButton(
+                count: completedDeliveries.length,
+                tooltip: context.tr('completedDeliveries'),
+                onPressed: () => showCompletedDeliveries(completedDeliveries),
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (activeDeliveries.isEmpty)
+              SizedBox(
+                height: 260,
+                child: _Empty(
+                  text: deliveries.isEmpty
+                      ? context.tr('noAssignedTasks')
+                      : context.tr('noActiveDeliveries'),
+                ),
+              )
+            else
+              ...activeDeliveries.map((row) {
+                final id = '${row['delivery_id']}';
+                final status = '${row['delivery_status']}';
+                final maps = '${row['google_maps_url'] ?? ''}'.trim();
+                final recipientMobile = '${row['recipient_mobile'] ?? ''}'
+                    .trim();
+                final siteMobile = '${row['site_responsible_mobile'] ?? ''}'
+                    .trim();
+                final recipientName = '${row['recipient_name'] ?? '—'}'.trim();
+                final siteName = '${row['site_responsible_name'] ?? '—'}'
+                    .trim();
+                final orderItems = (row['items'] as List? ?? const [])
+                    .whereType<Map>()
+                    .map((item) => Map<String, dynamic>.from(item))
+                    .toList();
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: BunyaColors.line),
+                  ),
+                  child: Theme(
+                    data: Theme.of(context).copyWith(
+                      dividerColor: Colors.transparent,
+                      splashColor: BunyaColors.mint,
+                    ),
+                    child: ExpansionTile(
+                      maintainState: true,
+                      tilePadding: const EdgeInsetsDirectional.fromSTEB(
+                        14,
+                        8,
+                        10,
+                        8,
+                      ),
+                      childrenPadding: const EdgeInsetsDirectional.fromSTEB(
+                        14,
+                        0,
+                        14,
+                        14,
+                      ),
+                      leading: Container(
+                        width: 42,
+                        height: 42,
+                        decoration: const BoxDecoration(
+                          color: BunyaColors.mint,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.local_shipping_outlined,
+                          color: BunyaColors.forest,
+                          size: 21,
+                        ),
+                      ),
+                      title: Text(
+                        '${row['order_code']}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textDirection: TextDirection.ltr,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      subtitle: Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '$recipientName · ${_date(row['expected_at'])}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: BunyaColors.muted,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            _MiniStatus(text: context.localizedStatus(status)),
+                          ],
+                        ),
+                      ),
+                      children: [
+                        const Divider(height: 1),
+                        const SizedBox(height: 14),
+                        Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: Text(
+                            '${row['fulfillment_code']}',
+                            style: const TextStyle(
+                              color: BunyaColors.muted,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: .2,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        _DriverSectionTitle(
+                          icon: Icons.people_alt_outlined,
+                          text: context.tr('deliveryContacts'),
+                        ),
+                        const SizedBox(height: 8),
+                        _DriverContactPanel(
+                          recipientName: recipientName,
+                          recipientMobile: recipientMobile,
+                          siteName: siteName,
+                          siteMobile: siteMobile,
+                          onCallRecipient: recipientMobile.isEmpty
+                              ? null
+                              : () => openExternal(
+                                  Uri(
+                                    scheme: 'tel',
+                                    path: recipientMobile.replaceAll(
+                                      RegExp(r'\s+'),
+                                      '',
+                                    ),
+                                  ),
+                                  context.tr('callFailed'),
+                                ),
+                          onCallSite: siteMobile.isEmpty
+                              ? null
+                              : () => openExternal(
+                                  Uri(
+                                    scheme: 'tel',
+                                    path: siteMobile.replaceAll(
+                                      RegExp(r'\s+'),
+                                      '',
+                                    ),
+                                  ),
+                                  context.tr('callFailed'),
+                                ),
+                        ),
+                        const SizedBox(height: 16),
+                        _DriverSectionTitle(
+                          icon: Icons.fact_check_outlined,
+                          text: context.tr('siteReadiness'),
+                        ),
+                        const SizedBox(height: 8),
+                        _DriverOperationsPanel(
+                          deliveryTime: _date(row['expected_at']),
+                          workingHours: '${row['working_hours'] ?? '—'}',
+                          loadingUnloading:
+                              '${row['loading_option'] ?? '—'} · ${row['unloading_option'] ?? '—'}',
+                          roadAccess: '${row['road_access'] ?? '—'}',
+                          accessInstructions:
+                              '${row['access_instructions'] ?? '—'}',
+                        ),
+                        if (orderItems.isNotEmpty) ...[
+                          const SizedBox(height: 16),
+                          _DriverSectionTitle(
+                            icon: Icons.inventory_2_outlined,
+                            text: context.tr('orderItems'),
+                          ),
+                          const SizedBox(height: 8),
+                          _DriverOrderItems(items: orderItems),
+                        ],
+                        if (maps.isNotEmpty) ...[
+                          const SizedBox(height: 14),
+                          OutlinedButton.icon(
+                            onPressed: () => openExternal(
+                              Uri.parse(maps),
+                              context.tr('mapsFailed'),
+                            ),
+                            icon: const Icon(Icons.map_outlined),
+                            label: Text(context.tr('openGoogleMaps')),
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size.fromHeight(50),
+                              side: const BorderSide(color: BunyaColors.copper),
+                              foregroundColor: BunyaColors.copperDark,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(15),
+                              ),
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 10),
+                        if (status == 'assigned')
+                          FilledButton(
+                            onPressed: busyId == id
+                                ? null
+                                : () => move(id, 'picked_up'),
+                            child: Text(context.tr('pickedUpFromProvider')),
+                          )
+                        else if (status == 'picked_up')
+                          FilledButton(
+                            onPressed: busyId == id
+                                ? null
+                                : () => move(id, 'in_transit'),
+                            child: Text(context.tr('outForDelivery')),
+                          )
+                        else if (status == 'in_transit')
+                          FilledButton(
+                            onPressed: busyId == id
+                                ? null
+                                : () => move(id, 'arrived'),
+                            child: Text(context.tr('arrivedCustomer')),
+                          )
+                        else if (status == 'arrived') ...[
+                          Container(
+                            padding: const EdgeInsets.all(13),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFF8EF),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Text(
+                                  context.tr('customerDeliveryCode'),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                Text(
+                                  context.tr('deliveryCodeWarning'),
+                                  style: const TextStyle(
+                                    color: BunyaColors.muted,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                TextField(
+                                  keyboardType: TextInputType.number,
+                                  textDirection: TextDirection.ltr,
+                                  maxLength: 12,
+                                  autofillHints: const [
+                                    AutofillHints.oneTimeCode,
+                                  ],
+                                  onChanged: (value) => codes[id] = value,
+                                  decoration: InputDecoration(
+                                    counterText: '',
+                                    labelText: context.tr('customerCode'),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                FilledButton.icon(
+                                  onPressed: busyId == id
+                                      ? null
+                                      : () => confirm(id),
+                                  icon: const Icon(
+                                    Icons.verified_user_outlined,
+                                  ),
+                                  label: Text(context.tr('confirmAndClose')),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                        if (!const {
+                          'delivered',
+                          'failed_delivery',
+                        }.contains(status)) ...[
+                          const SizedBox(height: 7),
+                          TextButton(
+                            onPressed: busyId == id
+                                ? null
+                                : () => move(id, 'failed_delivery'),
+                            child: Text(context.tr('deliveryFailed')),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                );
+              }),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+class _DriverArchiveButton extends StatelessWidget {
+  const _DriverArchiveButton({
+    required this.count,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  final int count;
+  final String tooltip;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label: '$tooltip: $count',
+    child: Stack(
+      clipBehavior: Clip.none,
+      children: [
+        IconButton(
+          tooltip: tooltip,
+          onPressed: onPressed,
+          style: IconButton.styleFrom(
+            minimumSize: const Size(48, 48),
+            backgroundColor: Colors.white.withValues(alpha: .14),
+            foregroundColor: Colors.white,
+            side: BorderSide(color: Colors.white.withValues(alpha: .28)),
+          ),
+          icon: const Icon(Icons.inventory_2_outlined),
+        ),
+        if (count > 0)
+          PositionedDirectional(
+            top: -4,
+            end: -4,
+            child: Container(
+              constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+              padding: const EdgeInsets.symmetric(horizontal: 5),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: BunyaColors.copper,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+              child: Text(
+                count > 99 ? '99+' : '$count',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ),
+      ],
+    ),
+  );
+}
+
+class _DriverArchivedCard extends StatelessWidget {
+  const _DriverArchivedCard({required this.row});
+
+  final Map<String, dynamic> row;
+
+  @override
+  Widget build(BuildContext context) {
+    final status = '${row['delivery_status']}';
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(color: BunyaColors.line),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: const BoxDecoration(
+              color: BunyaColors.mint,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              status == 'delivered'
+                  ? Icons.task_alt_rounded
+                  : Icons.report_gmailerrorred_rounded,
+              color: status == 'delivered'
+                  ? BunyaColors.forest
+                  : BunyaColors.copperDark,
+            ),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${row['order_code']}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textDirection: TextDirection.ltr,
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '${row['recipient_name'] ?? '—'} · ${_date(row['delivered_at'] ?? row['expected_at'])}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: BunyaColors.muted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          _MiniStatus(text: context.localizedStatus(status)),
+        ],
+      ),
+    );
+  }
+}
+
+class _DriverSectionTitle extends StatelessWidget {
+  const _DriverSectionTitle({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Icon(icon, size: 18, color: BunyaColors.copper),
+      const SizedBox(width: 7),
+      Expanded(
+        child: Text(
+          text,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900),
+        ),
+      ),
+    ],
+  );
+}
+
+class _DriverContactPanel extends StatelessWidget {
+  const _DriverContactPanel({
+    required this.recipientName,
+    required this.recipientMobile,
+    required this.siteName,
+    required this.siteMobile,
+    required this.onCallRecipient,
+    required this.onCallSite,
+  });
+
+  final String recipientName;
+  final String recipientMobile;
+  final String siteName;
+  final String siteMobile;
+  final VoidCallback? onCallRecipient;
+  final VoidCallback? onCallSite;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    decoration: _driverInsetDecoration(),
+    child: Column(
+      children: [
+        _DriverContactRow(
+          icon: Icons.person_outline_rounded,
+          label: context.tr('recipient'),
+          name: recipientName,
+          mobile: recipientMobile,
+          callLabel: context.tr('callRecipient'),
+          onCall: onCallRecipient,
+        ),
+        const Divider(height: 1, indent: 58, endIndent: 14),
+        _DriverContactRow(
+          icon: Icons.engineering_outlined,
+          label: context.tr('siteResponsible'),
+          name: siteName,
+          mobile: siteMobile,
+          callLabel: context.tr('callSiteResponsible'),
+          onCall: onCallSite,
+        ),
+      ],
+    ),
+  );
+}
+
+class _DriverContactRow extends StatelessWidget {
+  const _DriverContactRow({
+    required this.icon,
+    required this.label,
+    required this.name,
+    required this.mobile,
+    required this.callLabel,
+    required this.onCall,
+  });
+
+  final IconData icon;
+  final String label;
+  final String name;
+  final String mobile;
+  final String callLabel;
+  final VoidCallback? onCall;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsetsDirectional.fromSTEB(12, 11, 8, 11),
+    child: Row(
+      children: [
+        Container(
+          width: 38,
+          height: 38,
+          decoration: const BoxDecoration(
+            color: BunyaColors.mint,
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, size: 20, color: BunyaColors.forest),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  color: BunyaColors.muted,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                name.isEmpty ? '—' : name,
+                style: const TextStyle(fontWeight: FontWeight.w900),
+              ),
+              Text(
+                mobile.isEmpty ? '—' : mobile,
+                textDirection: TextDirection.ltr,
+                style: const TextStyle(
+                  color: BunyaColors.muted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+        IconButton(
+          onPressed: onCall,
+          tooltip: callLabel,
+          visualDensity: VisualDensity.compact,
+          style: IconButton.styleFrom(
+            minimumSize: const Size(44, 44),
+            backgroundColor: Colors.white,
+            foregroundColor: BunyaColors.copperDark,
+            side: const BorderSide(color: BunyaColors.line),
+          ),
+          icon: const Icon(Icons.phone_outlined, size: 20),
+        ),
+      ],
+    ),
+  );
+}
+
+class _DriverOperationsPanel extends StatelessWidget {
+  const _DriverOperationsPanel({
+    required this.deliveryTime,
+    required this.workingHours,
+    required this.loadingUnloading,
+    required this.roadAccess,
+    required this.accessInstructions,
+  });
+
+  final String deliveryTime;
+  final String workingHours;
+  final String loadingUnloading;
+  final String roadAccess;
+  final String accessInstructions;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(14),
+    decoration: _driverInsetDecoration(),
+    child: Column(
+      children: [
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final metrics = [
+              _DriverMetric(
+                icon: Icons.event_available_outlined,
+                label: context.tr('deliveryTime'),
+                value: deliveryTime,
+              ),
+              _DriverMetric(
+                icon: Icons.schedule_outlined,
+                label: context.tr('workingHours'),
+                value: workingHours,
+              ),
+            ];
+            if (constraints.maxWidth < 270) {
+              return Column(
+                children: [
+                  metrics.first,
+                  const Divider(height: 20),
+                  metrics.last,
+                ],
+              );
+            }
+            return IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(child: metrics.first),
+                  const VerticalDivider(width: 22),
+                  Expanded(child: metrics.last),
+                ],
+              ),
+            );
+          },
+        ),
+        const Divider(height: 24),
+        _DriverInfoRow(
+          icon: Icons.inventory_2_outlined,
+          label: context.tr('loadingUnloading'),
+          value: loadingUnloading,
+        ),
+        const Divider(height: 20, indent: 32),
+        _DriverInfoRow(
+          icon: Icons.route_outlined,
+          label: context.tr('roadAccess'),
+          value: roadAccess,
+        ),
+        const Divider(height: 20, indent: 32),
+        _DriverInfoRow(
+          icon: Icons.signpost_outlined,
+          label: context.tr('accessInstructions'),
+          value: accessInstructions,
+        ),
+      ],
+    ),
+  );
+}
+
+class _DriverMetric extends StatelessWidget {
+  const _DriverMetric({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Icon(icon, size: 19, color: BunyaColors.copper),
+      const SizedBox(width: 8),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                color: BunyaColors.muted,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(value, style: const TextStyle(fontWeight: FontWeight.w900)),
+          ],
+        ),
+      ),
+    ],
+  );
+}
+
+class _DriverInfoRow extends StatelessWidget {
+  const _DriverInfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Padding(
+        padding: const EdgeInsets.only(top: 2),
+        child: Icon(icon, size: 19, color: BunyaColors.forest),
+      ),
+      const SizedBox(width: 12),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                color: BunyaColors.muted,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              value,
+              style: const TextStyle(height: 1.45, fontWeight: FontWeight.w800),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
+}
+
+class _DriverOrderItems extends StatelessWidget {
+  const _DriverOrderItems({required this.items});
+
+  final List<Map<String, dynamic>> items;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 14),
+    decoration: _driverInsetDecoration(),
+    child: Column(
+      children: [
+        for (var index = 0; index < items.length; index++) ...[
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${items[index]['product_name'] ?? '—'}',
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  '${items[index]['quantity'] ?? '—'} ${items[index]['unit_name'] ?? ''}',
+                  textDirection: TextDirection.ltr,
+                  style: const TextStyle(
+                    color: BunyaColors.muted,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (index < items.length - 1) const Divider(height: 1),
+        ],
+      ],
+    ),
+  );
+}
+
+BoxDecoration _driverInsetDecoration() => BoxDecoration(
+  color: const Color(0xFFFBF8F3),
+  borderRadius: BorderRadius.circular(16),
+  border: Border.all(color: BunyaColors.line),
+);
+
 class RoleWorkspace extends StatefulWidget {
   const RoleWorkspace({
     super.key,
@@ -635,11 +2047,17 @@ class RoleWorkspace extends StatefulWidget {
     required this.repository,
     required this.onChangePassword,
     required this.onLogout,
+    this.storefrontHome,
+    this.quoteItemCount = 0,
+    this.onOpenQuoteBasket,
   });
   final Profile profile;
   final BunyaRepository repository;
   final VoidCallback onChangePassword;
   final Future<void> Function() onLogout;
+  final Widget? storefrontHome;
+  final int quoteItemCount;
+  final VoidCallback? onOpenQuoteBasket;
 
   @override
   State<RoleWorkspace> createState() => _RoleWorkspaceState();
@@ -653,6 +2071,54 @@ class _RoleWorkspaceState extends State<RoleWorkspace> {
   int index = 0;
 
   @override
+  void initState() {
+    super.initState();
+    PushService.notificationOpenRevision.addListener(
+      _openNotificationsFromSystem,
+    );
+    _openNotificationsFromSystem();
+  }
+
+  @override
+  void dispose() {
+    PushService.notificationOpenRevision.removeListener(
+      _openNotificationsFromSystem,
+    );
+    super.dispose();
+  }
+
+  void _openNotificationsFromSystem() {
+    if (!PushService.consumeNotificationsPageRequest()) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Navigator.of(context).popUntil((route) => route.isFirst);
+      setState(() => index = 3);
+    });
+  }
+
+  Future<void> confirmLogout() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(context.tr('logout')),
+        content: Text(context.tr('confirmLogout')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(context.tr('cancel')),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            icon: const Icon(Icons.logout_rounded),
+            label: Text(context.tr('logout')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) await widget.onLogout();
+  }
+
+  @override
   Widget build(BuildContext context) => FutureBuilder<RoleContext>(
     future: identity,
     builder: (_, snapshot) {
@@ -660,12 +2126,18 @@ class _RoleWorkspaceState extends State<RoleWorkspace> {
         return const Scaffold(body: Center(child: CircularProgressIndicator()));
       }
       final role = snapshot.data!;
+      final storefrontHome =
+          const {'provider', 'contractor'}.contains(role.role)
+          ? widget.storefrontHome
+          : null;
       final pages = [
-        _RoleHome(repository: workspace, contextData: role),
+        storefrontHome ?? _RoleHome(repository: workspace, contextData: role),
         if (role.role == 'admin')
           _AdminApplications(repository: workspace)
         else if (role.role == 'provider')
           _ProviderRfqs(repository: workspace, providerId: role.entityId!)
+        else if (role.role == 'driver')
+          DriverDeliveriesScreen(repository: workspace)
         else
           _ContractorOpportunities(repository: workspace),
         _RoleModules(repository: workspace, contextData: role),
@@ -686,28 +2158,45 @@ class _RoleWorkspaceState extends State<RoleWorkspace> {
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(role.name, style: const TextStyle(fontSize: 17)),
               Text(
-                _roleLabel(role.role),
+                role.name,
+                style: const TextStyle(
+                  fontSize: 15,
+                  height: 1.2,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              Text(
+                _roleLabel(context, role.role),
                 style: const TextStyle(
                   color: BunyaColors.muted,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],
           ),
           actions: [
-            Container(
-              width: 42,
-              height: 42,
-              margin: const EdgeInsetsDirectional.only(end: 12),
-              padding: const EdgeInsets.all(7),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(14),
+            const BunyaLanguageButton(),
+            if (widget.onOpenQuoteBasket != null)
+              Badge(
+                isLabelVisible: widget.quoteItemCount > 0,
+                label: Text('${widget.quoteItemCount}'),
+                child: IconButton.filledTonal(
+                  tooltip: context.tr('quoteRequest'),
+                  onPressed: widget.onOpenQuoteBasket,
+                  icon: const Icon(Icons.receipt_long_outlined),
+                ),
               ),
-              child: Image.asset('assets/brand/app-icon.png'),
+            if (role.role == 'driver')
+              IconButton(
+                tooltip: context.tr('logout'),
+                onPressed: confirmLogout,
+                icon: const Icon(Icons.logout_rounded),
+              ),
+            const Padding(
+              padding: EdgeInsetsDirectional.only(end: 12),
+              child: BunyaBrandLogo(width: 112, height: 40),
             ),
           ],
         ),
@@ -716,10 +2205,10 @@ class _RoleWorkspaceState extends State<RoleWorkspace> {
           selectedIndex: index,
           onDestinationSelected: (value) => setState(() => index = value),
           destinations: [
-            const NavigationDestination(
-              icon: Icon(Icons.dashboard_outlined),
-              selectedIcon: Icon(Icons.dashboard_rounded),
-              label: 'الرئيسية',
+            NavigationDestination(
+              icon: const Icon(Icons.dashboard_outlined),
+              selectedIcon: const Icon(Icons.dashboard_rounded),
+              label: context.tr('homeNav'),
             ),
             NavigationDestination(
               icon: Icon(
@@ -727,25 +2216,29 @@ class _RoleWorkspaceState extends State<RoleWorkspace> {
                     ? Icons.fact_check_outlined
                     : role.role == 'provider'
                     ? Icons.request_quote_outlined
+                    : role.role == 'driver'
+                    ? Icons.local_shipping_outlined
                     : Icons.work_outline_rounded,
               ),
               label: role.role == 'admin'
-                  ? 'الاعتمادات'
+                  ? context.tr('approvalsNav')
                   : role.role == 'provider'
-                  ? 'التسعير'
-                  : 'الفرص',
+                  ? context.tr('pricingNav')
+                  : role.role == 'driver'
+                  ? context.tr('deliveriesNav')
+                  : context.tr('opportunitiesNav'),
             ),
-            const NavigationDestination(
-              icon: Icon(Icons.apps_rounded),
-              label: 'الخدمات',
+            NavigationDestination(
+              icon: const Icon(Icons.apps_rounded),
+              label: context.tr('servicesNav'),
             ),
-            const NavigationDestination(
-              icon: Icon(Icons.notifications_none_rounded),
-              label: 'الإشعارات',
+            NavigationDestination(
+              icon: const Icon(Icons.notifications_none_rounded),
+              label: context.tr('notificationsNav'),
             ),
-            const NavigationDestination(
-              icon: Icon(Icons.person_outline_rounded),
-              label: 'الحساب',
+            NavigationDestination(
+              icon: const Icon(Icons.person_outline_rounded),
+              label: context.tr('accountNav'),
             ),
           ],
         ),
@@ -808,10 +2301,8 @@ class _RoleHomeState extends State<_RoleHome> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.auto_awesome_rounded, color: Colors.white),
-              const SizedBox(height: 28),
               Text(
-                _welcome(widget.contextData.role),
+                _welcome(context, widget.contextData.role),
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 22,
@@ -820,7 +2311,7 @@ class _RoleHomeState extends State<_RoleHome> {
               ),
               const SizedBox(height: 5),
               Text(
-                _roleCaption(widget.contextData.role),
+                _roleCaption(context, widget.contextData.role),
                 style: const TextStyle(
                   color: Colors.white70,
                   fontWeight: FontWeight.w700,
@@ -855,8 +2346,10 @@ class _RoleHomeState extends State<_RoleHome> {
                             ),
                             const SizedBox(height: 3),
                             Text(
-                              entry.key,
+                              _metricLabel(context, entry.key),
                               textAlign: TextAlign.center,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                 color: BunyaColors.muted,
                                 fontSize: 10,
@@ -876,24 +2369,24 @@ class _RoleHomeState extends State<_RoleHome> {
         Container(
           padding: const EdgeInsets.all(17),
           decoration: _panel(),
-          child: const Row(
+          child: Row(
             children: [
-              CircleAvatar(
+              const CircleAvatar(
                 backgroundColor: BunyaColors.mint,
                 child: Icon(Icons.sync_rounded, color: BunyaColors.forest),
               ),
-              SizedBox(width: 12),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'بيانات حية ومتصلة',
-                      style: TextStyle(fontWeight: FontWeight.w900),
+                      context.tr('liveConnectedData'),
+                      style: const TextStyle(fontWeight: FontWeight.w900),
                     ),
                     Text(
-                      'كل استلام وإجراء يُحفظ في Supabase وتتبعه منظومة الإشعارات نفسها.',
-                      style: TextStyle(
+                      context.tr('liveConnectedDataCaption'),
+                      style: const TextStyle(
                         color: BunyaColors.muted,
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
@@ -922,8 +2415,9 @@ class _ProviderRfqsState extends State<_ProviderRfqs> {
   late Future<List<Map<String, dynamic>>> rows = widget.repository.providerRfqs(
     widget.providerId,
   );
-  void reload() =>
-      setState(() => rows = widget.repository.providerRfqs(widget.providerId));
+  void reload() => setState(() {
+    rows = widget.repository.providerRfqs(widget.providerId);
+  });
 
   @override
   void initState() {
@@ -940,34 +2434,209 @@ class _ProviderRfqsState extends State<_ProviderRfqs> {
   @override
   Widget build(BuildContext context) => _FutureList(
     title: 'طلبات التسعير',
-    caption: 'افتح الطلب وراجع الكمية والموقع ثم أرسل عرضك.',
+    caption: 'كل بطاقة لمنتج واحد متوفر لديك. سعّر ما تستطيع توفيره فقط؛ ولا يلزم توفير بقية منتجات طلب العميل.',
     future: rows,
-    item: (row) {
-      final item = row['internal_sourcing_request_items'] as Map? ?? const {};
-      final product = item['quote_request_items'] as Map? ?? const {};
-      final responses = item['provider_pricing_responses'];
-      final answered = responses is List && responses.isNotEmpty;
-      return _RecordCard(
-        title: '${product['product_name_snapshot'] ?? 'منتج مطلوب'}',
-        subtitle:
-            '${item['quantity'] ?? '—'} ${item['unit_snapshot'] ?? ''} · ${item['delivery_region'] ?? '—'}',
-        status: answered ? 'تم تقديم السعر' : 'بانتظار ردك',
-        onTap: answered
-            ? null
-            : () async {
-                await Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => ProviderPriceScreen(
-                      repository: widget.repository,
-                      id: '${row['sourcing_request_item_id']}',
+    item: (row) => _ProviderRfqCard(
+      row: row,
+      onOpen: () async {
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => ProviderPriceScreen(
+              repository: widget.repository,
+              id: '${row['sourcing_request_item_id']}',
+            ),
+          ),
+        );
+        reload();
+      },
+    ),
+  );
+}
+
+class _ProviderRfqCard extends StatefulWidget {
+  const _ProviderRfqCard({required this.row, required this.onOpen});
+  final Map<String, dynamic> row;
+  final VoidCallback onOpen;
+
+  @override
+  State<_ProviderRfqCard> createState() => _ProviderRfqCardState();
+}
+
+class _ProviderRfqCardState extends State<_ProviderRfqCard> {
+  late final Timer timer;
+
+  @override
+  void initState() {
+    super.initState();
+    timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    timer.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final row = widget.row;
+    final window = _pricingState(row);
+    final answered = '${row['existing_response_code'] ?? ''}'.isNotEmpty;
+    final canRevise = row['can_revise'] == true;
+    final signed = '${row['signed_image_url'] ?? ''}';
+    final fallback = '${row['product_image_url'] ?? ''}';
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      clipBehavior: Clip.antiAlias,
+      decoration: _panel(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: double.infinity,
+            height: 168,
+            child: FastProductImage(
+              imageUrl: signed,
+              fallbackUrl: fallback,
+              cacheKey: 'provider-rfq-${row['sourcing_request_item_id']}',
+              fit: BoxFit.cover,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${row['product_name'] ?? 'منتج مطلوب'}',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    _MiniStatus(
+                      text: answered
+                          ? canRevise
+                                ? 'متاح تخفيض السعر'
+                                : 'تم حفظ عرضك'
+                          : window.$1
+                          ? 'متاح للتسعير'
+                          : window.$2,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 7),
+                Text(
+                  '${row['quantity'] ?? '—'} ${row['unit_snapshot'] ?? ''} · ${row['internal_code'] ?? row['request_code'] ?? ''}',
+                  style: const TextStyle(
+                    color: BunyaColors.muted,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 11),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: BunyaColors.mint,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Text(
+                    answered
+                        ? 'عرضك محفوظ: ${row['existing_unit_price'] ?? '—'} ر.س للوحدة${row['current_lowest_unit_price'] == null ? '' : '\nأقل سعر منافس: ${row['current_lowest_unit_price']} ر.س'}'
+                        : row['current_lowest_unit_price'] == null
+                        ? 'لا يوجد سعر منافس لهذا المنتج حتى الآن'
+                        : 'أقل سعر وحدة من مزود آخر: ${row['current_lowest_unit_price']} ر.س',
+                    style: const TextStyle(
+                      color: BunyaColors.forest,
+                      fontWeight: FontWeight.w900,
                     ),
                   ),
-                );
-                reload();
-              },
-      );
-    },
+                ),
+                const SizedBox(height: 9),
+                Text(
+                  '${window.$2} · ${_clock(window.$3)}',
+                  textDirection: TextDirection.rtl,
+                  style: TextStyle(
+                    color: window.$1
+                        ? BunyaColors.forest
+                        : BunyaColors.copperDark,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 11),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: window.$1 || answered ? widget.onOpen : null,
+                    child: Text(
+                      answered
+                          ? canRevise
+                                ? 'مراجعة المنافس وتخفيض السعر'
+                                : 'عرض السعر المحفوظ'
+                          : 'مراجعة الموقع وإدخال السعر',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniStatus extends StatelessWidget {
+  const _MiniStatus({required this.text});
+  final String text;
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+    decoration: BoxDecoration(
+      color: BunyaColors.sand,
+      borderRadius: BorderRadius.circular(30),
+    ),
+    child: Text(
+      text,
+      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900),
+    ),
   );
+}
+
+(bool, String, Duration) _pricingState(Map<String, dynamic> row) {
+  final now = DateTime.now();
+  final opens =
+      DateTime.tryParse('${row['pricing_opens_at']}')?.toLocal() ?? now;
+  final starts =
+      DateTime.tryParse('${row['pricing_countdown_starts_at']}')?.toLocal() ??
+      opens;
+  final closes =
+      DateTime.tryParse('${row['response_deadline_at']}')?.toLocal() ?? now;
+  if (now.isBefore(opens)) {
+    return (false, 'يفتح التسعير بعد', opens.difference(now));
+  }
+  if (now.isBefore(starts)) {
+    return (true, 'يبدأ عداد 3 ساعات بعد', starts.difference(now));
+  }
+  if (now.isBefore(closes)) {
+    return (true, 'الوقت المتبقي للتسعير', closes.difference(now));
+  }
+  return (false, 'انتهت مهلة التسعير', Duration.zero);
+}
+
+String _clock(Duration value) {
+  final seconds = value.inSeconds.clamp(0, 359999);
+  final hours = seconds ~/ 3600;
+  final minutes = (seconds % 3600) ~/ 60;
+  final rest = seconds % 60;
+  return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${rest.toString().padLeft(2, '0')}';
 }
 
 class ProviderPriceScreen extends StatefulWidget {
@@ -988,11 +2657,30 @@ class _ProviderPriceScreenState extends State<ProviderPriceScreen> {
       preparation = TextEditingController(text: '0'),
       deliveryHours = TextEditingController(text: '0'),
       notes = TextEditingController();
-  late final Future<Map<String, dynamic>> target = widget.repository
-      .providerRfq(widget.id);
+  late Future<Map<String, dynamic>> target = widget.repository.providerRfq(
+    widget.id,
+  );
+  late final Timer timer;
+  int ticks = 0;
   bool busy = false;
+  bool locationReviewed = false;
+  bool revisionDraftInitialized = false;
+  @override
+  void initState() {
+    super.initState();
+    timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      ticks++;
+      if (ticks % 30 == 0) {
+        target = widget.repository.providerRfq(widget.id);
+      }
+      setState(() {});
+    });
+  }
+
   @override
   void dispose() {
+    timer.cancel();
     for (final c in [price, delivery, preparation, deliveryHours, notes]) {
       c.dispose();
     }
@@ -1005,17 +2693,31 @@ class _ProviderPriceScreenState extends State<ProviderPriceScreen> {
     body: FutureBuilder<Map<String, dynamic>>(
       future: target,
       builder: (_, snapshot) {
-        if (!snapshot.hasData)
+        if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
+        }
         final row = snapshot.data!;
         final quantity = (row['quantity'] as num? ?? 0).toDouble();
         final existing = row['existing_response'] is Map
             ? Map<String, dynamic>.from(row['existing_response'] as Map)
             : null;
+        final canRevise = existing?['can_revise'] == true;
         final unitPrice = (existing?['unit_price'] as num? ?? 0).toDouble();
         final deliveryFee = (existing?['delivery_fee'] as num? ?? 0).toDouble();
+        if (canRevise && !revisionDraftInitialized) {
+          price.text = '$unitPrice';
+          delivery.text = '$deliveryFee';
+          preparation.text = '${existing?['preparation_hours'] ?? 0}';
+          deliveryHours.text = '${existing?['delivery_hours'] ?? 0}';
+          notes.text = '${existing?['notes'] ?? ''}';
+          revisionDraftInitialized = true;
+        }
         final subtotal = unitPrice * quantity;
         final vat = existing?['vat_inclusive'] == true ? 0.0 : subtotal * .15;
+        final mapsUrl = '${row['google_maps_url'] ?? ''}'.trim();
+        final window = _pricingState(row);
+        final signedImage = '${row['signed_image_url'] ?? ''}';
+        final fallbackImage = '${row['product_image_url'] ?? ''}';
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -1024,15 +2726,103 @@ class _ProviderPriceScreenState extends State<ProviderPriceScreen> {
               caption: '${row['request_code'] ?? row['internal_code'] ?? ''}',
             ),
             const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: SizedBox(
+                height: 220,
+                child: FastProductImage(
+                  imageUrl: signedImage,
+                  fallbackUrl: fallbackImage,
+                  cacheKey: 'provider-rfq-detail-${widget.id}',
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: window.$1 ? BunyaColors.mint : const Color(0xFFFFF2DF),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    window.$2,
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _clock(window.$3),
+                    textDirection: TextDirection.ltr,
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'التسعير 3 ساعات. الطلب خارج 8 ص–4 م يُتاح من 6 ص ويبدأ عداده 8 ص بتوقيت الرياض.',
+                    style: TextStyle(
+                      fontSize: 11,
+                      height: 1.55,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
             _Facts(
               values: {
                 'الكمية': '$quantity ${row['unit_snapshot'] ?? ''}',
                 'المنطقة': '${row['delivery_region'] ?? '—'}',
-                'أقل سعر حالي': row['current_lowest_landed_cost'] == null
+                'أقل سعر وحدة من مزود آخر':
+                    row['current_lowest_unit_price'] == null
                     ? 'لا يوجد عرض'
-                    : '${row['current_lowest_landed_cost']} ر.س',
+                    : '${row['current_lowest_unit_price']} ر.س',
                 'الموقع': '${row['location_hint'] ?? '—'}',
               },
+            ),
+            const SizedBox(height: 14),
+            if (mapsUrl.isNotEmpty) ...[
+              OutlinedButton.icon(
+                onPressed: () => launchUrl(
+                  Uri.parse(mapsUrl),
+                  mode: LaunchMode.externalApplication,
+                ),
+                icon: const Icon(Icons.map_rounded),
+                label: const Text('فتح موقع التسليم في Google Maps'),
+              ),
+              const SizedBox(height: 10),
+            ],
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF5E2),
+                border: Border.all(color: const Color(0xFFE2B66D)),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.warning_amber_rounded, color: Color(0xFF915911)),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'تنبيه قبل التسعير: افتح رابط Google Maps وراجع مسار الوصول والبوابة وخيارات التنزيل بعناية. لا تعتمد السعر والتوفر حتى تتأكد من إمكانية التوصيل للموقع.',
+                      style: TextStyle(
+                        color: Color(0xFF6E430E),
+                        fontWeight: FontWeight.w800,
+                        height: 1.65,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 14),
             if (existing != null) ...[
@@ -1051,7 +2841,9 @@ class _ProviderPriceScreenState extends State<ProviderPriceScreen> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'تم تقديم عرضك ${existing['response_code'] ?? ''} وهو محفوظ للقراءة فقط.',
+                        canRevise
+                            ? 'وصل سعر منافس أقل. عرضك ${existing['response_code'] ?? ''} محفوظ، ويمكنك اختيار تخفيضه قبل انتهاء المهلة.'
+                            : 'تم حفظ عرضك ${existing['response_code'] ?? ''} وأُغلق التعديل عليه.',
                         style: const TextStyle(
                           color: BunyaColors.forest,
                           fontWeight: FontWeight.w900,
@@ -1089,6 +2881,131 @@ class _ProviderPriceScreenState extends State<ProviderPriceScreen> {
                   ),
                 ),
               ],
+              if (canRevise) ...[
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF5E2),
+                    border: Border.all(color: const Color(0xFFE2B66D)),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    'أقل تكلفة منافسة الآن: ${existing['current_competitor_landed_cost'] ?? '—'} ر.س. التخفيض اختياري في كل جولة، ويجب أن يكون إجمالي عرضك الجديد شامل الضريبة والتوصيل أقل من السعر المنافس الحالي.',
+                    style: const TextStyle(
+                      color: Color(0xFF6E430E),
+                      fontWeight: FontWeight.w900,
+                      height: 1.55,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: price,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'سعر الوحدة الجديد (ر.س)',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: delivery,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'تكلفة التوصيل الجديدة',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                CheckboxListTile(
+                  value: locationReviewed,
+                  onChanged: (value) =>
+                      setState(() => locationReviewed = value ?? false),
+                  controlAffinity: ListTileControlAffinity.leading,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                  title: const Text(
+                    'راجعت موقع التسليم، وأؤكد أن السعر والمدة الجديدة صالحان لهذا الموقع.',
+                    style: TextStyle(fontWeight: FontWeight.w800, height: 1.55),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: busy || !locationReviewed
+                      ? null
+                      : () async {
+                          if ((double.tryParse(price.text) ?? 0) <= 0) {
+                            return _notice(context, 'أدخل سعرًا صحيحًا');
+                          }
+                          final newUnit = double.parse(price.text);
+                          final newDelivery =
+                              double.tryParse(delivery.text) ?? 0;
+                          final competitor =
+                              (existing['current_competitor_landed_cost']
+                                      as num?)
+                                  ?.toDouble();
+                          final newTotal =
+                              newUnit *
+                                  quantity *
+                                  (existing['vat_inclusive'] == true
+                                      ? 1
+                                      : 1.15) +
+                              newDelivery;
+                          if (competitor != null && newTotal >= competitor) {
+                            return _notice(
+                              context,
+                              'يجب أن يكون الإجمالي الجديد أقل من السعر المنافس الحالي',
+                            );
+                          }
+                          setState(() => busy = true);
+                          try {
+                            await widget.repository.submitProviderPrice(
+                              id: widget.id,
+                              price: double.parse(price.text),
+                              quantity: quantity,
+                              deliveryFee: double.tryParse(delivery.text) ?? 0,
+                              preparationHours:
+                                  (existing['preparation_hours'] as num? ?? 0)
+                                      .toInt(),
+                              deliveryHours:
+                                  (existing['delivery_hours'] as num? ?? 0)
+                                      .toInt(),
+                              notes: notes.text,
+                              revision: true,
+                            );
+                            if (context.mounted) {
+                              _notice(context, 'تم حفظ السعر المخفّض');
+                              Navigator.pop(context);
+                            }
+                          } catch (error) {
+                            if (context.mounted) {
+                              _notice(context, _clean(error));
+                            }
+                          }
+                          if (mounted) setState(() => busy = false);
+                        },
+                  icon: const Icon(Icons.trending_down_rounded),
+                  label: const Text('حفظ السعر المخفّض'),
+                ),
+              ],
+            ] else if (!window.$1) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFECE7),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Text(
+                  window.$2 == 'انتهت مهلة التسعير'
+                      ? 'انتهت المهلة ولا يقبل النظام أي سعر جديد لهذا المنتج.'
+                      : 'يمكن مراجعة الطلب عند فتح النافذة، ولن يقبل النظام إرسال السعر قبل الموعد الموضح.',
+                  style: const TextStyle(
+                    color: BunyaColors.copperDark,
+                    fontWeight: FontWeight.w900,
+                    height: 1.6,
+                  ),
+                ),
+              ),
             ] else ...[
               TextField(
                 controller: price,
@@ -1133,9 +3050,21 @@ class _ProviderPriceScreenState extends State<ProviderPriceScreen> {
                 maxLines: 3,
                 decoration: const InputDecoration(labelText: 'ملاحظات العرض'),
               ),
+              const SizedBox(height: 10),
+              CheckboxListTile(
+                value: locationReviewed,
+                onChanged: (value) =>
+                    setState(() => locationReviewed = value ?? false),
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                title: const Text(
+                  'أؤكد أنني راجعت رابط Google Maps وتعليمات الوصول ويمكنني التوصيل للموقع بالسعر والمدة المدخلين.',
+                  style: TextStyle(fontWeight: FontWeight.w800, height: 1.55),
+                ),
+              ),
               const SizedBox(height: 16),
               FilledButton.icon(
-                onPressed: busy
+                onPressed: busy || !locationReviewed
                     ? null
                     : () async {
                         if ((double.tryParse(price.text) ?? 0) <= 0) {
@@ -1188,8 +3117,9 @@ class _ContractorOpportunitiesState extends State<_ContractorOpportunities> {
   late Future<List<Map<String, dynamic>>> rows = widget.repository
       .contractorOpportunities();
 
-  void reload() =>
-      setState(() => rows = widget.repository.contractorOpportunities());
+  void reload() => setState(() {
+    rows = widget.repository.contractorOpportunities();
+  });
 
   @override
   void initState() {
@@ -1296,11 +3226,12 @@ class _ContractorProposalScreenState extends State<ContractorProposalScreen> {
               : () async {
                   if ((double.tryParse(amount.text) ?? 0) <= 0 ||
                       duration.text.trim().isEmpty ||
-                      scope.text.trim().length < 10)
+                      scope.text.trim().length < 10) {
                     return _notice(
                       context,
                       'أكمل قيمة العرض والمدة ونطاق العمل',
                     );
+                  }
                   setState(() => busy = true);
                   try {
                     await widget.repository.submitContractorProposal(
@@ -1339,7 +3270,9 @@ class _AdminApplicationsState extends State<_AdminApplications> {
   String selectedKind = 'provider';
   String selectedStatus = 'all';
 
-  void reload() => setState(() => rows = widget.repository.adminApplications());
+  void reload() => setState(() {
+    rows = widget.repository.adminApplications();
+  });
 
   @override
   void initState() {
@@ -1839,8 +3772,9 @@ class _AdminDecisionSheetState extends State<_AdminDecisionSheet> {
 
   Future<void> action(String value) async {
     if ((value == 'reject' || value == 'needs-changes') &&
-        reason.text.trim().length < 5)
+        reason.text.trim().length < 5) {
       return _notice(context, 'اكتب سبب القرار بوضوح');
+    }
     setState(() => busy = true);
     try {
       final result = await widget.repository.reviewApplication(
@@ -2357,6 +4291,466 @@ class _JoinReviewCard extends StatelessWidget {
   );
 }
 
+class AdminFinanceScreen extends StatefulWidget {
+  const AdminFinanceScreen({super.key, required this.repository});
+  final WorkspaceRepository repository;
+
+  @override
+  State<AdminFinanceScreen> createState() => _AdminFinanceScreenState();
+}
+
+class _AdminFinanceScreenState extends State<AdminFinanceScreen> {
+  late Future<List<Map<String, dynamic>>> _rows = widget.repository
+      .loadAdminProviderFinance();
+
+  void _reload() => setState(() {
+    _rows = widget.repository.loadAdminProviderFinance();
+  });
+
+  double _amount(Map<String, dynamic> row, String key) =>
+      (row[key] as num?)?.toDouble() ?? 0;
+
+  String _money(double value) => '${value.toStringAsFixed(2)} ر.س';
+
+  Future<void> _editRate(Map<String, dynamic> row) async {
+    final controller = TextEditingController(
+      text: _amount(row, 'commission_rate').toStringAsFixed(2),
+    );
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.viewInsetsOf(sheetContext).bottom,
+        ),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+          decoration: const BoxDecoration(
+            color: BunyaColors.surface,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 42,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: BunyaColors.line,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'تحديد عمولة بُنية',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  '${row['company_name'] ?? 'المزود'} · تطبق على العمليات الجديدة فقط',
+                  style: const TextStyle(
+                    color: BunyaColors.muted,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                TextField(
+                  controller: controller,
+                  autofocus: true,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'نسبة العمولة',
+                    suffixText: '٪',
+                    helperText: 'أدخل نسبة بين 0 و100',
+                  ),
+                ),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: () async {
+                    final rate = double.tryParse(controller.text.trim());
+                    if (rate == null || rate < 0 || rate > 100) {
+                      ScaffoldMessenger.of(sheetContext).showSnackBar(
+                        const SnackBar(
+                          content: Text('النسبة يجب أن تكون بين 0 و100٪.'),
+                        ),
+                      );
+                      return;
+                    }
+                    try {
+                      await widget.repository.setProviderCommission(
+                        '${row['provider_id']}',
+                        rate,
+                      );
+                      if (sheetContext.mounted) {
+                        Navigator.of(sheetContext).pop(true);
+                      }
+                    } catch (error) {
+                      if (sheetContext.mounted) {
+                        ScaffoldMessenger.of(sheetContext).showSnackBar(
+                          SnackBar(content: Text('تعذر الحفظ: $error')),
+                        );
+                      }
+                    }
+                  },
+                  child: const Text('اعتماد النسبة'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    controller.dispose();
+    if (saved == true && mounted) {
+      _reload();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم تحديث نسبة عمولة المزود.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: const Text('المالية والأرباح'),
+      actions: [
+        IconButton(
+          onPressed: _reload,
+          tooltip: 'تحديث',
+          icon: const Icon(Icons.refresh_rounded),
+        ),
+      ],
+    ),
+    body: FutureBuilder<List<Map<String, dynamic>>>(
+      future: _rows,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.error_outline_rounded,
+                    color: BunyaColors.danger,
+                    size: 38,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'تعذر تحميل السجل المالي: ${snapshot.error}',
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton.tonal(
+                    onPressed: _reload,
+                    child: const Text('إعادة المحاولة'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+        final rows = snapshot.data ?? const <Map<String, dynamic>>[];
+        final gross = rows.fold<double>(
+          0,
+          (sum, row) => sum + _amount(row, 'gross_amount'),
+        );
+        final profit = rows.fold<double>(
+          0,
+          (sum, row) => sum + _amount(row, 'bunya_commission'),
+        );
+        final balances = rows.fold<double>(
+          0,
+          (sum, row) => sum + _amount(row, 'current_balance'),
+        );
+        return RefreshIndicator(
+          onRefresh: () async {
+            _reload();
+            await _rows;
+          },
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+            children: [
+              Container(
+                padding: const EdgeInsets.all(22),
+                decoration: BoxDecoration(
+                  color: BunyaColors.forest,
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'دفتر بُنية المالي',
+                      style: TextStyle(
+                        color: Color(0xFFD8B29E),
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    const Text(
+                      'إجمالي أرباح بُنية',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      _money(profit),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 30,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _FinanceHeroValue(
+                            label: 'إجمالي التوريد',
+                            value: _money(gross),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _FinanceHeroValue(
+                            label: 'أرصدة المزودين',
+                            value: _money(balances),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 22),
+              const _PageHeading(
+                title: 'حسابات المزودين',
+                caption: 'الرصيد بعد عمولة بُنية ونسبة كل مزود',
+              ),
+              const SizedBox(height: 12),
+              if (rows.isEmpty)
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: _panel(),
+                  child: const Text(
+                    'لا يوجد مزودون في السجل المالي بعد.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: BunyaColors.muted,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                )
+              else
+                for (final row in rows) ...[
+                  _ProviderFinanceCard(
+                    row: row,
+                    money: _money,
+                    amount: _amount,
+                    onEditRate: () => _editRate(row),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+            ],
+          ),
+        );
+      },
+    ),
+  );
+}
+
+class _FinanceHeroValue extends StatelessWidget {
+  const _FinanceHeroValue({required this.label, required this.value});
+  final String label, value;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(13),
+    decoration: BoxDecoration(
+      color: Colors.white.withValues(alpha: 0.08),
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white70,
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          maxLines: 1,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _ProviderFinanceCard extends StatelessWidget {
+  const _ProviderFinanceCard({
+    required this.row,
+    required this.money,
+    required this.amount,
+    required this.onEditRate,
+  });
+  final Map<String, dynamic> row;
+  final String Function(double) money;
+  final double Function(Map<String, dynamic>, String) amount;
+  final VoidCallback onEditRate;
+
+  @override
+  Widget build(BuildContext context) {
+    final rate = amount(row, 'commission_rate');
+    return Container(
+      padding: const EdgeInsets.all(17),
+      decoration: _panel(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: BunyaColors.mint,
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: const Icon(
+                  Icons.storefront_outlined,
+                  color: BunyaColors.forest,
+                ),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${row['company_name'] ?? 'مزود'}',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    Text(
+                      '${row['transaction_count'] ?? 0} عملية مدفوعة',
+                      style: const TextStyle(
+                        color: BunyaColors.muted,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              OutlinedButton(
+                onPressed: onEditRate,
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(76, 44),
+                  foregroundColor: BunyaColors.copperDark,
+                  side: const BorderSide(color: BunyaColors.line),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                ),
+                child: Text('${rate.toStringAsFixed(2)}٪'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 15),
+          const Divider(height: 1, color: BunyaColors.line),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _FinanceValue(
+                  label: 'إجمالي التوريد',
+                  value: money(amount(row, 'gross_amount')),
+                ),
+              ),
+              Expanded(
+                child: _FinanceValue(
+                  label: 'عمولة بُنية',
+                  value: money(amount(row, 'bunya_commission')),
+                  accent: true,
+                ),
+              ),
+              Expanded(
+                child: _FinanceValue(
+                  label: 'الرصيد لدينا',
+                  value: money(amount(row, 'current_balance')),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FinanceValue extends StatelessWidget {
+  const _FinanceValue({
+    required this.label,
+    required this.value,
+    this.accent = false,
+  });
+  final String label, value;
+  final bool accent;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        label,
+        style: const TextStyle(
+          color: BunyaColors.muted,
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      const SizedBox(height: 4),
+      Text(
+        value,
+        maxLines: 1,
+        style: TextStyle(
+          color: accent ? BunyaColors.copperDark : BunyaColors.ink,
+          fontSize: 11,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    ],
+  );
+}
+
 class _RoleModules extends StatelessWidget {
   const _RoleModules({required this.repository, required this.contextData});
   final WorkspaceRepository repository;
@@ -2364,7 +4758,7 @@ class _RoleModules extends StatelessWidget {
 
   List<WorkspaceModule> get modules {
     final id = contextData.entityId;
-    if (contextData.role == 'provider')
+    if (contextData.role == 'provider') {
       return [
         WorkspaceModule(
           title: 'المنتجات',
@@ -2399,6 +4793,7 @@ class _RoleModules extends StatelessWidget {
           table: 'provider_drivers',
           filterField: 'provider_id',
           filterValue: id,
+          action: 'provider_drivers',
         ),
         WorkspaceModule(
           title: 'المالية',
@@ -2415,7 +4810,26 @@ class _RoleModules extends StatelessWidget {
           table: 'support_tickets',
         ),
       ];
-    if (contextData.role == 'contractor')
+    }
+    if (contextData.role == 'driver') {
+      return [
+        WorkspaceModule(
+          title: 'مهام التوصيل',
+          caption: 'المواقع وحالة الاستلام والتسليم',
+          icon: Icons.local_shipping_outlined,
+          table: 'provider_delivery_assignments',
+          filterField: 'assigned_driver_id',
+          filterValue: id,
+        ),
+        WorkspaceModule(
+          title: 'سجل التحديثات',
+          caption: 'كل انتقالات التوصيل المسجلة',
+          icon: Icons.history_rounded,
+          table: 'provider_delivery_updates',
+        ),
+      ];
+    }
+    if (contextData.role == 'contractor') {
       return [
         WorkspaceModule(
           title: 'العروض المقدمة',
@@ -2474,6 +4888,7 @@ class _RoleModules extends StatelessWidget {
           filterValue: id,
         ),
       ];
+    }
     return [
       const WorkspaceModule(
         title: 'المستخدمون',
@@ -2501,6 +4916,13 @@ class _RoleModules extends StatelessWidget {
         action: 'product_review',
       ),
       const WorkspaceModule(
+        title: 'طلبات تعديل المنتجات',
+        caption: 'مقارنة البيانات السابقة والجديدة واعتمادها أو رفضها',
+        icon: Icons.difference_outlined,
+        table: 'product_change_requests',
+        action: 'product_change_review',
+      ),
+      const WorkspaceModule(
         title: 'طلبات العملاء',
         caption: 'طلبات التسعير ومراحلها',
         icon: Icons.receipt_long_outlined,
@@ -2525,10 +4947,11 @@ class _RoleModules extends StatelessWidget {
         table: 'support_tickets',
       ),
       const WorkspaceModule(
-        title: 'المالية',
-        caption: 'الحركات والتسويات',
+        title: 'المالية والأرباح',
+        caption: 'أرصدة المزودين وعمولة بُنية',
         icon: Icons.account_balance_outlined,
         table: 'financial_transactions',
+        action: 'admin_finance',
       ),
       const WorkspaceModule(
         title: 'سجل العمليات',
@@ -2543,9 +4966,9 @@ class _RoleModules extends StatelessWidget {
   Widget build(BuildContext context) => ListView(
     padding: const EdgeInsets.all(16),
     children: [
-      const _PageHeading(
-        title: 'الخدمات والعمليات',
-        caption: 'كل وحدات الدور في تطبيق واحد.',
+      _PageHeading(
+        title: context.tr('operationsAndServices'),
+        caption: context.tr('operationsAndServicesCaption'),
       ),
       const SizedBox(height: 14),
       GridView.builder(
@@ -2563,8 +4986,12 @@ class _RoleModules extends StatelessWidget {
           return InkWell(
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) =>
-                    ModuleRecordsScreen(repository: repository, module: module),
+                builder: (_) => module.action == 'admin_finance'
+                    ? AdminFinanceScreen(repository: repository)
+                    : ModuleRecordsScreen(
+                        repository: repository,
+                        module: module,
+                      ),
               ),
             ),
             borderRadius: BorderRadius.circular(22),
@@ -2587,11 +5014,11 @@ class _RoleModules extends StatelessWidget {
                   ),
                   const Spacer(),
                   Text(
-                    module.title,
+                    context.localizedUiText(module.title),
                     style: const TextStyle(fontWeight: FontWeight.w900),
                   ),
                   Text(
-                    module.caption,
+                    context.localizedUiText(module.caption),
                     maxLines: 2,
                     style: const TextStyle(
                       color: BunyaColors.muted,
@@ -2627,8 +5054,9 @@ class _ModuleRecordsScreenState extends State<ModuleRecordsScreen> {
     widget.module,
   );
 
-  void reload() =>
-      setState(() => rows = widget.repository.loadModule(widget.module));
+  void reload() => setState(() {
+    rows = widget.repository.loadModule(widget.module);
+  });
 
   @override
   void initState() {
@@ -2657,14 +5085,44 @@ class _ModuleRecordsScreenState extends State<ModuleRecordsScreen> {
     }
   }
 
+  Future<void> requestProductChange(Map<String, dynamic> product) async {
+    final changed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _CreateProductSheet(
+        repository: widget.repository,
+        providerId: widget.module.filterValue!,
+        existingProduct: product,
+      ),
+    );
+    if (changed == true && mounted) reload();
+  }
+
+  Future<void> addDriver() async {
+    final added = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _CreateDriverSheet(repository: widget.repository),
+    );
+    if (added == true && mounted) reload();
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(widget.module.title)),
+    appBar: AppBar(title: Text(context.localizedUiText(widget.module.title))),
     floatingActionButton: widget.module.action == 'provider_products'
         ? FloatingActionButton.extended(
             onPressed: addProduct,
             icon: const Icon(Icons.add_rounded),
             label: const Text('إضافة منتج'),
+          )
+        : widget.module.action == 'provider_drivers'
+        ? FloatingActionButton.extended(
+            onPressed: addDriver,
+            icon: const Icon(Icons.person_add_alt_1_rounded),
+            label: const Text('إضافة سائق'),
           )
         : null,
     body: _FutureList(
@@ -2682,8 +5140,13 @@ class _ModuleRecordsScreenState extends State<ModuleRecordsScreen> {
                   module: widget.module,
                   repository: widget.repository,
                 )
+              : widget.module.table == 'product_change_requests'
+              ? _ProductChangeReviewSheet(
+                  row: row,
+                  repository: widget.repository,
+                )
               : widget.module.table == 'quote_requests'
-              ? _QuoteRequestDetails(row: row)
+              ? _QuoteRequestDetails(row: row, repository: widget.repository)
               : _RecordDetails(
                   row: row,
                   module: widget.module,
@@ -2693,8 +5156,25 @@ class _ModuleRecordsScreenState extends State<ModuleRecordsScreen> {
         final status = _status(
           '${row['status'] ?? row['review_status'] ?? row['approval_status'] ?? 'سجل'}',
         );
+        final pendingChanges =
+            ((row['product_change_requests'] as List?) ?? const []).any(
+              (item) => (item as Map)['status'] == 'pending',
+            );
+        final canRequestChange =
+            widget.module.action == 'provider_products' &&
+            row['review_status'] == 'approved' &&
+            row['is_published'] == true &&
+            !pendingChanges;
         return widget.module.table == 'products'
-            ? _ProductRecordCard(row: row, status: status, onTap: openDetails)
+            ? _ProductRecordCard(
+                row: row,
+                status: status,
+                onTap: openDetails,
+                onRequestChange: canRequestChange
+                    ? () => requestProductChange(row)
+                    : null,
+                changePending: pendingChanges,
+              )
             : _RecordCard(
                 title: _recordTitle(row, widget.module),
                 subtitle: _recordSubtitle(row, widget.module),
@@ -2724,7 +5204,9 @@ class _RoleNotificationsState extends State<_RoleNotifications> {
   late Future<List<AppNotification>> rows = widget.repository
       .loadNotifications();
 
-  void reload() => setState(() => rows = widget.repository.loadNotifications());
+  void reload() => setState(() {
+    rows = widget.repository.loadNotifications();
+  });
 
   @override
   void initState() {
@@ -2739,30 +5221,165 @@ class _RoleNotificationsState extends State<_RoleNotifications> {
   }
 
   Future<void> open(AppNotification item) async {
-    await widget.repository.markNotificationRead(item);
-    if (!mounted) return;
-    final match = RegExp(r'/merchant/quote-requests/([^/?#]+)')
-        .firstMatch(item.actionUrl ?? '');
-    final rfqId =
-        match?.group(1) ??
-        (item.entityType?.startsWith('provider.rfq_') == true
-            ? item.entityId
-            : null);
-    if (widget.contextData.role == 'provider' && rfqId != null) {
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) =>
-              ProviderPriceScreen(repository: widget.workspace, id: rfqId),
+    try {
+      if (!item.read) await widget.repository.markNotificationRead(item);
+      if (!mounted) return;
+      final match = RegExp(r'/merchant/quote-requests/([^/?#]+)')
+          .firstMatch(item.actionUrl ?? '');
+      final rfqId =
+          match?.group(1) ??
+          (item.entityType?.startsWith('provider.rfq_') == true
+              ? item.entityId
+              : null);
+      if (widget.contextData.role == 'provider' && rfqId != null) {
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) =>
+                ProviderPriceScreen(repository: widget.workspace, id: rfqId),
+          ),
+        );
+      } else {
+        var openedTarget = false;
+        if (widget.contextData.role == 'provider') {
+          openedTarget = await _openProviderNotificationTarget(item);
+          if (!mounted) return;
+        }
+        if (widget.contextData.role == 'admin') {
+          openedTarget = await _openAdminNotificationTarget(item);
+          if (!mounted) return;
+        }
+        if (!openedTarget) {
+          await Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => _NotificationDetails(item: item)),
+          );
+        }
+      }
+    } catch (error) {
+      if (mounted) _notice(context, _clean(error));
+    } finally {
+      if (mounted) reload();
+    }
+  }
+
+  Future<bool> _openProviderNotificationTarget(AppNotification item) async {
+    if (item.entityType != 'product' || item.entityId == null) return false;
+
+    final module = WorkspaceModule(
+      title: 'المنتجات',
+      caption: 'المنتجات والمراجعة والتوفر',
+      icon: Icons.inventory_2_outlined,
+      table: 'products',
+      filterField: 'provider_id',
+      filterValue: widget.contextData.entityId,
+      action: 'provider_products',
+    );
+    final records = await widget.workspace.loadModule(
+      module,
+      recordId: item.entityId,
+    );
+    if (!mounted || records.isEmpty) return false;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ProductRecordDetails(
+        row: records.first,
+        module: module,
+        repository: widget.workspace,
+      ),
+    );
+    return true;
+  }
+
+  Future<bool> _openAdminNotificationTarget(AppNotification item) async {
+    final actionUrl = item.actionUrl ?? '';
+    final changeMatch = RegExp(r'/admin/products/changes/([^/?#]+)')
+        .firstMatch(actionUrl);
+    final changeId =
+        changeMatch?.group(1) ??
+        (item.entityType == 'product_change_request' ? item.entityId : null);
+    if (changeId != null) {
+      const module = WorkspaceModule(
+        title: 'طلبات تعديل المنتجات',
+        caption: 'مقارنة البيانات السابقة والجديدة واعتمادها أو رفضها',
+        icon: Icons.difference_outlined,
+        table: 'product_change_requests',
+        action: 'product_change_review',
+      );
+      final records = await widget.workspace.loadModule(
+        module,
+        recordId: changeId,
+      );
+      if (!mounted || records.isEmpty) return false;
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => _ProductChangeReviewSheet(
+          row: records.first,
+          repository: widget.workspace,
         ),
       );
-    } else {
-      await Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => _NotificationDetails(item: item)),
+      return true;
+    }
+    final productMatch = RegExp(r'/admin/products/review/([^/?#]+)')
+        .firstMatch(actionUrl);
+    final productId =
+        productMatch?.group(1) ??
+        (item.entityType == 'product' ? item.entityId : null);
+    if (productId != null) {
+      const module = WorkspaceModule(
+        title: 'مراجعة المنتجات',
+        caption: 'المنتجات المنشورة والمعلقة',
+        icon: Icons.fact_check_outlined,
+        table: 'products',
+        action: 'product_review',
       );
+      final records = await widget.workspace.loadModule(
+        module,
+        recordId: productId,
+      );
+      if (!mounted || records.isEmpty) return false;
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => _ProductRecordDetails(
+          row: records.first,
+          module: module,
+          repository: widget.workspace,
+        ),
+      );
+      return true;
     }
-    if (mounted) {
-      reload();
+
+    final joinKind = item.entityType == 'provider_application'
+        ? 'provider'
+        : item.entityType == 'contractor_application'
+        ? 'contractor'
+        : actionUrl.contains('/join-requests/providers')
+        ? 'provider'
+        : actionUrl.contains('/join-requests/contractors')
+        ? 'contractor'
+        : null;
+    if (joinKind != null && item.entityId != null) {
+      final applications = await widget.workspace.adminApplications();
+      final matching = applications.where(
+        (row) => '${row['id']}' == item.entityId && row['_kind'] == joinKind,
+      );
+      if (!mounted || matching.isEmpty) return false;
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        builder: (_) => _AdminDecisionSheet(
+          repository: widget.workspace,
+          row: matching.first,
+        ),
+      );
+      return true;
     }
+    return false;
   }
 
   @override
@@ -2771,21 +5388,21 @@ class _RoleNotificationsState extends State<_RoleNotifications> {
     builder: (_, snapshot) => ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        const _PageHeading(
-          title: 'الإشعارات',
-          caption: 'التسعير والاستلام والتنفيذ والقرارات.',
+        _PageHeading(
+          title: context.tr('notifications'),
+          caption: context.tr('notificationsCaption'),
         ),
         const SizedBox(height: 12),
         if (!snapshot.hasData)
           const Center(child: CircularProgressIndicator())
         else if (snapshot.data!.isEmpty)
-          const _Empty(text: 'لا توجد إشعارات حاليًا')
+          _Empty(text: context.tr('noNotifications'))
         else
           ...snapshot.data!.map(
             (item) => _RecordCard(
               title: item.title,
               subtitle: _friendlyNotificationMessage(item.message),
-              status: item.read ? 'مقروء' : 'جديد',
+              status: item.read ? context.tr('read') : context.tr('new'),
               onTap: () => open(item),
             ),
           ),
@@ -2799,11 +5416,11 @@ class _NotificationDetails extends StatelessWidget {
   final AppNotification item;
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('تفاصيل الإشعار')),
+    appBar: AppBar(title: Text(context.tr('notificationDetails'))),
     body: ListView(
       padding: const EdgeInsets.all(18),
       children: [
-        _DetailHeader(title: item.title, caption: 'تنبيه من منصة بُنية'),
+        _DetailHeader(title: item.title, caption: context.tr('bunyaAlert')),
         const SizedBox(height: 14),
         Container(
           padding: const EdgeInsets.all(18),
@@ -2843,22 +5460,24 @@ class _WorkspaceAccount extends StatelessWidget {
     children: [
       _DetailHeader(
         title: contextData.name,
-        caption: _roleLabel(contextData.role),
+        caption: _roleLabel(context, contextData.role),
       ),
       const SizedBox(height: 12),
       _Facts(
         values: {
-          'الاسم': profile.name,
-          'البريد': profile.email,
-          'الجوال': profile.mobile.isEmpty ? 'غير مضاف' : profile.mobile,
-          'الدور': _roleLabel(profile.role),
+          context.tr('name'): profile.name,
+          context.tr('email'): profile.email,
+          context.tr('mobile'): profile.mobile.isEmpty
+              ? context.tr('notAdded')
+              : profile.mobile,
+          context.tr('role'): _roleLabel(context, profile.role),
         },
       ),
       const SizedBox(height: 16),
       OutlinedButton.icon(
         onPressed: onChangePassword,
         icon: const Icon(Icons.lock_reset_rounded),
-        label: const Text('إعادة تعيين كلمة المرور'),
+        label: Text(context.tr('resetPassword')),
         style: OutlinedButton.styleFrom(
           foregroundColor: BunyaColors.forest,
           minimumSize: const Size.fromHeight(52),
@@ -2868,7 +5487,7 @@ class _WorkspaceAccount extends StatelessWidget {
       OutlinedButton.icon(
         onPressed: () async => onLogout(),
         icon: const Icon(Icons.logout_rounded),
-        label: const Text('تسجيل الخروج'),
+        label: Text(context.tr('logout')),
         style: OutlinedButton.styleFrom(
           foregroundColor: BunyaColors.danger,
           minimumSize: const Size.fromHeight(52),
@@ -2907,7 +5526,7 @@ class _FutureList extends StatelessWidget {
             else if (snapshot.hasError)
               _Empty(text: _clean(snapshot.error!))
             else if (snapshot.data!.isEmpty)
-              const _Empty(text: 'لا توجد سجلات حاليًا')
+              _Empty(text: context.tr('noRecords'))
             else
               ...snapshot.data!.map(item),
           ],
@@ -2959,14 +5578,14 @@ class _RecordCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    title,
+                    context.localizedUiText(title),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontWeight: FontWeight.w900),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    subtitle,
+                    context.localizedUiText(subtitle),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -2991,7 +5610,7 @@ class _RecordCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                    status,
+                    context.localizedUiText(status),
                     style: const TextStyle(
                       color: BunyaColors.forest,
                       fontSize: 9,
@@ -3022,10 +5641,14 @@ class _ProductRecordCard extends StatelessWidget {
     required this.row,
     required this.status,
     required this.onTap,
+    this.onRequestChange,
+    this.changePending = false,
   });
   final Map<String, dynamic> row;
   final String status;
   final VoidCallback onTap;
+  final VoidCallback? onRequestChange;
+  final bool changePending;
 
   @override
   Widget build(BuildContext context) {
@@ -3041,81 +5664,105 @@ class _ProductRecordCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(22),
         side: const BorderSide(color: BunyaColors.line),
       ),
-      child: InkWell(
-        onTap: onTap,
-        child: Row(
-          children: [
-            SizedBox(
-              width: 116,
-              height: 126,
-              child: imageUrl.isEmpty
-                  ? const ColoredBox(
-                      color: Color(0xFFF0E9E0),
-                      child: Icon(
-                        Icons.inventory_2_outlined,
-                        size: 38,
-                        color: BunyaColors.copper,
-                      ),
-                    )
-                  : FastProductImage(
-                      imageUrl: imageUrl,
-                      fallbackUrl: '${row['_image_fallback_url'] ?? ''}',
-                      cacheKey: '${row['_image_cache_key'] ?? imageUrl}',
-                      memoryWidth: 320,
-                    ),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(13),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+      child: Column(
+        children: [
+          InkWell(
+            onTap: onTap,
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 116,
+                  height: onRequestChange != null || changePending ? 146 : 126,
+                  child: imageUrl.isEmpty
+                      ? const ColoredBox(
+                          color: Color(0xFFF0E9E0),
+                          child: Icon(
+                            Icons.inventory_2_outlined,
+                            size: 38,
+                            color: BunyaColors.copper,
+                          ),
+                        )
+                      : FastProductImage(
+                          imageUrl: imageUrl,
+                          fallbackUrl: '${row['_image_fallback_url'] ?? ''}',
+                          cacheKey: '${row['_image_cache_key'] ?? imageUrl}',
+                          memoryWidth: 320,
+                        ),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(13),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Text(
-                            _recordTitle(row),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w900,
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                _recordTitle(row),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
                             ),
+                            const Icon(
+                              Icons.arrow_back_rounded,
+                              size: 18,
+                              color: BunyaColors.copper,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          description,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: BunyaColors.muted,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
-                        const Icon(
-                          Icons.arrow_back_rounded,
-                          size: 18,
-                          color: BunyaColors.copper,
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            _ProductChip(status),
+                            _ProductChip('${row['base_unit'] ?? 'وحدة'}'),
+                          ],
                         ),
                       ],
                     ),
-                    const SizedBox(height: 5),
-                    Text(
-                      description,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: BunyaColors.muted,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        _ProductChip(status),
-                        _ProductChip('${row['base_unit'] ?? 'وحدة'}'),
-                      ],
-                    ),
-                  ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (onRequestChange != null || changePending)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+              child: SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: onRequestChange,
+                  icon: Icon(
+                    changePending
+                        ? Icons.hourglass_top_rounded
+                        : Icons.edit_note_rounded,
+                  ),
+                  label: Text(
+                    changePending
+                        ? 'طلب التعديل بانتظار الإدارة'
+                        : 'طلب تعديل البيانات',
+                  ),
                 ),
               ),
             ),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -3132,7 +5779,7 @@ class _ProductChip extends StatelessWidget {
       borderRadius: BorderRadius.circular(20),
     ),
     child: Text(
-      text,
+      context.localizedUiText(text),
       style: const TextStyle(
         color: BunyaColors.forest,
         fontSize: 9,
@@ -3150,12 +5797,12 @@ class _PageHeading extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Text(
-        title,
+        context.localizedUiText(title),
         style: Theme.of(context).textTheme.headlineSmall
             ?.copyWith(fontWeight: FontWeight.w900),
       ),
       Text(
-        caption,
+        context.localizedUiText(caption),
         style: const TextStyle(
           color: BunyaColors.muted,
           fontWeight: FontWeight.w700,
@@ -3166,8 +5813,13 @@ class _PageHeading extends StatelessWidget {
 }
 
 class _DetailHeader extends StatelessWidget {
-  const _DetailHeader({required this.title, required this.caption});
+  const _DetailHeader({
+    required this.title,
+    required this.caption,
+    this.trailing,
+  });
   final String title, caption;
+  final Widget? trailing;
   @override
   Widget build(BuildContext context) => Container(
     width: double.infinity,
@@ -3178,25 +5830,33 @@ class _DetailHeader extends StatelessWidget {
       ),
       borderRadius: BorderRadius.circular(24),
     ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Text(
-          caption,
-          style: const TextStyle(
-            color: Colors.white70,
-            fontWeight: FontWeight.w700,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                context.localizedUiText(caption),
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                context.localizedUiText(title),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 5),
-        Text(
-          title,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
+        if (trailing != null) ...[const SizedBox(width: 12), trailing!],
       ],
     ),
   );
@@ -3206,20 +5866,24 @@ class _Facts extends StatelessWidget {
   const _Facts({required this.values});
   final Map<String, String> values;
   @override
-  Widget build(BuildContext context) => Wrap(
-    spacing: 8,
-    runSpacing: 8,
-    children: values.entries
-        .map(
-          (entry) => Container(
-            width: (MediaQuery.sizeOf(context).width - 40) / 2,
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final halfWidth = (constraints.maxWidth - 8) / 2;
+      return Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: values.entries.map((entry) {
+          final value = context.localizedUiText(entry.value);
+          final leftToRight = _isWorkspaceLeftToRightValue(value);
+          return Container(
+            width: value.contains('@') ? constraints.maxWidth : halfWidth,
             padding: const EdgeInsets.all(13),
             decoration: _panel(),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  entry.key,
+                  context.localizedUiText(entry.key),
                   style: const TextStyle(
                     color: BunyaColors.muted,
                     fontSize: 10,
@@ -3227,20 +5891,29 @@ class _Facts extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  entry.value,
+                  value,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textDirection: leftToRight ? TextDirection.ltr : null,
                   style: const TextStyle(fontWeight: FontWeight.w900),
                 ),
               ],
             ),
-          ),
-        )
-        .toList(),
+          );
+        }).toList(),
+      );
+    },
   );
 }
 
+bool _isWorkspaceLeftToRightValue(String value) =>
+    value.contains('@') ||
+    RegExp(r'^\+?[0-9][0-9\s().-]+$').hasMatch(value.trim());
+
 class _QuoteRequestDetails extends StatelessWidget {
-  const _QuoteRequestDetails({required this.row});
+  const _QuoteRequestDetails({required this.row, required this.repository});
   final Map<String, dynamic> row;
+  final WorkspaceRepository repository;
 
   @override
   Widget build(BuildContext context) {
@@ -3392,9 +6065,10 @@ class _QuoteRequestDetails extends StatelessWidget {
                       SizedBox(
                         width: width,
                         child: _RecordFact(
-                          label: 'المدينة',
-                          value: '${row['city'] ?? 'غير محددة'}',
-                          icon: Icons.location_city_outlined,
+                          label: 'مسؤول الموقع',
+                          value:
+                              '${row['site_responsible_name'] ?? 'غير محدد'}',
+                          icon: Icons.badge_outlined,
                           wide: false,
                         ),
                       ),
@@ -3448,6 +6122,62 @@ class _QuoteRequestDetails extends StatelessWidget {
                             wide: true,
                           ),
                         ),
+                      SizedBox(
+                        width: width,
+                        child: _RecordFact(
+                          label: 'جوال مسؤول الموقع',
+                          value:
+                              '${row['site_responsible_mobile'] ?? 'غير محدد'}',
+                          icon: Icons.phone_outlined,
+                          wide: false,
+                        ),
+                      ),
+                      SizedBox(
+                        width: width,
+                        child: _RecordFact(
+                          label: 'المقاول',
+                          value: '${row['contractor_name'] ?? 'لا يوجد'}',
+                          icon: Icons.engineering_outlined,
+                          wide: false,
+                        ),
+                      ),
+                      SizedBox(
+                        width: width,
+                        child: _RecordFact(
+                          label: 'مواعيد العمل',
+                          value: '${row['working_hours'] ?? 'غير محددة'}',
+                          icon: Icons.schedule_outlined,
+                          wide: false,
+                        ),
+                      ),
+                      SizedBox(
+                        width: width,
+                        child: _RecordFact(
+                          label: 'سهولة الطريق',
+                          value: '${row['road_access'] ?? 'غير محددة'}',
+                          icon: Icons.route_outlined,
+                          wide: false,
+                        ),
+                      ),
+                      SizedBox(
+                        width: constraints.maxWidth,
+                        child: _RecordFact(
+                          label: 'التحميل والتنزيل',
+                          value:
+                              '${row['loading_option'] ?? '—'} · ${row['unloading_option'] ?? '—'}',
+                          icon: Icons.local_shipping_outlined,
+                          wide: true,
+                        ),
+                      ),
+                      SizedBox(
+                        width: constraints.maxWidth,
+                        child: _RecordFact(
+                          label: 'تعليمات الوصول',
+                          value: '${row['access_instructions'] ?? 'غير محددة'}',
+                          icon: Icons.signpost_outlined,
+                          wide: true,
+                        ),
+                      ),
                     ],
                   );
                 },
@@ -3508,7 +6238,7 @@ class _QuoteRequestDetails extends StatelessWidget {
                   ),
                 )
               else
-                _CustomerQuoteSummary(quote: quote),
+                _CustomerQuoteSummary(quote: quote, repository: repository),
             ],
           ),
         ),
@@ -3534,7 +6264,7 @@ class _HeroBadge extends StatelessWidget {
         Icon(icon, size: 15, color: Colors.white),
         const SizedBox(width: 5),
         Text(
-          text,
+          context.localizedUiText(text),
           style: const TextStyle(
             color: Colors.white,
             fontSize: 10,
@@ -3599,7 +6329,10 @@ class _QuoteItemCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '${item['product_name_snapshot'] ?? 'منتج'}',
+                context.localizedSnapshot(
+                  item['product_name_snapshot'] ?? 'منتج',
+                  item['product_name_translations'],
+                ),
                 style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w900,
@@ -3607,12 +6340,25 @@ class _QuoteItemCard extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                '${item['quantity'] ?? '—'} ${item['unit_name_snapshot'] ?? 'وحدة'}${item['measurement_label_snapshot'] == null ? '' : ' · ${item['measurement_label_snapshot']}'}',
+                '${item['quantity'] ?? '—'} ${context.localizedSnapshot(item['unit_name_snapshot'] ?? 'وحدة', item['unit_name_translations'])}${item['measurement_label_snapshot'] == null ? '' : ' · ${context.localizedSnapshot(item['measurement_label_snapshot'], item['measurement_label_translations'])}'}',
                 style: const TextStyle(
                   color: BunyaColors.forest,
                   fontWeight: FontWeight.w800,
                 ),
               ),
+              if ('${item['variant_label_snapshot'] ?? ''}'
+                  .trim()
+                  .isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  '${item['variant_label_snapshot']}',
+                  style: const TextStyle(
+                    color: BunyaColors.copper,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
               if ('${item['notes'] ?? ''}'.trim().isNotEmpty) ...[
                 const SizedBox(height: 5),
                 Text(
@@ -3633,8 +6379,9 @@ class _QuoteItemCard extends StatelessWidget {
 }
 
 class _CustomerQuoteSummary extends StatelessWidget {
-  const _CustomerQuoteSummary({required this.quote});
+  const _CustomerQuoteSummary({required this.quote, required this.repository});
   final Map<String, dynamic> quote;
+  final WorkspaceRepository repository;
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(17),
@@ -3678,9 +6425,167 @@ class _CustomerQuoteSummary extends StatelessWidget {
             fontWeight: FontWeight.w700,
           ),
         ),
+        const SizedBox(height: 16),
+        _QuotePaymentAction(quote: quote, repository: repository),
       ],
     ),
   );
+}
+
+class _QuotePaymentAction extends StatefulWidget {
+  const _QuotePaymentAction({required this.quote, required this.repository});
+  final Map<String, dynamic> quote;
+  final WorkspaceRepository repository;
+
+  @override
+  State<_QuotePaymentAction> createState() => _QuotePaymentActionState();
+}
+
+class _QuotePaymentActionState extends State<_QuotePaymentAction>
+    with WidgetsBindingObserver {
+  bool busy = false;
+  bool openedCheckout = false;
+  String error = '';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    if (kIsWeb &&
+        Uri.base.queryParameters['payment'] == 'returned' &&
+        Uri.base.queryParameters['quote'] == '${widget.quote['id'] ?? ''}') {
+      unawaited(_reconcileReturnedPayment());
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && openedCheckout) {
+      unawaited(_reconcileReturnedPayment(closeAfter: true));
+    }
+  }
+
+  Future<void> _reconcileReturnedPayment({bool closeAfter = false}) async {
+    await widget.repository.reconcileQuotePayment(
+      '${widget.quote['id'] ?? ''}',
+    );
+    BunyaRepository.notifyDataChanged();
+    if (closeAfter && mounted && Navigator.canPop(context)) {
+      Navigator.pop(context);
+    }
+  }
+
+  Future<void> pay() async {
+    setState(() {
+      busy = true;
+      error = '';
+    });
+    try {
+      final quoteId = '${widget.quote['id'] ?? ''}';
+      final status = '${widget.quote['status'] ?? ''}';
+      final url = await widget.repository.startQuotePayment(
+        quoteId,
+        acceptFirst: status == 'ready' || status == 'customer_review',
+      );
+      if (url == 'succeeded') {
+        BunyaRepository.notifyDataChanged();
+        if (mounted && Navigator.canPop(context)) Navigator.pop(context);
+        return;
+      }
+      final opened = await launchUrl(
+        Uri.parse(url),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!opened) throw Exception('payment_open_failed');
+      openedCheckout = true;
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          error = context.tr('paymentStartFailed');
+          busy = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final status = '${widget.quote['status'] ?? ''}';
+    final ordersRaw = widget.quote['orders'];
+    final order = ordersRaw is Map
+        ? Map<String, dynamic>.from(ordersRaw)
+        : ordersRaw is List && ordersRaw.isNotEmpty
+        ? Map<String, dynamic>.from(ordersRaw.first as Map)
+        : null;
+    final paymentStatus = '${order?['payment_status'] ?? 'pending'}';
+    if (paymentStatus == 'paid' || paymentStatus == 'succeeded') {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        color: const Color(0xFFDDF4E8),
+        child: Row(
+          children: [
+            const Icon(Icons.verified_rounded, color: BunyaColors.forest),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                context.tr('paymentSucceeded'),
+                style: const TextStyle(
+                  color: BunyaColors.forest,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    final canPay =
+        order != null ||
+        status == 'ready' ||
+        status == 'customer_review' ||
+        status == 'accepted';
+    if (!canPay) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        FilledButton.icon(
+          onPressed: busy ? null : pay,
+          icon: const Icon(Icons.lock_outline_rounded),
+          label: Text(
+            busy
+                ? context.tr('paymentOpening')
+                : status == 'ready' || status == 'customer_review'
+                ? context.tr('acceptAndPay')
+                : context.tr('paySecurely'),
+          ),
+          style: FilledButton.styleFrom(
+            backgroundColor: BunyaColors.copper,
+            foregroundColor: Colors.white,
+            minimumSize: const Size.fromHeight(50),
+          ),
+        ),
+        if (error.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              error,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.red,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
 }
 
 class _QuoteAmountRow extends StatelessWidget {
@@ -3718,13 +6623,190 @@ class _QuoteAmountRow extends StatelessWidget {
   );
 }
 
+class _CreateDriverSheet extends StatefulWidget {
+  const _CreateDriverSheet({required this.repository});
+  final WorkspaceRepository repository;
+
+  @override
+  State<_CreateDriverSheet> createState() => _CreateDriverSheetState();
+}
+
+class _CreateDriverSheetState extends State<_CreateDriverSheet> {
+  final fullName = TextEditingController();
+  final mobile = TextEditingController();
+  final email = TextEditingController();
+  final username = TextEditingController();
+  final notes = TextEditingController();
+  bool busy = false;
+  Map<String, dynamic>? credentials;
+
+  @override
+  void dispose() {
+    for (final controller in [fullName, mobile, email, username, notes]) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> submit() async {
+    if (fullName.text.trim().length < 3 ||
+        mobile.text.trim().isEmpty ||
+        !email.text.contains('@') ||
+        username.text.trim().length < 4) {
+      _notice(context, 'أكمل اسم السائق والجوال والبريد واسم المستخدم.');
+      return;
+    }
+    setState(() => busy = true);
+    try {
+      final result = await widget.repository.createProviderDriver(
+        fullName: fullName.text,
+        mobile: mobile.text,
+        email: email.text,
+        username: username.text,
+        internalNotes: notes.text,
+      );
+      if (mounted) setState(() => credentials = result);
+    } catch (error) {
+      if (mounted) _notice(context, _clean(error));
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final viewInsets = MediaQuery.viewInsetsOf(context);
+    return Container(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * .92,
+      ),
+      padding: EdgeInsets.fromLTRB(18, 18, 18, 18 + viewInsets.bottom),
+      decoration: const BoxDecoration(
+        color: BunyaColors.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      child: credentials == null
+          ? ListView(
+              shrinkWrap: true,
+              children: [
+                const Text(
+                  'إنشاء حساب سائق',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'سيستطيع السائق تسجيل الدخول برقم جواله وكلمة المرور المؤقتة، ثم يجب عليه تغييرها.',
+                  style: TextStyle(
+                    color: BunyaColors.muted,
+                    height: 1.6,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: fullName,
+                  textInputAction: TextInputAction.next,
+                  decoration: const InputDecoration(labelText: 'الاسم الكامل'),
+                ),
+                const SizedBox(height: 9),
+                TextField(
+                  controller: mobile,
+                  keyboardType: TextInputType.phone,
+                  textDirection: TextDirection.ltr,
+                  textInputAction: TextInputAction.next,
+                  decoration: const InputDecoration(
+                    labelText: 'رقم الجوال السعودي',
+                    hintText: '05xxxxxxxx',
+                  ),
+                ),
+                const SizedBox(height: 9),
+                TextField(
+                  controller: email,
+                  keyboardType: TextInputType.emailAddress,
+                  textDirection: TextDirection.ltr,
+                  textInputAction: TextInputAction.next,
+                  decoration: const InputDecoration(
+                    labelText: 'البريد الإلكتروني',
+                  ),
+                ),
+                const SizedBox(height: 9),
+                TextField(
+                  controller: username,
+                  textDirection: TextDirection.ltr,
+                  textInputAction: TextInputAction.next,
+                  decoration: const InputDecoration(labelText: 'اسم المستخدم'),
+                ),
+                const SizedBox(height: 9),
+                TextField(
+                  controller: notes,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'ملاحظات داخلية اختيارية',
+                  ),
+                ),
+                const SizedBox(height: 14),
+                FilledButton.icon(
+                  onPressed: busy ? null : submit,
+                  icon: const Icon(Icons.person_add_alt_1_rounded),
+                  label: Text(
+                    busy ? 'جارٍ إنشاء الحساب…' : 'إنشاء حساب السائق',
+                  ),
+                ),
+              ],
+            )
+          : ListView(
+              shrinkWrap: true,
+              children: [
+                const Icon(
+                  Icons.verified_rounded,
+                  color: Color(0xFF15734B),
+                  size: 48,
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'تم إنشاء حساب السائق',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 5),
+                const Text(
+                  'انسخ البيانات الآن؛ كلمة المرور المؤقتة تظهر مرة واحدة فقط.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: BunyaColors.muted,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _Facts(
+                  values: {
+                    'رقم الجوال للدخول': '${credentials!['mobile']}',
+                    'البريد': '${credentials!['email']}',
+                    'اسم المستخدم': '${credentials!['username']}',
+                    'كلمة المرور المؤقتة':
+                        '${credentials!['temporaryPassword']}',
+                  },
+                ),
+                const SizedBox(height: 14),
+                FilledButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('تم حفظ البيانات'),
+                ),
+              ],
+            ),
+    );
+  }
+}
+
 class _CreateProductSheet extends StatefulWidget {
   const _CreateProductSheet({
     required this.repository,
     required this.providerId,
+    this.existingProduct,
   });
   final WorkspaceRepository repository;
   final String providerId;
+  final Map<String, dynamic>? existingProduct;
 
   @override
   State<_CreateProductSheet> createState() => _CreateProductSheetState();
@@ -3733,6 +6815,7 @@ class _CreateProductSheet extends StatefulWidget {
 class _CreateProductSheetState extends State<_CreateProductSheet> {
   final name = TextEditingController();
   final description = TextEditingController();
+  final customCategory = TextEditingController();
   final price = TextEditingController();
   final minimum = TextEditingController();
   final stock = TextEditingController();
@@ -3757,6 +6840,14 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
   final rentalDuration = TextEditingController();
   final warrantyDuration = TextEditingController();
   final warrantyDetails = TextEditingController();
+  final requestNote = TextEditingController();
+  final availabilityCity = TextEditingController();
+  final deliveryRegion = TextEditingController();
+  final deliveryMaximumDuration = TextEditingController();
+  final deliveryDurationUnit = TextEditingController();
+  final deliveryPricePerKm = TextEditingController();
+  final deliveryMaximumDistanceKm = TextEditingController();
+  final deliveryConfigNotes = TextEditingController();
   late final Future<List<Map<String, dynamic>>> categories = widget.repository
       .productCategories();
   String? categoryId, categoryTone;
@@ -3765,19 +6856,136 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
   String offerType = 'sale', rentalUnit = 'day', weightUnit = 'كجم';
   String variantType = 'المقاس';
   bool vatInclusive = true, hasWarranty = false, busy = false;
+  bool deliveryAvailable = false;
   String formError = '';
   final List<String> measurements = [];
   final List<Map<String, String>> variants = [];
+  final List<Map<String, String>> availabilityRegions = [];
+  final List<String> deliveryRegions = [];
+  final Set<String> retainedImageIds = {};
   XFile? image;
   Uint8List? imageBytes;
 
   @override
   void initState() {
     super.initState();
-    leadTime.text = 'خلال 24 ساعة';
-    deliveryWindow.text = 'يتم تحديدها بعد اعتماد الطلب';
-    deliveryNotes.text =
-        'يتم تنسيق موعد وموقع التسليم مع العميل بعد اعتماد الطلب.';
+    final product = widget.existingProduct;
+    if (product == null) {
+      leadTime.text = 'خلال 24 ساعة';
+      deliveryWindow.text = 'يتم تحديدها بعد اعتماد الطلب';
+      deliveryNotes.text =
+          'يتم تنسيق موعد وموقع التسليم مع العميل بعد اعتماد الطلب.';
+      return;
+    }
+    String value(String key) => '${product[key] ?? ''}'.trim();
+    String specification(String label) {
+      final prefix = '$label:';
+      for (final raw
+          in (product['product_specifications'] as List?) ?? const []) {
+        final content = '${(raw as Map)['value'] ?? ''}';
+        if (content.startsWith(prefix)) {
+          return content.substring(prefix.length).trim();
+        }
+      }
+      return '';
+    }
+
+    name.text = value('name');
+    description.text = value('full_description').isNotEmpty
+        ? value('full_description')
+        : value('description');
+    price.text = value('unit_price');
+    minimum.text = value('minimum_order');
+    stock.text = value('stock_quantity');
+    leadTime.text = value('lead_time_label');
+    deliveryWindow.text = value('delivery_window');
+    deliveryNotes.text = value('delivery_notes');
+    sku.text = value('sku');
+    customCategory.text = value('custom_category');
+    categoryId = customCategory.text.isNotEmpty
+        ? 'other'
+        : value('category_id').isEmpty
+        ? null
+        : value('category_id');
+    final category = product['product_categories'];
+    if (category is Map) categoryTone = '${category['slug'] ?? 'tools'}';
+    unit = value('base_unit').isEmpty ? unit : value('base_unit');
+    availability = value('availability_status').isEmpty
+        ? availability
+        : value('availability_status');
+    offerType = value('offer_type').isEmpty ? offerType : value('offer_type');
+    rentalUnit = value('rental_duration_unit').isEmpty
+        ? rentalUnit
+        : value('rental_duration_unit');
+    vatInclusive = product['vat_inclusive'] != false;
+    rentalDuration.text = value('rental_duration_value');
+    gtin.text = specification('GTIN / الباركود');
+    manufacturer.text = specification('المصنّع / العلامة');
+    origin.text = specification('بلد المنشأ');
+    material.text = specification('المادة / التركيبة');
+    grade.text = specification('الدرجة / الفئة');
+    weight.text = specification('الوزن');
+    color.text = specification('اللون / التشطيب');
+    packaging.text = specification('التعبئة');
+    standard.text = specification('المواصفة أو شهادة المطابقة');
+    intendedUse.text = specification('الاستخدام المخصص');
+    safety.text = specification('السلامة والمناولة');
+    storage.text = specification('شروط التخزين');
+    measurements.addAll(
+      ((product['product_measurements'] as List?) ?? const [])
+          .map((item) => '${(item as Map)['label'] ?? ''}'.trim())
+          .where((item) => item.isNotEmpty),
+    );
+    for (final raw in (product['product_variants'] as List?) ?? const []) {
+      final item = Map<String, dynamic>.from(raw as Map);
+      final attributes = item['attributes'];
+      if (attributes is Map && attributes.isNotEmpty) {
+        final entry = attributes.entries.first;
+        variants.add({'type': '${entry.key}', 'value': '${entry.value}'});
+      } else {
+        final parts = '${item['name'] ?? ''}'.split(':');
+        if (parts.length > 1) {
+          variants.add({
+            'type': parts.first.trim(),
+            'value': parts.skip(1).join(':').trim(),
+          });
+        }
+      }
+    }
+    final warranty = product['product_warranties'];
+    if (warranty is Map) {
+      hasWarranty = true;
+      warrantyDuration.text = '${warranty['duration'] ?? ''}';
+      warrantyDetails.text = '${warranty['details'] ?? ''}';
+    }
+    availabilityRegions.addAll(
+      ((product['product_availability_regions'] as List?) ?? const []).map(
+        (item) => {
+          'city': '${(item as Map)['city'] ?? ''}',
+          'scope': '${item['scope'] ?? 'المدينة'}',
+        },
+      ),
+    );
+    deliveryRegions.addAll(
+      ((product['product_delivery_regions'] as List?) ?? const [])
+          .map((item) => '${(item as Map)['region_name'] ?? ''}'.trim())
+          .where((item) => item.isNotEmpty),
+    );
+    final delivery = product['product_delivery_configs'];
+    if (delivery is Map) {
+      deliveryAvailable = delivery['is_available'] == true;
+      deliveryMaximumDuration.text = '${delivery['maximum_duration'] ?? ''}';
+      deliveryDurationUnit.text = '${delivery['duration_unit'] ?? ''}';
+      deliveryPricePerKm.text = '${delivery['price_per_km'] ?? ''}';
+      deliveryMaximumDistanceKm.text =
+          '${delivery['maximum_distance_km'] ?? ''}';
+      deliveryConfigNotes.text = '${delivery['notes'] ?? ''}';
+    }
+    retainedImageIds.addAll(
+      ((product['product_images'] as List?) ?? const [])
+          .map((item) => '${(item as Map)['id'] ?? ''}')
+          .where((item) => item.isNotEmpty),
+    );
   }
 
   @override
@@ -3785,6 +6993,7 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
     for (final controller in [
       name,
       description,
+      customCategory,
       price,
       minimum,
       stock,
@@ -3809,6 +7018,14 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
       rentalDuration,
       warrantyDuration,
       warrantyDetails,
+      requestNote,
+      availabilityCity,
+      deliveryRegion,
+      deliveryMaximumDuration,
+      deliveryDurationUnit,
+      deliveryPricePerKm,
+      deliveryMaximumDistanceKm,
+      deliveryConfigNotes,
     ]) {
       controller.dispose();
     }
@@ -3827,11 +7044,12 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
       if (mounted) _notice(context, 'الصورة أكبر من 5MB');
       return;
     }
-    if (mounted)
+    if (mounted) {
       setState(() {
         image = selected;
         imageBytes = bytes;
       });
+    }
   }
 
   double? number(String value) {
@@ -3867,12 +7085,16 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
   }
 
   Future<void> submit() async {
+    final editing = widget.existingProduct != null;
     final unitPrice = number(price.text);
     final minimumOrder = number(minimum.text);
     final stockQuantity = number(stock.text);
     final rentalValue = number(rentalDuration.text);
-    if (imageBytes == null || categoryId == null) {
-      return fail('اختر صورة المنتج وتصنيفه');
+    if ((!editing && imageBytes == null) ||
+        (editing && imageBytes == null && retainedImageIds.isEmpty) ||
+        categoryId == null ||
+        (categoryId == 'other' && customCategory.text.trim().length < 2)) {
+      return fail('اختر صورة واحدة على الأقل وتصنيف المنتج');
     }
     if (name.text.trim().length < 2 ||
         description.text.trim().length < 10 ||
@@ -3895,10 +7117,17 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
     if (hasWarranty && warrantyDuration.text.trim().isEmpty) {
       return fail('حدد مدة الضمان أو ألغِ خيار الضمان');
     }
+    if (deliveryAvailable &&
+        (number(deliveryMaximumDuration.text) == null ||
+            deliveryMaximumDuration.text.trim().isEmpty ||
+            deliveryDurationUnit.text.trim().isEmpty)) {
+      return fail('حدد المدة القصوى للتوصيل ووحدة المدة');
+    }
     final specifications = <String>[];
     void addSpecification(String label, String value) {
-      if (value.trim().isNotEmpty)
+      if (value.trim().isNotEmpty) {
         specifications.add('$label: ${value.trim()}');
+      }
     }
 
     addSpecification('GTIN / الباركود', gtin.text);
@@ -3911,7 +7140,7 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
       weight.text.trim().isEmpty ? '' : '${weight.text.trim()} $weightUnit',
     );
     addSpecification('اللون / التشطيب', color.text);
-    addSpecification('التعبئة والكمية داخل العبوة', packaging.text);
+    addSpecification('التعبئة', packaging.text);
     addSpecification('المواصفة أو شهادة المطابقة', standard.text);
     addSpecification('الاستخدام المخصص', intendedUse.text);
     addSpecification('السلامة والمناولة', safety.text);
@@ -3925,49 +7154,113 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
       if (variantValue.text.trim().isNotEmpty)
         {'type': variantType, 'value': variantValue.text.trim()},
     ];
+    final allAvailabilityRegions = <Map<String, String>>[
+      ...availabilityRegions,
+      if (availabilityCity.text.trim().isNotEmpty)
+        {'city': availabilityCity.text.trim(), 'scope': 'المدينة'},
+    ];
+    final allDeliveryRegions = <String>{
+      ...deliveryRegions,
+      if (deliveryRegion.text.trim().isNotEmpty) deliveryRegion.text.trim(),
+    }.toList();
     setState(() {
       formError = '';
       busy = true;
     });
     try {
-      final extension = image!.name.toLowerCase();
-      final mime =
-          image!.mimeType ??
-          (extension.endsWith('.png')
-              ? 'image/png'
-              : extension.endsWith('.webp')
-              ? 'image/webp'
-              : 'image/jpeg');
-      await widget.repository.createProviderProduct(
-        providerId: widget.providerId,
-        name: name.text.trim(),
-        categoryId: categoryId!,
-        categoryTone: categoryTone ?? 'tools',
-        baseUnit: unit,
-        description: description.text.trim(),
-        sku: sku.text.trim().isEmpty ? null : sku.text.trim(),
-        unitPrice: unitPrice,
-        minimumOrder: minimumOrder,
-        stockQuantity: stockQuantity,
-        availabilityStatus: availability,
-        leadTime: leadTime.text.trim(),
-        deliveryWindow: deliveryWindow.text.trim(),
-        deliveryNotes: deliveryNotes.text.trim(),
-        vatInclusive: vatInclusive,
-        offerType: offerType,
-        rentalDuration: rentalValue,
-        rentalDurationUnit: offerType == 'rental' ? rentalUnit : null,
-        measurements: allMeasurements,
-        variants: allVariants,
-        specifications: specifications,
-        warrantyDuration: hasWarranty ? warrantyDuration.text.trim() : null,
-        warrantyDetails: hasWarranty ? warrantyDetails.text.trim() : null,
-        imageBytes: imageBytes!,
-        imageName: image!.name,
-        imageMime: mime,
-      );
+      final extension = image?.name.toLowerCase() ?? '';
+      final mime = image == null
+          ? null
+          : image!.mimeType ??
+                (extension.endsWith('.png')
+                    ? 'image/png'
+                    : extension.endsWith('.webp')
+                    ? 'image/webp'
+                    : 'image/jpeg');
+      if (editing) {
+        await widget.repository.requestProductChange(
+          product: widget.existingProduct!,
+          name: name.text.trim(),
+          categoryId: categoryId!,
+          customCategory: categoryId == 'other'
+              ? customCategory.text.trim()
+              : null,
+          baseUnit: unit,
+          description: description.text.trim(),
+          sku: sku.text.trim().isEmpty ? null : sku.text.trim(),
+          unitPrice: unitPrice,
+          minimumOrder: minimumOrder,
+          stockQuantity: stockQuantity,
+          availabilityStatus: availability,
+          leadTime: leadTime.text.trim(),
+          deliveryWindow: deliveryWindow.text.trim(),
+          deliveryNotes: deliveryNotes.text.trim(),
+          vatInclusive: vatInclusive,
+          offerType: offerType,
+          rentalDuration: rentalValue,
+          rentalDurationUnit: offerType == 'rental' ? rentalUnit : null,
+          measurements: allMeasurements,
+          variants: allVariants,
+          specifications: specifications,
+          warrantyDuration: hasWarranty ? warrantyDuration.text.trim() : null,
+          warrantyDetails: hasWarranty ? warrantyDetails.text.trim() : null,
+          retainedImageIds: retainedImageIds.toList(),
+          availabilityRegions: allAvailabilityRegions,
+          deliveryRegions: allDeliveryRegions,
+          deliveryAvailable: deliveryAvailable,
+          deliveryMaximumDuration: number(deliveryMaximumDuration.text),
+          deliveryDurationUnit: deliveryDurationUnit.text.trim().isEmpty
+              ? null
+              : deliveryDurationUnit.text.trim(),
+          deliveryPricePerKm: number(deliveryPricePerKm.text),
+          deliveryMaximumDistanceKm: number(deliveryMaximumDistanceKm.text),
+          deliveryConfigNotes: deliveryConfigNotes.text.trim().isEmpty
+              ? null
+              : deliveryConfigNotes.text.trim(),
+          requestNote: requestNote.text.trim().isEmpty
+              ? null
+              : requestNote.text.trim(),
+          imageBytes: imageBytes,
+          imageName: image?.name,
+          imageMime: mime,
+        );
+      } else {
+        await widget.repository.createProviderProduct(
+          providerId: widget.providerId,
+          name: name.text.trim(),
+          categoryId: categoryId!,
+          categoryTone: categoryTone ?? 'tools',
+          baseUnit: unit,
+          description: description.text.trim(),
+          sku: sku.text.trim().isEmpty ? null : sku.text.trim(),
+          unitPrice: unitPrice,
+          minimumOrder: minimumOrder,
+          stockQuantity: stockQuantity,
+          availabilityStatus: availability,
+          leadTime: leadTime.text.trim(),
+          deliveryWindow: deliveryWindow.text.trim(),
+          deliveryNotes: deliveryNotes.text.trim(),
+          vatInclusive: vatInclusive,
+          offerType: offerType,
+          rentalDuration: rentalValue,
+          rentalDurationUnit: offerType == 'rental' ? rentalUnit : null,
+          measurements: allMeasurements,
+          variants: allVariants,
+          specifications: specifications,
+          warrantyDuration: hasWarranty ? warrantyDuration.text.trim() : null,
+          warrantyDetails: hasWarranty ? warrantyDetails.text.trim() : null,
+          imageBytes: imageBytes!,
+          imageName: image!.name,
+          imageMime: mime!,
+        );
+      }
       if (!mounted) return;
-      _notice(context, 'تم إرسال المنتج للإدارة للمراجعة');
+      _notice(
+        context,
+        editing
+            ? 'تم إرسال طلب تعديل المنتج للإدارة للمراجعة'
+            : 'تم إرسال المنتج للإدارة للمراجعة',
+      );
       Navigator.pop(context, true);
     } catch (error) {
       fail(_clean(error));
@@ -4008,20 +7301,24 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
                 ),
               ),
               const SizedBox(width: 12),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'إضافة منتج جديد',
-                      style: TextStyle(
+                      widget.existingProduct == null
+                          ? 'إضافة منتج جديد'
+                          : 'طلب تعديل بيانات المنتج',
+                      style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
                     Text(
-                      'أدخل بيانات البيع وسيصل المنتج للإدارة للمراجعة.',
-                      style: TextStyle(
+                      widget.existingProduct == null
+                          ? 'أدخل بيانات البيع وسيصل المنتج للإدارة للمراجعة.'
+                          : 'عدّل أي بيان؛ ستشاهد الإدارة القيمة السابقة والجديدة قبل الاعتماد.',
+                      style: const TextStyle(
                         color: BunyaColors.muted,
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
@@ -4037,6 +7334,45 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
             ],
           ),
           const SizedBox(height: 18),
+          if (widget.existingProduct != null) ...[
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF7ED),
+                border: Border.all(color: const Color(0xFFE2C8A8)),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: const Text(
+                'لن تتغير بطاقة المنتج المنشورة الآن. تُطبّق البيانات الجديدة فقط بعد اعتماد الإدارة.',
+                style: TextStyle(fontWeight: FontWeight.w800, height: 1.5),
+              ),
+            ),
+            const SizedBox(height: 12),
+            ...(((widget.existingProduct!['product_images'] as List?) ??
+                    const [])
+                .map((raw) {
+                  final item = Map<String, dynamic>.from(raw as Map);
+                  final id = '${item['id'] ?? ''}';
+                  return CheckboxListTile(
+                    value: retainedImageIds.contains(id),
+                    onChanged: busy
+                        ? null
+                        : (value) => setState(() {
+                            if (value == true) {
+                              retainedImageIds.add(id);
+                            } else {
+                              retainedImageIds.remove(id);
+                            }
+                          }),
+                    title: Text(
+                      '${item['file_name'] ?? item['label'] ?? 'صورة المنتج'}',
+                    ),
+                    subtitle: const Text('أبقِ الصورة ضمن النسخة المقترحة'),
+                    secondary: const Icon(Icons.image_outlined),
+                    contentPadding: EdgeInsets.zero,
+                  );
+                })),
+          ],
           InkWell(
             onTap: busy ? null : pickImage,
             borderRadius: BorderRadius.circular(24),
@@ -4049,20 +7385,22 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
                 border: Border.all(color: BunyaColors.line),
               ),
               child: imageBytes == null
-                  ? const Column(
+                  ? Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.add_photo_alternate_outlined,
                           size: 46,
                           color: BunyaColors.copper,
                         ),
                         SizedBox(height: 8),
                         Text(
-                          'اختر صورة واضحة للمنتج',
-                          style: TextStyle(fontWeight: FontWeight.w900),
+                          widget.existingProduct == null
+                              ? 'اختر صورة واضحة للمنتج'
+                              : 'إضافة صورة جديدة إلى النسخة المقترحة',
+                          style: const TextStyle(fontWeight: FontWeight.w900),
                         ),
-                        Text(
+                        const Text(
                           'JPG أو PNG أو WebP — بحد أقصى 5MB',
                           style: TextStyle(
                             color: BunyaColors.muted,
@@ -4091,19 +7429,29 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
           FutureBuilder<List<Map<String, dynamic>>>(
             future: categories,
             builder: (_, snapshot) => DropdownButtonFormField<String>(
-              initialValue: categoryId,
+              initialValue: categoryId == 'other'
+                  ? 'other'
+                  : (snapshot.data ?? const []).any(
+                      (item) => '${item['id']}' == categoryId,
+                    )
+                  ? categoryId
+                  : null,
               decoration: const InputDecoration(
                 labelText: 'التصنيف',
                 prefixIcon: Icon(Icons.category_outlined),
               ),
-              items: (snapshot.data ?? const [])
-                  .map(
-                    (item) => DropdownMenuItem<String>(
-                      value: '${item['id']}',
-                      child: Text('${item['name']}'),
-                    ),
-                  )
-                  .toList(),
+              items: [
+                ...(snapshot.data ?? const []).map(
+                  (item) => DropdownMenuItem<String>(
+                    value: '${item['id']}',
+                    child: Text('${item['name']}'),
+                  ),
+                ),
+                const DropdownMenuItem<String>(
+                  value: 'other',
+                  child: Text('تصنيف آخر'),
+                ),
+              ],
               onChanged: (value) {
                 Map<String, dynamic>? selected;
                 for (final item in snapshot.data ?? const []) {
@@ -4116,6 +7464,16 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
               },
             ),
           ),
+          if (categoryId == 'other') ...[
+            const SizedBox(height: 10),
+            TextField(
+              controller: customCategory,
+              decoration: const InputDecoration(
+                labelText: 'اسم التصنيف الآخر',
+                prefixIcon: Icon(Icons.edit_outlined),
+              ),
+            ),
+          ],
           const SizedBox(height: 10),
           DropdownButtonFormField<String>(
             initialValue: unit,
@@ -4124,7 +7482,8 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
               prefixIcon: Icon(Icons.straighten_rounded),
             ),
             items:
-                const [
+                <String>{
+                      unit,
                       'حبة',
                       'كيس',
                       'طن',
@@ -4133,7 +7492,7 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
                       'متر مكعب',
                       'لفة',
                       'كرتون',
-                    ]
+                    }
                     .map(
                       (value) =>
                           DropdownMenuItem(value: value, child: Text(value)),
@@ -4637,6 +7996,165 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
               alignLabelWithHint: true,
             ),
           ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: availabilityCity,
+            onSubmitted: (_) {
+              final city = availabilityCity.text.trim();
+              if (city.isEmpty ||
+                  availabilityRegions.any((item) => item['city'] == city)) {
+                return;
+              }
+              setState(() {
+                availabilityRegions.add({'city': city, 'scope': 'المدينة'});
+                availabilityCity.clear();
+              });
+            },
+            decoration: InputDecoration(
+              labelText: 'مدينة توفر المنتج',
+              hintText: 'اكتب المدينة ثم اضغط إضافة',
+              suffixIcon: IconButton(
+                onPressed: () {
+                  final city = availabilityCity.text.trim();
+                  if (city.isEmpty ||
+                      availabilityRegions.any((item) => item['city'] == city)) {
+                    return;
+                  }
+                  setState(() {
+                    availabilityRegions.add({'city': city, 'scope': 'المدينة'});
+                    availabilityCity.clear();
+                  });
+                },
+                icon: const Icon(Icons.add_location_alt_outlined),
+              ),
+            ),
+          ),
+          if (availabilityRegions.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              children: [
+                for (final item in availabilityRegions)
+                  InputChip(
+                    label: Text(item['city'] ?? ''),
+                    onDeleted: () =>
+                        setState(() => availabilityRegions.remove(item)),
+                  ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 10),
+          TextField(
+            controller: deliveryRegion,
+            onSubmitted: (_) {
+              final region = deliveryRegion.text.trim();
+              if (region.isEmpty || deliveryRegions.contains(region)) return;
+              setState(() {
+                deliveryRegions.add(region);
+                deliveryRegion.clear();
+              });
+            },
+            decoration: InputDecoration(
+              labelText: 'منطقة التوصيل',
+              hintText: 'اكتب المنطقة ثم اضغط إضافة',
+              suffixIcon: IconButton(
+                onPressed: () {
+                  final region = deliveryRegion.text.trim();
+                  if (region.isEmpty || deliveryRegions.contains(region)) {
+                    return;
+                  }
+                  setState(() {
+                    deliveryRegions.add(region);
+                    deliveryRegion.clear();
+                  });
+                },
+                icon: const Icon(Icons.add_road_outlined),
+              ),
+            ),
+          ),
+          if (deliveryRegions.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              children: [
+                for (final region in deliveryRegions)
+                  InputChip(
+                    label: Text(region),
+                    onDeleted: () =>
+                        setState(() => deliveryRegions.remove(region)),
+                  ),
+              ],
+            ),
+          ],
+          SwitchListTile.adaptive(
+            value: deliveryAvailable,
+            onChanged: (value) => setState(() => deliveryAvailable = value),
+            title: const Text(
+              'خدمة توصيل خاصة بهذا المنتج متاحة',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+            contentPadding: EdgeInsets.zero,
+          ),
+          if (deliveryAvailable) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: deliveryMaximumDuration,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'المدة القصوى للتوصيل',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: TextField(
+                    controller: deliveryDurationUnit,
+                    decoration: const InputDecoration(labelText: 'وحدة المدة'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: deliveryPricePerKm,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'السعر لكل كم',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: TextField(
+                    controller: deliveryMaximumDistanceKm,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'أقصى مسافة كم',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: deliveryConfigNotes,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                labelText: 'ملاحظات خدمة التوصيل',
+              ),
+            ),
+          ],
           const SizedBox(height: 8),
           SwitchListTile.adaptive(
             value: vatInclusive,
@@ -4647,6 +8165,18 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
             ),
             contentPadding: EdgeInsets.zero,
           ),
+          if (widget.existingProduct != null) ...[
+            const SizedBox(height: 10),
+            TextField(
+              controller: requestNote,
+              maxLines: 3,
+              maxLength: 1000,
+              decoration: const InputDecoration(
+                labelText: 'سبب التعديل أو ملاحظة للإدارة',
+                alignLabelWithHint: true,
+              ),
+            ),
+          ],
           if (formError.isNotEmpty) ...[
             const SizedBox(height: 8),
             Container(
@@ -4679,7 +8209,11 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
                     ),
                   )
                 : const Icon(Icons.send_rounded),
-            label: const Text('إرسال المنتج للمراجعة'),
+            label: Text(
+              widget.existingProduct == null
+                  ? 'إرسال المنتج للمراجعة'
+                  : 'إرسال طلب التعديل للإدارة',
+            ),
           ),
         ],
       ),
@@ -4738,6 +8272,364 @@ class _ProductFormHeading extends StatelessWidget {
   );
 }
 
+class _ProductChangeReviewSheet extends StatefulWidget {
+  const _ProductChangeReviewSheet({
+    required this.row,
+    required this.repository,
+  });
+  final Map<String, dynamic> row;
+  final WorkspaceRepository repository;
+
+  @override
+  State<_ProductChangeReviewSheet> createState() =>
+      _ProductChangeReviewSheetState();
+}
+
+class _ProductChangeReviewSheetState extends State<_ProductChangeReviewSheet> {
+  final note = TextEditingController();
+  bool busy = false;
+
+  static const sectionLabels = <String, String>{
+    'core': 'البيانات الأساسية والسعر والتوفر',
+    'images': 'صور المنتج',
+    'measurements': 'القياسات',
+    'variants': 'الخيارات والفئات',
+    'specifications': 'المواصفات الفنية',
+    'warranty': 'الضمان',
+    'availability_regions': 'مناطق التوفر',
+    'delivery_config': 'إعدادات التوصيل',
+    'delivery_regions': 'مناطق التوصيل',
+  };
+  static const fieldLabels = <String, String>{
+    'category_id': 'التصنيف',
+    'custom_category': 'التصنيف المخصص',
+    'sku': 'رمز SKU',
+    'name': 'اسم المنتج',
+    'base_unit': 'وحدة البيع',
+    'short_description': 'الوصف المختصر',
+    'description': 'الوصف',
+    'full_description': 'الوصف الكامل',
+    'availability_status': 'حالة التوفر',
+    'lead_time_label': 'مدة التجهيز',
+    'delivery_window': 'مدة التوصيل',
+    'delivery_notes': 'تعليمات التوصيل',
+    'offer_type': 'نوع العرض',
+    'unit_price': 'سعر الوحدة',
+    'minimum_order': 'الحد الأدنى للطلب',
+    'stock_quantity': 'كمية المخزون',
+    'vat_inclusive': 'السعر شامل الضريبة',
+    'rental_duration_value': 'مدة التأجير',
+    'rental_duration_unit': 'وحدة مدة التأجير',
+    'is_available': 'خدمة التوصيل متاحة',
+    'maximum_duration': 'المدة القصوى',
+    'duration_unit': 'وحدة المدة',
+    'price_per_km': 'سعر الكيلومتر',
+    'maximum_distance_km': 'أقصى مسافة',
+    'notes': 'ملاحظات',
+  };
+
+  @override
+  void dispose() {
+    note.dispose();
+    super.dispose();
+  }
+
+  String valueText(dynamic value) {
+    if (value == null || value == '') return 'غير مسجل';
+    if (value is bool) return value ? 'نعم' : 'لا';
+    if (value is num) return value.toString();
+    if (value is List) {
+      if (value.isEmpty) return 'لا توجد بيانات';
+      return [
+        for (var index = 0; index < value.length; index++)
+          '${index + 1}. ${valueText(value[index])}',
+      ].join('\n');
+    }
+    if (value is Map) {
+      final entries = value.entries
+          .where((entry) => entry.value != null && entry.value != '')
+          .map(
+            (entry) =>
+                '${fieldLabels['${entry.key}'] ?? entry.key}: ${valueText(entry.value)}',
+          )
+          .toList();
+      return entries.isEmpty ? 'لا توجد بيانات' : entries.join('\n');
+    }
+    const labels = {
+      'sale': 'بيع',
+      'rental': 'تأجير',
+      'available': 'متوفر',
+      'limited': 'كمية محدودة',
+      'on_request': 'حسب الطلب',
+      'unavailable': 'غير متوفر',
+    };
+    return labels['$value'] ?? '$value';
+  }
+
+  List<Map<String, dynamic>> comparisonRows(Map<String, dynamic> change) {
+    if (change['field'] != 'core') return [change];
+    final before = Map<String, dynamic>.from(
+      (change['before'] as Map?) ?? const {},
+    );
+    final after = Map<String, dynamic>.from(
+      (change['after'] as Map?) ?? const {},
+    );
+    final keys = <String>{...before.keys, ...after.keys};
+    return [
+      for (final key in keys)
+        if (jsonEncode(before[key]) != jsonEncode(after[key]))
+          {'field': key, 'before': before[key], 'after': after[key]},
+    ];
+  }
+
+  Future<void> decide(String decision) async {
+    if (note.text.trim().length < 5) {
+      return _notice(
+        context,
+        'اكتب ملاحظة واضحة من 5 أحرف على الأقل؛ ستصل إلى المزود',
+      );
+    }
+    setState(() => busy = true);
+    try {
+      await widget.repository.reviewProductChange(
+        '${widget.row['id']}',
+        decision,
+        note.text.trim(),
+      );
+      if (!mounted) return;
+      _notice(
+        context,
+        decision == 'approved'
+            ? 'تم اعتماد التعديلات وتحديث المنتج'
+            : 'تم رفض التعديلات وبقي المنتج دون تغيير',
+      );
+      Navigator.pop(context);
+    } catch (error) {
+      if (mounted) _notice(context, _clean(error));
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final product = widget.row['products'] is Map
+        ? Map<String, dynamic>.from(widget.row['products'] as Map)
+        : <String, dynamic>{};
+    final provider = widget.row['providers'] is Map
+        ? Map<String, dynamic>.from(widget.row['providers'] as Map)
+        : <String, dynamic>{};
+    final changes = ((widget.row['changes'] as List?) ?? const [])
+        .map((item) => Map<String, dynamic>.from(item as Map))
+        .toList();
+    final pending = widget.row['status'] == 'pending';
+    return SafeArea(
+      top: false,
+      child: Container(
+        height: MediaQuery.sizeOf(context).height * .95,
+        decoration: const BoxDecoration(
+          color: BunyaColors.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+        ),
+        child: ListView(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            12,
+            16,
+            MediaQuery.viewInsetsOf(context).bottom + 24,
+          ),
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: BunyaColors.mint,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(
+                    Icons.difference_outlined,
+                    color: BunyaColors.forest,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${product['name'] ?? 'طلب تعديل منتج'}',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      Text(
+                        '${provider['company_name'] ?? 'منشأة مزودة'}',
+                        style: const TextStyle(
+                          color: BunyaColors.muted,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton.filledTonal(
+                  onPressed: busy ? null : () => Navigator.pop(context),
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ],
+            ),
+            if ('${widget.row['request_note'] ?? ''}'.trim().isNotEmpty) ...[
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF6EA),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFE4CCAE)),
+                ),
+                child: Text(
+                  'ملاحظة المزود\n${widget.row['request_note']}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    height: 1.6,
+                  ),
+                ),
+              ),
+            ],
+            for (final change in changes) ...[
+              const SizedBox(height: 14),
+              Text(
+                sectionLabels['${change['field']}'] ?? '${change['field']}',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 7),
+              for (final row in comparisonRows(change))
+                Container(
+                  margin: const EdgeInsets.only(bottom: 9),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(17),
+                    border: Border.all(color: BunyaColors.line),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        change['field'] == 'core'
+                            ? fieldLabels['${row['field']}'] ??
+                                  '${row['field']}'
+                            : 'التغيير الكامل',
+                        style: const TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                      const SizedBox(height: 9),
+                      _ProductChangeValue(
+                        label: 'قبل التعديل',
+                        value: valueText(row['before']),
+                        after: false,
+                      ),
+                      const SizedBox(height: 7),
+                      _ProductChangeValue(
+                        label: 'بعد التعديل',
+                        value: valueText(row['after']),
+                        after: true,
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+            if (pending) ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: note,
+                maxLines: 3,
+                maxLength: 1000,
+                decoration: const InputDecoration(
+                  labelText: 'ملاحظة القرار للمزود',
+                  alignLabelWithHint: true,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: busy ? null : () => decide('rejected'),
+                      icon: const Icon(Icons.close_rounded),
+                      label: const Text('رفض التعديلات'),
+                    ),
+                  ),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: busy ? null : () => decide('approved'),
+                      icon: const Icon(Icons.check_rounded),
+                      label: Text(busy ? 'جارٍ الحفظ…' : 'اعتماد التعديلات'),
+                    ),
+                  ),
+                ],
+              ),
+            ] else ...[
+              const SizedBox(height: 12),
+              Text(
+                widget.row['status'] == 'approved'
+                    ? 'تم اعتماد هذه التعديلات.'
+                    : 'تم رفض هذه التعديلات.',
+                style: const TextStyle(fontWeight: FontWeight.w900),
+              ),
+              Text('${widget.row['review_reason'] ?? ''}'),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProductChangeValue extends StatelessWidget {
+  const _ProductChangeValue({
+    required this.label,
+    required this.value,
+    required this.after,
+  });
+  final String label, value;
+  final bool after;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(11),
+    decoration: BoxDecoration(
+      color: after ? const Color(0xFFEAF6EE) : const Color(0xFFF3F0EC),
+      borderRadius: BorderRadius.circular(13),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: BunyaColors.muted,
+            fontSize: 10,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          value,
+          style: const TextStyle(fontWeight: FontWeight.w700, height: 1.5),
+        ),
+      ],
+    ),
+  );
+}
+
 class _ProductRecordDetails extends StatefulWidget {
   const _ProductRecordDetails({
     required this.row,
@@ -4755,6 +8647,17 @@ class _ProductRecordDetails extends StatefulWidget {
 class _ProductRecordDetailsState extends State<_ProductRecordDetails> {
   final note = TextEditingController();
   bool busy = false;
+  bool categoryBusy = false;
+  String? categoryId;
+  late final Future<List<Map<String, dynamic>>> categories;
+
+  @override
+  void initState() {
+    super.initState();
+    categoryId = '${widget.row['category_id'] ?? ''}'.trim();
+    if (categoryId!.isEmpty) categoryId = null;
+    categories = widget.repository.productCategories();
+  }
 
   @override
   void dispose() {
@@ -4781,6 +8684,52 @@ class _ProductRecordDetailsState extends State<_ProductRecordDetails> {
     } finally {
       if (mounted) setState(() => busy = false);
     }
+  }
+
+  Future<void> saveCategory(List<Map<String, dynamic>> values) async {
+    final selectedId = categoryId;
+    if (selectedId == null || categoryBusy) return;
+    setState(() => categoryBusy = true);
+    try {
+      await widget.repository.updateProductCategory(
+        '${widget.row['id']}',
+        selectedId,
+      );
+      final selected = values.firstWhere(
+        (item) => '${item['id']}' == selectedId,
+      );
+      widget.row['category_id'] = selectedId;
+      widget.row['custom_category'] = null;
+      widget.row['product_categories'] = {
+        'id': selectedId,
+        'name': selected['name'],
+      };
+      if (mounted) {
+        _notice(context, 'تم تحديث تصنيف المنتج');
+        setState(() {});
+      }
+    } catch (error) {
+      if (mounted) _notice(context, _clean(error));
+    } finally {
+      if (mounted) setState(() => categoryBusy = false);
+    }
+  }
+
+  Future<void> requestChange() async {
+    final providerId =
+        widget.module.filterValue ?? '${widget.row['provider_id'] ?? ''}';
+    if (providerId.isEmpty) return;
+    final changed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _CreateProductSheet(
+        repository: widget.repository,
+        providerId: providerId,
+        existingProduct: widget.row,
+      ),
+    );
+    if (changed == true && mounted) Navigator.pop(context);
   }
 
   @override
@@ -4839,6 +8788,15 @@ class _ProductRecordDetailsState extends State<_ProductRecordDetails> {
     final canReview =
         widget.module.action == 'product_review' &&
         row['review_status'] == 'pending_review';
+    final pendingChanges =
+        ((row['product_change_requests'] as List?) ?? const []).any(
+          (item) => (item as Map)['status'] == 'pending',
+        );
+    final canRequestChange =
+        widget.module.action == 'provider_products' &&
+        row['review_status'] == 'approved' &&
+        row['is_published'] == true &&
+        !pendingChanges;
 
     return SafeArea(
       top: false,
@@ -4940,6 +8898,108 @@ class _ProductRecordDetailsState extends State<_ProductRecordDetails> {
                       ),
                     ),
                     const SizedBox(height: 18),
+                    if (canRequestChange || pendingChanges) ...[
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: canRequestChange ? requestChange : null,
+                          icon: Icon(
+                            pendingChanges
+                                ? Icons.hourglass_top_rounded
+                                : Icons.edit_note_rounded,
+                          ),
+                          label: Text(
+                            pendingChanges
+                                ? 'طلب التعديل بانتظار الإدارة'
+                                : 'طلب تعديل بيانات المنتج',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                    ],
+                    if (canReview) ...[
+                      FutureBuilder<List<Map<String, dynamic>>>(
+                        future: categories,
+                        builder: (context, snapshot) {
+                          final values = snapshot.data ?? const [];
+                          final unchanged =
+                              categoryId ==
+                              '${widget.row['category_id'] ?? ''}';
+                          return Container(
+                            padding: const EdgeInsets.all(15),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFF8EE),
+                              border: Border.all(
+                                color: const Color(0xFFE4CCAE),
+                              ),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'تصنيف المنتج',
+                                  style: TextStyle(fontWeight: FontWeight.w900),
+                                ),
+                                const SizedBox(height: 4),
+                                const Text(
+                                  'صحح التصنيف قبل الاعتماد ليصل طلب التسعير إلى المزودين المطابقين.',
+                                  style: TextStyle(
+                                    color: BunyaColors.muted,
+                                    fontSize: 12,
+                                    height: 1.5,
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                DropdownButtonFormField<String>(
+                                  key: ValueKey(
+                                    '${categoryId ?? 'none'}-${values.length}',
+                                  ),
+                                  initialValue:
+                                      values.any(
+                                        (item) => '${item['id']}' == categoryId,
+                                      )
+                                      ? categoryId
+                                      : null,
+                                  items: values
+                                      .map(
+                                        (item) => DropdownMenuItem<String>(
+                                          value: '${item['id']}',
+                                          child: Text('${item['name']}'),
+                                        ),
+                                      )
+                                      .toList(),
+                                  onChanged: categoryBusy
+                                      ? null
+                                      : (value) =>
+                                            setState(() => categoryId = value),
+                                  decoration: const InputDecoration(
+                                    labelText: 'التصنيف المعتمد',
+                                  ),
+                                ),
+                                const SizedBox(height: 9),
+                                FilledButton.icon(
+                                  onPressed:
+                                      categoryBusy ||
+                                          categoryId == null ||
+                                          values.isEmpty ||
+                                          unchanged
+                                      ? null
+                                      : () => saveCategory(values),
+                                  icon: const Icon(Icons.save_outlined),
+                                  label: Text(
+                                    categoryBusy
+                                        ? 'جارٍ الحفظ…'
+                                        : 'حفظ التصنيف',
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                     Row(
                       children: [
                         Expanded(
@@ -5315,12 +9375,111 @@ class _RecordDetails extends StatefulWidget {
 
 class _RecordDetailsState extends State<_RecordDetails> {
   final note = TextEditingController();
+  final deliveryCode = TextEditingController();
+  late Future<Map<String, dynamic>?> delivery;
+  late Future<List<Map<String, dynamic>>> drivers;
+  String? selectedDriverId;
   bool busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    delivery = widget.module.action == 'fulfillment'
+        ? widget.repository.providerDeliveryForFulfillment(
+            '${widget.row['id']}',
+          )
+        : Future.value(null);
+    drivers = widget.module.action == 'fulfillment'
+        ? widget.repository.providerDrivers()
+        : Future.value(const []);
+  }
 
   @override
   void dispose() {
     note.dispose();
+    deliveryCode.dispose();
     super.dispose();
+  }
+
+  Future<void> confirmProviderDelivery(String assignmentId) async {
+    final code = deliveryCode.text.replaceAll(RegExp(r'\D'), '');
+    if (code.length < 4) {
+      _notice(context, 'أدخل رمز التسليم الذي وصل للعميل.');
+      return;
+    }
+    setState(() => busy = true);
+    try {
+      final accepted = await widget.repository.confirmDelivery(
+        assignmentId,
+        code,
+      );
+      if (!mounted) return;
+      _notice(
+        context,
+        accepted
+            ? 'تم إثبات التسليم وإغلاق الطلب وإرسال الإشعارات.'
+            : 'الرمز غير صحيح أو منتهي أو تم قفل المحاولات.',
+      );
+      if (accepted) {
+        deliveryCode.clear();
+        setState(() {
+          delivery = widget.repository.providerDeliveryForFulfillment(
+            '${widget.row['id']}',
+          );
+        });
+      }
+    } catch (error) {
+      if (mounted) _notice(context, _clean(error));
+    }
+    if (mounted) setState(() => busy = false);
+  }
+
+  void reloadDeliveryResources() {
+    setState(() {
+      delivery = widget.repository.providerDeliveryForFulfillment(
+        '${widget.row['id']}',
+      );
+      drivers = widget.repository.providerDrivers();
+    });
+  }
+
+  Future<void> assignDriver() async {
+    final driverId = selectedDriverId;
+    if (driverId == null || driverId.isEmpty) {
+      _notice(context, 'اختر سائقًا نشطًا أولًا.');
+      return;
+    }
+    setState(() => busy = true);
+    try {
+      final message = await widget.repository.assignDeliveryDriver(
+        '${widget.row['id']}',
+        driverId,
+      );
+      if (!mounted) return;
+      selectedDriverId = null;
+      _notice(context, message);
+      reloadDeliveryResources();
+    } catch (error) {
+      if (mounted) _notice(context, _clean(error));
+    }
+    if (mounted) setState(() => busy = false);
+  }
+
+  Future<void> addDriverFromOrder() async {
+    final added = await showModalBottomSheet<bool>(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _CreateDriverSheet(repository: widget.repository),
+    );
+    if (added == true && mounted) {
+      reloadDeliveryResources();
+      _notice(
+        context,
+        'أُضيف السائق. بعد أول دخول وتغيير كلمة المرور سيصبح متاحًا للإسناد.',
+      );
+    }
   }
 
   Future<void> fulfillmentAction() async {
@@ -5502,6 +9661,258 @@ class _RecordDetailsState extends State<_RecordDetails> {
                     }).toList(),
                   ),
                 ),
+              if (widget.module.action == 'fulfillment') ...[
+                const SizedBox(height: 18),
+                FutureBuilder<Map<String, dynamic>?>(
+                  future: delivery,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    final assignment = snapshot.data;
+                    if (assignment == null) return const SizedBox.shrink();
+                    final driver = assignment['provider_drivers'] is Map
+                        ? Map<String, dynamic>.from(
+                            assignment['provider_drivers'] as Map,
+                          )
+                        : const <String, dynamic>{};
+                    final deliveryStatus = '${assignment['status']}';
+                    final fulfillmentStatus = '${widget.row['status']}';
+                    final hasAssignedDriver =
+                        '${assignment['assigned_driver_id'] ?? ''}'.isNotEmpty;
+                    final canAssignDriver =
+                        const {
+                          'ready',
+                          'out_for_delivery',
+                        }.contains(fulfillmentStatus) &&
+                        !const {
+                          'delivered',
+                          'failed_delivery',
+                        }.contains(deliveryStatus) &&
+                        (!hasAssignedDriver || deliveryStatus == 'assigned');
+                    return Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF8EF),
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(color: const Color(0xFFE6C9B1)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.local_shipping_outlined,
+                                color: BunyaColors.copper,
+                              ),
+                              const SizedBox(width: 8),
+                              const Expanded(
+                                child: Text(
+                                  'التوصيل ورمز العميل',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+                              _MiniStatus(text: _status(deliveryStatus)),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          _Facts(
+                            values: {
+                              'السائق المسند':
+                                  '${driver['full_name'] ?? 'لم يُسند سائق'}',
+                              'رقم السائق': '${driver['mobile'] ?? '—'}',
+                              'موعد التوصيل': _date(assignment['expected_at']),
+                            },
+                          ),
+                          if (canAssignDriver) ...[
+                            const SizedBox(height: 14),
+                            Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(color: BunyaColors.line),
+                              ),
+                              child: FutureBuilder<List<Map<String, dynamic>>>(
+                                future: drivers,
+                                builder: (context, driverSnapshot) {
+                                  if (driverSnapshot.connectionState ==
+                                      ConnectionState.waiting) {
+                                    return const Center(
+                                      child: CircularProgressIndicator(),
+                                    );
+                                  }
+                                  final allDrivers =
+                                      driverSnapshot.data ?? const [];
+                                  final activeDrivers = allDrivers
+                                      .where(
+                                        (item) => item['status'] == 'active',
+                                      )
+                                      .toList();
+                                  final pendingDrivers = allDrivers
+                                      .where(
+                                        (item) =>
+                                            item['status'] ==
+                                            'must_change_password',
+                                      )
+                                      .length;
+                                  return Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      Text(
+                                        hasAssignedDriver
+                                            ? 'تغيير السائق قبل بدء الرحلة'
+                                            : 'إسناد الطلب إلى سائق',
+                                        style: const TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        hasAssignedDriver
+                                            ? 'يمكن تغيير السائق ما دامت الرحلة لم تبدأ.'
+                                            : 'بعد الإسناد يظهر الطلب في حساب السائق وتصل تفاصيل المهمة للعميل والسائق.',
+                                        style: const TextStyle(
+                                          color: BunyaColors.muted,
+                                          height: 1.55,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      if (activeDrivers.isNotEmpty) ...[
+                                        DropdownButtonFormField<String>(
+                                          key: ValueKey(
+                                            selectedDriverId ?? 'no-driver',
+                                          ),
+                                          initialValue: selectedDriverId,
+                                          decoration: const InputDecoration(
+                                            labelText: 'السائق النشط',
+                                            prefixIcon: Icon(
+                                              Icons.badge_outlined,
+                                            ),
+                                          ),
+                                          items: activeDrivers
+                                              .map(
+                                                (item) => DropdownMenuItem(
+                                                  value: '${item['id']}',
+                                                  child: Text(
+                                                    '${item['full_name']} · ${item['mobile']}',
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                              )
+                                              .toList(),
+                                          onChanged: busy
+                                              ? null
+                                              : (value) => setState(
+                                                  () =>
+                                                      selectedDriverId = value,
+                                                ),
+                                        ),
+                                        const SizedBox(height: 9),
+                                        FilledButton.icon(
+                                          onPressed:
+                                              busy || selectedDriverId == null
+                                              ? null
+                                              : assignDriver,
+                                          icon: const Icon(
+                                            Icons.assignment_ind_outlined,
+                                          ),
+                                          label: Text(
+                                            busy
+                                                ? 'جارٍ الإسناد…'
+                                                : 'إسناد الطلب للسائق',
+                                          ),
+                                        ),
+                                      ] else
+                                        Container(
+                                          padding: const EdgeInsets.all(11),
+                                          decoration: BoxDecoration(
+                                            color: BunyaColors.sand,
+                                            borderRadius: BorderRadius.circular(
+                                              14,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            pendingDrivers > 0
+                                                ? 'يوجد $pendingDrivers سائق بانتظار أول دخول وتغيير كلمة المرور. بعدها يصبح متاحًا للإسناد.'
+                                                : 'لا يوجد سائق نشط في المنشأة حتى الآن.',
+                                            style: const TextStyle(
+                                              color: BunyaColors.muted,
+                                              height: 1.6,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ),
+                                      const SizedBox(height: 5),
+                                      TextButton.icon(
+                                        onPressed: busy
+                                            ? null
+                                            : addDriverFromOrder,
+                                        icon: const Icon(
+                                          Icons.person_add_alt_1_rounded,
+                                        ),
+                                        label: const Text(
+                                          'إضافة سائق جديد من التطبيق',
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
+                          if (deliveryStatus == 'arrived') ...[
+                            const SizedBox(height: 12),
+                            const Text(
+                              'أدخل الرمز الذي وصل للعميل بعد استلامه كامل البضاعة.',
+                              style: TextStyle(
+                                color: BunyaColors.muted,
+                                height: 1.6,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: deliveryCode,
+                              keyboardType: TextInputType.number,
+                              textDirection: TextDirection.ltr,
+                              maxLength: 12,
+                              autofillHints: const [AutofillHints.oneTimeCode],
+                              decoration: const InputDecoration(
+                                counterText: '',
+                                labelText: 'رمز التسليم',
+                              ),
+                            ),
+                            const SizedBox(height: 9),
+                            FilledButton.icon(
+                              onPressed: busy
+                                  ? null
+                                  : () => confirmProviderDelivery(
+                                      '${assignment['id']}',
+                                    ),
+                              icon: const Icon(Icons.verified_user_outlined),
+                              label: Text(
+                                busy
+                                    ? 'جارٍ التحقق…'
+                                    : 'تأكيد التسليم وإغلاق الطلب',
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ],
               if (widget.module.action == 'fulfillment' &&
                   const {'assigned', 'preparing'}.contains(row['status'])) ...[
                 const SizedBox(height: 22),
@@ -5734,23 +10145,53 @@ String _status(String value) =>
       'provisioned': 'تم إنشاء الحساب',
     }[value] ??
     value;
-String _roleLabel(String role) =>
-    const {
-      'admin': 'لوحة الإدارة',
-      'provider': 'لوحة المزود',
-      'contractor': 'لوحة المقاول',
-    }[role] ??
-    'حساب بُنية';
-String _welcome(String role) => role == 'admin'
-    ? 'المنصة تحت سيطرتك'
-    : role == 'provider'
-    ? 'حوّل الطلبات إلى مبيعات'
-    : 'فرصك ومشاريعك في مكان واحد';
-String _roleCaption(String role) => role == 'admin'
-    ? 'راقب، اعتمد، وتابع التشغيل من التطبيق.'
-    : role == 'provider'
-    ? 'استلم طلب التسعير ونفّذ التوريد والتوصيل.'
-    : 'استلم الفرص وقدّم العروض وتابع التنفيذ.';
+String _roleLabel(BuildContext context, String role) => context.tr(
+  const {
+        'admin': 'adminPortal',
+        'provider': 'providerPortal',
+        'contractor': 'contractorPortal',
+        'driver': 'driverPortal',
+      }[role] ??
+      'bunyaAccount',
+);
+
+String _welcome(BuildContext context, String role) => context.tr(
+  const {
+        'admin': 'adminWelcome',
+        'provider': 'providerWelcome',
+        'contractor': 'contractorWelcome',
+        'driver': 'driverWelcome',
+      }[role] ??
+      'bunyaAccount',
+);
+
+String _roleCaption(BuildContext context, String role) => context.tr(
+  const {
+        'admin': 'adminWelcomeCaption',
+        'provider': 'providerWelcomeCaption',
+        'contractor': 'contractorWelcomeCaption',
+        'driver': 'driverWelcomeCaption',
+      }[role] ??
+      'operationsAndServicesCaption',
+);
+
+String _metricLabel(BuildContext context, String label) => context.tr(
+  const {
+        'المنتجات': 'products',
+        'طلبات التسعير': 'pricingRequests',
+        'أوامر التوريد': 'supplyOrders',
+        'الفرص': 'opportunities',
+        'العروض': 'offers',
+        'المشاريع': 'projects',
+        'المهام النشطة': 'activeTasks',
+        'وصلت للموقع': 'arrivedAtSite',
+        'تم تسليمها': 'deliveredCount',
+        'طلبات المزودين': 'providerApplications',
+        'طلبات المقاولين': 'contractorApplications',
+        'مراجعة المنتجات': 'productReviews',
+      }[label] ??
+      label,
+);
 String _recordTitle(Map<String, dynamic> row, [WorkspaceModule? module]) {
   if (module?.table == 'audit_logs') {
     return _displayValue('action', row['action'] ?? 'إجراء جديد');
@@ -5801,6 +10242,7 @@ const _fieldLabels = <String, String>{
   'is_verified': 'تم التحقق',
   'created_at': 'تاريخ الإنشاء',
   'updated_at': 'آخر تحديث',
+  'last_active_at': 'آخر نشاط',
   'approved_at': 'تاريخ الاعتماد',
   'submitted_at': 'تاريخ الإرسال',
   'assigned_at': 'تاريخ الإسناد',

@@ -1,5 +1,6 @@
 "use client";
 
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
 import type { ReactNode } from "react";
 import { useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
@@ -51,14 +52,14 @@ export function AdminDecisionDialog({
 }) {
   const completed = Boolean(successMessage);
   const titleId = useId();
+  const reasonHintId = useId();
   const dialogRef = useRef<HTMLElement>(null);
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const unlockScroll = lockBodyScroll();
     const dialog = dialogRef.current;
     dialog?.focus();
-    return () => { document.body.style.overflow = previousOverflow; previous?.focus(); };
+    return () => { unlockScroll(); previous?.focus(); };
   }, []);
 
   return createPortal(
@@ -84,7 +85,9 @@ export function AdminDecisionDialog({
               placeholder={reasonLabel}
               autoFocus
               disabled={busy}
+              aria-describedby={reasonHintId}
             />
+            <small id={reasonHintId}>أدخل {minimumReasonLength} أحرف على الأقل لتفعيل زر التأكيد.</small>
           </label>
         ) : null}
         {errorMessage ? <p className="admin-decision-feedback admin-decision-error" role="alert">{errorMessage}</p> : null}
@@ -101,6 +104,7 @@ export function AdminDecisionDialog({
             className="admin-action-button admin-action-approve"
             onClick={() => void onConfirm()}
             disabled={busy || completed || (requiresReason && reason.trim().length < minimumReasonLength)}
+            aria-describedby={requiresReason && !completed ? reasonHintId : undefined}
           >
             {completed ? (
               <><span className="admin-action-check" aria-hidden="true">✓</span> تمت العملية</>

@@ -1,7 +1,8 @@
 param(
   [ValidateSet("web", "android")]
   [string]$Target = "web",
-  [int]$Port = 8090
+  [int]$Port = 8090,
+  [string]$AppUrl = "https://www.buniahksa.com"
 )
 
 $appRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -16,7 +17,8 @@ foreach ($line in Get-Content -LiteralPath $envFile -Encoding UTF8) {
 $supabaseUrl = $values["NEXT_PUBLIC_SUPABASE_URL"]
 $supabaseKey = $values["NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"]
 if (-not $supabaseKey) { $supabaseKey = $values["NEXT_PUBLIC_SUPABASE_ANON_KEY"] }
-$appUrl = "https://www.buniahksa.com"
+$appUrl = $AppUrl.TrimEnd('/')
+if (-not $appUrl) { throw "AppUrl cannot be empty." }
 if (-not $supabaseUrl -or -not $supabaseKey) { throw "Supabase public configuration is missing." }
 
 Push-Location $appRoot

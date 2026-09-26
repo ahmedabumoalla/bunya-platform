@@ -40,6 +40,7 @@ class ProductImageUrls {
                 .createSignedUrl(
                   path,
                   21600,
+                  cacheNonce: 'product-thumbnail-v3',
                   transform: const TransformOptions(
                     width: 640,
                     height: 640,
@@ -84,13 +85,19 @@ class ProductImageUrls {
       try {
         final signed = await client.storage
             .from('provider-product-images')
-            .createSignedUrls(missing, 21600);
+            .createSignedUrlsResult(
+              missing,
+              21600,
+              cacheNonce: 'product-original-v3',
+            );
         for (final item in signed) {
-          urls[item.path] = item.signedUrl;
-          _originalCache[item.path] = _CachedImageUrl(
-            item.signedUrl,
-            now.add(const Duration(hours: 5, minutes: 30)),
-          );
+          if (item case SignedUrlSuccess(:final path, :final signedUrl)) {
+            urls[path] = signedUrl;
+            _originalCache[path] = _CachedImageUrl(
+              signedUrl,
+              now.add(const Duration(hours: 5, minutes: 30)),
+            );
+          }
         }
       } catch (_) {
         // Keep the product usable even when media signing is unavailable.
@@ -139,9 +146,34 @@ class FastProductImage extends StatelessWidget {
     final secondaryUrl = primaryUrl == imageUrl ? originalUrl : imageUrl;
 
     if (primaryUrl.isEmpty) return empty();
+    if (kIsWeb) {
+      Widget webImage(String url, {required bool allowFallback}) =>
+          Image.network(
+            url,
+            key: ValueKey('product-web:${cacheKey ?? url}'),
+            width: double.infinity,
+            height: double.infinity,
+            fit: fit,
+            gaplessPlayback: true,
+            webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
+            errorBuilder: (_, _, _) {
+              if (allowFallback &&
+                  secondaryUrl.isNotEmpty &&
+                  secondaryUrl != url) {
+                return webImage(secondaryUrl, allowFallback: false);
+              }
+              return empty();
+            },
+          );
+
+      // Flutter Web can retain a stale/black GPU texture for a decoded image
+      // after route and option rebuilds. Prefer a browser <img> platform view
+      // so the browser owns the image lifecycle and painting instead.
+      return webImage(primaryUrl, allowFallback: true);
+    }
     return CachedNetworkImage(
       imageUrl: primaryUrl,
-      cacheKey: cacheKey == null ? null : '$cacheKey-primary-v2',
+      cacheKey: cacheKey == null ? null : '$cacheKey-primary-v3',
       fit: fit,
       memCacheWidth: memoryWidth,
       maxWidthDiskCache: 640,
@@ -151,7 +183,7 @@ class FastProductImage extends StatelessWidget {
         if (secondaryUrl.isEmpty || secondaryUrl == primaryUrl) return empty();
         return CachedNetworkImage(
           imageUrl: secondaryUrl,
-          cacheKey: cacheKey == null ? null : '$cacheKey-secondary-v2',
+          cacheKey: cacheKey == null ? null : '$cacheKey-secondary-v3',
           fit: fit,
           memCacheWidth: memoryWidth,
           maxWidthDiskCache: 640,

@@ -1,5 +1,6 @@
 /* Unified visual system for every admin route. Kept route-scoped through .admin-app. */
-.admin-app {
+.admin-app,
+.admin-modal-backdrop {
   --admin-bg: #f4efe8;
   --admin-surface: #fffdfa;
   --admin-surface-soft: #f8f3ec;
@@ -17,6 +18,8 @@
   --admin-warning: #966313;
   --admin-shadow-sm: 0 8px 24px rgb(45 37 29 / 0.06);
   --admin-shadow-md: 0 18px 46px rgb(45 37 29 / 0.09);
+}
+.admin-app {
   min-height: 100vh;
   color: var(--admin-text);
   background:
@@ -377,6 +380,19 @@
 .admin-danger,
 .admin-action-reject { border-color: #e6beba; color: var(--admin-danger); background: #fff4f2; }
 .admin-action-revision { border-color: #e9d3a7; color: var(--admin-warning); background: #fff9eb; }
+
+/* Dialogs are portaled outside .admin-app and cannot inherit its color tokens. */
+.admin-action-button.admin-action-approve {
+  border-color: #175a43;
+  background: #175a43;
+  color: #fff;
+}
+.admin-action-button.admin-action-approve:disabled {
+  border-color: #bccbc2;
+  background: #e4ebe6;
+  color: #43584c;
+  opacity: 1;
+}
 
 .admin-primary:hover,
 .admin-action-approve:hover,

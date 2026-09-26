@@ -13,3 +13,8 @@
 .heading h2 { font-weight: 600; }
 .modal { background: #fff; }
 .modal :is(button,input,select,textarea):focus-visible { outline: 3px solid #a0743e; outline-offset: 3px; }
+
+.modal button:disabled, .categoryEditor button:disabled {
+  background: #e4ebe6; color: #43584c; border-color: #bccbc2 !important;
+  opacity: 1; box-shadow: none; cursor: not-allowed; transform: none;
+}

@@ -185,3 +185,24 @@
 .admin-notification-list h2 { margin: 0 0 10px; font-size: 17px; }
 .admin-notification-list p { font-size: 14px; line-height: 1.9; white-space: pre-wrap; overflow-wrap: anywhere; }
 .admin-notification-list small { display: block; margin-block: 14px; color: #627357; }
+
+/* Readable actions in the admin layout and dialogs mounted outside it. */
+.admin-modal .admin-action-button { min-height: 44px; }
+.admin-modal .admin-action-neutral { background: #f0f4f1; border-color: #bccbc2; color: #314b3d; }
+.admin-modal .admin-action-revision { background: #fff8e9; border-color: #dec99c; color: #795014; }
+.admin-modal .admin-action-reject { background: #fff2ef; border-color: #e4b6b0; color: #973c34; }
+.admin-app button:disabled,
+.admin-modal button:disabled {
+  background: #e4ebe6 !important; color: #43584c !important;
+  border-color: #bccbc2 !important; opacity: 1 !important; box-shadow: none; cursor: not-allowed;
+}
+.admin-modal :is(button, textarea):focus-visible { outline: 3px solid #548367; outline-offset: 3px; }
+.admin-decision-modal label small { color: #52675a; font-size: 12px; line-height: 1.7; }
+.admin-app .admin-settlement-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.admin-app .admin-settlement-actions button { color: #175a43; background: #edf4ee; border-color: #b8cdbf; font-weight: 700; }
+.admin-app .admin-settlement-actions button[data-action='reject'],
+.admin-app .admin-settlement-actions button[data-action='cancel'],
+.admin-app .admin-settlement-actions button[data-action='fail'] { color: #973c34; background: #fff2ef; border-color: #e4b6b0; }
+.admin-app .admin-settlement-actions button[data-action='approve'],
+.admin-app .admin-settlement-actions button[data-action='process'],
+.admin-app .admin-settlement-actions button[data-action='paid'] { color: #fff; background: #175a43; border-color: #175a43; }

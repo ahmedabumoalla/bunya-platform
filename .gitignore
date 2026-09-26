@@ -38,6 +38,20 @@ yarn-error.log*
 # vercel
 .vercel
 
+# Local operational output and private signing material
+/tmp/
+/artifacts/
+/.tmp-supabase-auth-audit/
+/test-results/
+/supabase/.temp/
+**/__pycache__/
+**/*.pyc
+**/key.properties
+**/*.jks
+**/*.keystore
+**/*.p12
+**/*.mobileprovision
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

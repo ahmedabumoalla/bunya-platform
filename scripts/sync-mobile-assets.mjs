@@ -2,7 +2,7 @@ import path from "node:path";
 import sharp from "sharp";
 
 const root = process.cwd();
-const source = path.join(root, "public", "pwa", "icon-512.png");
+const source = path.join(root, "src", "app", "icon.png");
 const android = path.join(root, "android", "app", "src", "main", "res");
 const densities = { mdpi: 48, hdpi: 72, xhdpi: 96, xxhdpi: 144, xxxhdpi: 192 };
 

@@ -1,0 +1,43 @@
+# Manual iOS build only. Configure the private signing identity in Codemagic
+# after Apple approves organization enrollment. No automatic billing/build triggers.
+workflows:
+  bunya-ios-release:
+    name: Bunya iOS release
+    instance_type: mac_mini_m2
+    max_build_duration: 45
+    working_directory: apps/bunya_app
+    environment:
+      flutter: 3.47.0
+      xcode: latest
+      groups:
+        - bunya_mobile_public
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.buniahksa.app
+    scripts:
+      - name: Validate public client configuration
+        script: |
+          set -eu
+          : "${SUPABASE_URL:?Set the public Supabase URL in bunya_mobile_public}"
+          : "${SUPABASE_ANON_KEY:?Set the public Supabase publishable or anon key in bunya_mobile_public}"
+      - name: Install Flutter dependencies
+        script: flutter pub get
+      - name: Static analysis
+        script: flutter analyze
+      - name: Widget tests
+        script: flutter test
+      - name: Apply Apple signing profiles
+        script: xcode-project use-profiles
+      - name: Build signed IPA
+        script: |
+          set -eu
+          flutter build ipa --release --obfuscate \
+            --split-debug-info=build/symbols/ios \
+            --export-options-plist="$HOME/export_options.plist" \
+            --dart-define="SUPABASE_URL=$SUPABASE_URL" \
+            --dart-define="SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY" \
+            --dart-define=APP_URL=https://www.buniahksa.com
+    artifacts:
+      - apps/bunya_app/build/ios/ipa/*.ipa
+      - apps/bunya_app/build/ios/archive/*.xcarchive
+      - apps/bunya_app/build/symbols/ios/*

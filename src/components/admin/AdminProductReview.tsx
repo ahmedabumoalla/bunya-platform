@@ -1,5 +1,6 @@
 "use client";
 
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -190,8 +191,7 @@ export function AdminProductReview({ initialProductId }: { initialProductId?: st
 
   useEffect(() => {
     if (!selected) return;
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const unlockScroll = lockBodyScroll();
     const close = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !saving) {
         setSelected(null);
@@ -201,7 +201,7 @@ export function AdminProductReview({ initialProductId }: { initialProductId?: st
     };
     window.addEventListener("keydown", close);
     return () => {
-      document.body.style.overflow = previous;
+      unlockScroll();
       window.removeEventListener("keydown", close);
     };
   }, [saving, selected]);

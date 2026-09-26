@@ -1,0 +1,103 @@
+/* Self-contained: this dialog is portaled outside the admin layout. */
+.admin-modal-backdrop.admin-request-modal-backdrop {
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  overflow: hidden;
+  background: rgb(18 32 27 / 0.55);
+}
+.admin-modal.admin-request-modal {
+  --admin-text: #20372d;
+  --admin-muted: #62716a;
+  --admin-surface-strong: #fff;
+  --admin-line: #e1e8e3;
+  --admin-line-strong: #bccbc2;
+  --admin-danger: #a13430;
+  --admin-warning: #825613;
+  --admin-accent: #175a43;
+  --admin-accent-dark: #124533;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(960px, 100%);
+  max-width: none;
+  max-height: calc(100dvh - 48px);
+  min-height: 0;
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid #dbe5df;
+  border-radius: 24px;
+  background: #fff;
+  color: #20372d;
+  box-shadow: 0 28px 90px rgb(13 32 23 / 0.24);
+}
+.admin-request-modal *, .admin-request-modal *::before, .admin-request-modal *::after { box-sizing: border-box; }
+.admin-request-modal .admin-request-modal-header {
+  position: relative;
+  margin: 0;
+  padding: 24px 28px;
+  gap: 20px;
+  border-bottom: 1px solid #e1e8e3;
+  background: #f5f8f5;
+}
+.admin-request-modal-header > div:first-child { min-width: 0; }
+.admin-request-modal .admin-request-modal-header p { color: #426553; font-size: 13px; font-weight: 700; }
+.admin-request-modal .admin-request-modal-header h3 { margin: 6px 0 8px; color: #20372d; font-size: clamp(20px, 2.2vw, 26px); line-height: 1.45; overflow-wrap: anywhere; }
+.admin-request-modal .admin-request-modal-header small { color: #62716a; font-size: 12px; }
+.admin-request-modal-header bdi { margin-inline-start: 6px; font-variant-numeric: tabular-nums; }
+.admin-request-modal .admin-request-close { flex: 0 0 44px; width: 44px; height: 44px; border: 1px solid #d7e2da; border-radius: 12px; background: #fff; color: #20372d; }
+.admin-request-modal-body {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+  gap: 28px;
+  min-height: 0;
+  padding: 28px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #bdcec3 transparent;
+}
+.admin-request-modal .admin-request-section { min-width: 0; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
+.admin-request-applicant, .admin-request-review { grid-column: 1 / -1; }
+.admin-request-modal .admin-request-section h4 { margin: 0 0 16px; color: #20372d; font-size: 16px; font-weight: 700; }
+.admin-request-modal .admin-request-detail-grid { gap: 0 28px; }
+.admin-request-modal .admin-request-detail-grid > div { padding: 12px 0; border: 0; border-bottom: 1px solid #edf0ec; border-radius: 0; background: transparent; }
+.admin-request-modal .admin-request-detail-grid dt { margin-bottom: 6px; color: #62716a; font-size: 12px; font-weight: 500; }
+.admin-request-modal .admin-request-detail-grid dd { color: #20372d; font-size: 14px; font-weight: 600; line-height: 1.7; text-align: start; }
+.admin-request-coverage { display: grid; gap: 20px; }
+.admin-request-coverage h5 { margin: 0 0 10px; color: #62716a; font-size: 12px; font-weight: 500; }
+.admin-request-modal .admin-request-chips span { padding: 7px 12px; border: 1px solid #dfe8e1; border-radius: 8px; background: #f3f7f3; color: #335343; font-size: 13px; line-height: 1.6; }
+.admin-request-modal .admin-request-documents { display: grid; gap: 10px; }
+.admin-request-modal .admin-request-documents > :is(button, div) { display: grid; grid-template-columns: 42px minmax(0, 1fr); align-items: center; gap: 4px 12px; min-width: 0; min-height: 76px; padding: 12px; border: 1px solid #e1e8e3; border-radius: 12px; background: #fafbf9; text-align: start; box-shadow: none; }
+.admin-request-file-type { grid-row: 1 / 3; display: grid; place-items: center; width: 42px; height: 48px; border-radius: 8px; background: #e8f0e9; color: #335343; font-size: 11px; font-weight: 800; font-style: normal; }
+.admin-request-modal .admin-request-documents span { color: #20372d; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; line-height: 1.6; text-align: start; }
+.admin-request-modal .admin-request-documents b { grid-column: 2; color: #175a43; font-size: 12px; }
+.admin-request-modal .admin-request-documents > button:hover { border-color: #91b49c; background: #f1f6f0; }
+.admin-request-modal .admin-request-review { border-top: 1px solid #e1e8e3; padding-top: 24px; }
+.admin-request-modal .admin-request-pending-note { margin: 0; padding: 14px 16px; border-inline-start: 3px solid #b8cbbb; border-radius: 6px; background: #f5f8f4; color: #52675a; font-size: 13px; line-height: 1.9; }
+.admin-request-modal .admin-request-modal-footer { position: relative; margin: 0; padding: 18px 28px; gap: 16px; border-top: 1px solid #e1e8e3; background: #fff; }
+.admin-request-modal .admin-request-modal-footer > button { min-height: 44px; padding: 10px 14px; border: 0; border-radius: 10px; background: #f2f5f1; color: #52675a; }
+.admin-request-modal .admin-action-button { min-height: 44px; border-radius: 10px; padding: 10px 16px; font-size: 14px; font-weight: 700; box-shadow: none; }
+.admin-request-modal .admin-action-approve { border: 1px solid #175a43; background: #175a43; color: #fff; }
+.admin-request-modal .admin-action-revision { border: 1px solid #e3d6bc; background: #fffaf0; color: #795014; }
+.admin-request-modal .admin-action-reject { border: 1px solid #eed5d1; background: #fff6f4; color: #a13430; }
+.admin-request-modal :is(button, a):focus-visible { outline: 3px solid #548367; outline-offset: 3px; }
+@media (max-width: 700px) {
+  .admin-modal-backdrop.admin-request-modal-backdrop { padding: 10px; }
+  .admin-modal.admin-request-modal { max-height: calc(100dvh - 20px); border-radius: 18px; }
+  .admin-request-modal .admin-request-modal-header { padding: 18px; gap: 12px; }
+  .admin-request-modal .admin-request-modal-header > div:last-child { flex-direction: column-reverse; align-items: flex-end; }
+  .admin-request-modal-body { grid-template-columns: 1fr; padding: 20px 18px; gap: 24px; }
+  .admin-request-modal .admin-request-detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 16px; }
+  .admin-request-modal .admin-request-modal-footer { padding: 12px 18px max(12px, env(safe-area-inset-bottom)); flex-direction: row; flex-wrap: wrap; }
+  .admin-request-modal .admin-request-modal-footer > button { width: auto; }
+  .admin-request-modal .admin-request-modal-actions { flex: 1 1 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .admin-request-modal .admin-action-button { width: 100%; padding-inline: 10px; }
+  .admin-request-modal .admin-action-approve { grid-column: 1 / -1; }
+  .admin-request-modal .admin-request-modal-footer > button { display: none; }
+}
+@media (max-width: 400px) {
+  .admin-request-modal .admin-request-detail-grid { grid-template-columns: 1fr; }
+  .admin-request-modal .admin-request-modal-header h3 { font-size: 19px; }
+}
