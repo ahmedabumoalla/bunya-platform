@@ -315,7 +315,7 @@ export function CustomerQuoteDecision({ id }: { id: string }) {
         db
           .from("bunya_customer_quote_items")
           .select(
-            "id,product_id,product_name_snapshot,product_name_translations,quantity,unit_snapshot,unit_name_translations,measurement_snapshot,measurement_label_translations,unit_price,line_total,quote_request_items(variant_label_snapshot,variant_selections,product_specifications_snapshot)",
+            "id,product_id,product_name_snapshot,product_name_translations,quantity,unit_snapshot,unit_name_translations,measurement_snapshot,measurement_label_translations,unit_price,vat_inclusive,line_total,quote_request_items(variant_label_snapshot,variant_selections,product_specifications_snapshot)",
           )
           .eq("bunya_customer_quote_id", id),
         db.rpc("get_customer_delivery_tracking", {
@@ -424,7 +424,7 @@ export function CustomerQuoteDecision({ id }: { id: string }) {
                       {measurement && measurement !== "—" ? <p>{measurement}</p> : null}
                       <dl className={styles.productNumbers}>
                         <div><dt>الكمية</dt><dd>{String(item.quantity)} {unit}</dd></div>
-                        <div><dt>سعر الوحدة</dt><dd>{money(item.unit_price)}</dd></div>
+                        <div><dt>{item.vat_inclusive === true ? "سعر الوحدة شامل الضريبة" : item.vat_inclusive === false ? "سعر الوحدة قبل الضريبة" : "سعر الوحدة"}</dt><dd>{money(item.unit_price)}</dd></div>
                         <div className={styles.lineTotal}><dt>إجمالي المنتج</dt><dd>{money(item.line_total)}</dd></div>
                       </dl>
                       <RequestedProductDetails snapshot={item.quote_request_items} />

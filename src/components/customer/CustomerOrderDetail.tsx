@@ -12,11 +12,13 @@ import { localizedSnapshot } from "@/lib/i18n/content";
 import { createClient } from "@/lib/supabase/client";
 import styles from "./CustomerOrderDetail.module.css";
 
-export const CUSTOMER_ORDER_DETAIL_SELECT = "id,order_code,customer_quote_id,subtotal,vat_amount,delivery_fee,discount_code,discount_amount,total,payment_status,status,desired_receipt_at,google_maps_url,notes,completed_at,created_at,updated_at,order_items(id,product_id,product_name_snapshot,product_name_translations,quantity,unit_name_snapshot,unit_name_translations,measurement_snapshot,measurement_label_translations,unit_price,line_total),order_status_history(id,to_status,changed_at),invoices(id,invoice_code,status,issued_at,paid_at,total)";
+export const CUSTOMER_ORDER_DETAIL_SELECT = "id,order_code,customer_quote_id,subtotal,vat_amount,delivery_fee,discount_code,discount_amount,total,payment_status,status,desired_receipt_at,google_maps_url,notes,completed_at,created_at,updated_at,order_items(id,bunya_customer_quote_item_id,vat_inclusive,product_id,product_name_snapshot,product_name_translations,quantity,unit_name_snapshot,unit_name_translations,measurement_snapshot,measurement_label_translations,unit_price,line_total),order_status_history(id,to_status,changed_at),invoices(id,invoice_code,status,issued_at,paid_at,total)";
 export const CUSTOMER_ORDER_SOURCE_ITEMS_SELECT = "id,product_id,product_name_snapshot,quantity,unit_snapshot,measurement_snapshot,unit_price,line_total,quote_request_items(variant_label_snapshot,variant_selections,product_specifications_snapshot)";
 
 type OrderItem = {
   id: string;
+  bunya_customer_quote_item_id: string | null;
+  vat_inclusive: boolean | null;
   product_id: string | null;
   product_name_snapshot: string;
   product_name_translations: unknown;
@@ -167,7 +169,7 @@ export function CustomerOrderDetail({ id }: { id: string }) {
               const measurement = localizedSnapshot(item.measurement_snapshot, item.measurement_label_translations, locale);
               return <article className={styles.product} key={item.id}>
                 <CustomerProductImage productId={item.product_id} name={name} variant="line" className={styles.productImage} />
-                <div className={styles.productBody}><h3>{name}</h3>{measurement && measurement !== "—" ? <p>{measurement}</p> : null}<RequestedProductDetails snapshot={itemSnapshots.get(item.id)} />{order.customer_quote_id && !itemSnapshots.has(item.id) ? <p><Link href={`/customer/quotes/${order.customer_quote_id}`}>عرض الخيارات والمواصفات في عرض السعر الأصلي</Link></p> : null}<dl className={styles.productNumbers}><div><dt>الكمية</dt><dd>{String(item.quantity)} {unit}</dd></div><div><dt>سعر الوحدة</dt><dd>{money(item.unit_price)}</dd></div><div><dt>إجمالي المنتج</dt><dd>{money(item.line_total)}</dd></div></dl></div>
+                <div className={styles.productBody}><h3>{name}</h3>{measurement && measurement !== "—" ? <p>{measurement}</p> : null}<RequestedProductDetails snapshot={itemSnapshots.get(item.id)} />{order.customer_quote_id && !itemSnapshots.has(item.id) ? <p><Link href={`/customer/quotes/${order.customer_quote_id}`}>عرض الخيارات والمواصفات في عرض السعر الأصلي</Link></p> : null}<dl className={styles.productNumbers}><div><dt>الكمية</dt><dd>{String(item.quantity)} {unit}</dd></div><div><dt>{item.vat_inclusive === true ? "سعر الوحدة شامل الضريبة" : item.vat_inclusive === false ? "سعر الوحدة قبل الضريبة" : "سعر الوحدة"}</dt><dd>{money(item.unit_price)}</dd></div><div><dt>إجمالي المنتج</dt><dd>{money(item.line_total)}</dd></div></dl></div>
               </article>;
             })}</div> : <p className={styles.notice}>لا توجد تفاصيل منتجات متاحة لهذا الطلب حاليًا.</p>}
           </section>

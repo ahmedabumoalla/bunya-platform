@@ -349,7 +349,7 @@ export function AdminQuoteAssembly({ id }: { id: string }) {
         <div>
           <p>إجراء إداري محمي</p>
           <h1>تجميع عرض بُنية</h1>
-          <span>يستبعد المحرك الردود غير المؤهلة ويختار أقل تكلفة واصلة.</span>
+          <span>يختار المحرك السعر المؤهل ويضيف نسبة ربح كل مزود المعتمدة إلى سعر العميل. العروض الصادرة تحتفظ بأسعارها.</span>
         </div>
       </header>
       <section className="database-panel">

@@ -91,8 +91,8 @@ export function AdminFinanceDashboard() {
 
   const saveRate = async (row: ProviderFinanceRow) => {
     const nextRate = Number(rates[row.provider_id]);
-    if (!Number.isFinite(nextRate) || nextRate < 0 || nextRate > 100) {
-      setError("نسبة العمولة يجب أن تكون بين 0 و100٪.");
+    if (!rates[row.provider_id]?.trim() || !Number.isFinite(nextRate) || nextRate < 0 || nextRate > 100) {
+      setError("نسبة الربح المضافة يجب أن تكون بين 0 و100٪.");
       return;
     }
     setSaving(row.provider_id);
@@ -105,7 +105,7 @@ export function AdminFinanceDashboard() {
     if (result.error) {
       setError(result.error.message);
     } else {
-      setMessage(`تم اعتماد نسبة ${nextRate.toFixed(2)}٪ للمزود ${row.company_name}.`);
+      setMessage(`تم اعتماد إضافة ${Number(result.data).toFixed(2)}٪ فوق سعر ${row.company_name} للعروض الجديدة. العروض الصادرة سابقًا تحتفظ بأسعارها.`);
       await load();
     }
     setSaving(null);
@@ -118,8 +118,8 @@ export function AdminFinanceDashboard() {
           <p className={styles.eyebrow}>دفتر بُنية المالي</p>
           <h1>المالية والأرباح</h1>
           <p>
-            أرصدة المزودين وعمولة بُنية محسوبة تلقائيًا من العمليات المدفوعة.
-            كل عملية تحتفظ بنسبة العمولة المعتمدة وقت الدفع.
+            تُضاف نسبة ربح بُنية فوق سعر كل مزود عند إعداد عرض العميل، ويحتفظ المزود بكامل سعره.
+            تُثبّت النسبة مع العرض وتُسجّل المستحقات عند الدفع.
           </p>
         </div>
         <div className={styles.heroProfit}>
@@ -131,19 +131,19 @@ export function AdminFinanceDashboard() {
 
       <section className={styles.summary} aria-label="ملخص المركز المالي">
         <article>
-          <span>إجمالي قيمة التوريد</span>
+          <span>قيمة توريد المزودين</span>
           <strong>{loading ? "…" : error ? "غير متاح" : money(totals.gross)}</strong>
-          <small>قبل خصم عمولة بُنية</small>
+          <small>قيمة التوريد المسجلة للعمليات المدفوعة</small>
         </article>
         <article>
-          <span>عمولة بُنية</span>
+          <span>أرباح بُنية</span>
           <strong>{loading ? "…" : error ? "غير متاح" : money(totals.profit)}</strong>
-          <small>أرباح المنصة المسجلة</small>
+          <small>ربح العروض الجديدة لا يشمل ضريبة الزيادة</small>
         </article>
         <article>
           <span>أرصدة المزودين لدينا</span>
           <strong>{loading ? "…" : error ? "غير متاح" : money(totals.balance)}</strong>
-          <small>بعد خصم عمولة بُنية</small>
+          <small>المستحقات المتبقية بعد الصرف</small>
         </article>
         <article>
           <span>المتاح للصرف</span>
@@ -159,7 +159,8 @@ export function AdminFinanceDashboard() {
         <header className={styles.ledgerHeader}>
           <div>
             <p>حسابات المزودين</p>
-            <h2>الرصيد والعمولة لكل مزود</h2>
+            <h2>الرصيد ونسبة الربح لكل مزود</h2>
+            <small>مثال: سعر المزود 10 ر.س. + نسبة 10٪ = سعر العميل 11 ر.س. بنفس أساس الضريبة. رسوم التوصيل مستقلة.</small>
           </div>
           <div className={styles.tools}>
             <label>
@@ -186,10 +187,10 @@ export function AdminFinanceDashboard() {
                   <th>المزود</th>
                   <th>العمليات</th>
                   <th>إجمالي التوريد</th>
-                  <th>عمولة بُنية</th>
+                  <th>أرباح بُنية</th>
                   <th>صافي المزود</th>
                   <th>الرصيد لدينا</th>
-                  <th>نسبة العمولة</th>
+                  <th>نسبة الربح المضافة</th>
                 </tr>
               </thead>
               <tbody>
@@ -232,18 +233,19 @@ export function AdminFinanceDashboard() {
                                 [row.provider_id]: event.target.value,
                               }))
                             }
-                            aria-label={`نسبة عمولة ${row.company_name}`}
+                            aria-label={`نسبة الربح المضافة فوق سعر ${row.company_name}`}
                           />
                           <span>٪</span>
                         </label>
                         <button
                           type="button"
                           onClick={() => void saveRate(row)}
-                          disabled={saving === row.provider_id}
+                          disabled={saving !== null}
                         >
                           {saving === row.provider_id ? "حفظ…" : "اعتماد"}
                         </button>
                       </div>
+                      <small>تُضاف فوق سعر المزود للعروض الجديدة</small>
                     </td>
                   </tr>
                 ))}
