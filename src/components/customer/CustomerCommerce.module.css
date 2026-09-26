@@ -185,6 +185,13 @@
 .selectedProduct { display: grid; gap: 8px; min-width: 0; }
 .selectedProduct strong { font-size: 14px; line-height: 1.8; overflow-wrap: anywhere; }
 .selectedProduct small { color: var(--commerce-muted); font-size: 11px; }
+.fixedBrand { padding: 10px 12px; border: 1px solid var(--commerce-line); border-radius: 8px; background: var(--commerce-soft); font-size: 12px; line-height: 1.8; }
+.supplierSpecifications { padding: 18px; border: 1px solid var(--commerce-line); border-radius: 10px; background: var(--commerce-soft); }
+.supplierSpecifications h3 { margin: 0 0 10px; font-size: 14px; }
+.supplierSpecifications p, .supplierSpecifications li { margin: 6px 0; font-size: 13px; line-height: 1.9; }
+.supplierSpecifications ul { margin: 10px 0; padding-inline-start: 20px; }
+.supplierSpecifications small { display: block; margin-top: 12px; font-size: 11px; line-height: 1.9; }
+.page .field input[readonly] { background: var(--commerce-soft) !important; font-weight: 600; cursor: default; }
 .page .editorImage { width: 100%; height: auto; min-height: 170px; aspect-ratio: 1 / 1; border-radius: 11px; }
 
 .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 19px 16px; min-width: 0; }

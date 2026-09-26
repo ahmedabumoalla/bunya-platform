@@ -630,7 +630,7 @@ async function resolveEvent(
       admin
         .from("internal_sourcing_request_items")
         .select(
-          "id,quantity,unit_snapshot,measurement_snapshot,delivery_region,required_at,internal_sourcing_requests(internal_code,response_deadline_at,quote_requests(location_hint,google_maps_url,delivery_mode,recipient_name,recipient_mobile,site_responsible_name,site_responsible_mobile,working_hours,loading_option,unloading_option,road_access,access_instructions,pricing_opens_at,pricing_countdown_starts_at)),quote_request_items(product_name_snapshot,notes)",
+          "id,quantity,unit_snapshot,measurement_snapshot,delivery_region,required_at,internal_sourcing_requests(internal_code,response_deadline_at,quote_requests(location_hint,google_maps_url,delivery_mode,recipient_name,recipient_mobile,site_responsible_name,site_responsible_mobile,working_hours,loading_option,unloading_option,road_access,access_instructions,pricing_opens_at,pricing_countdown_starts_at)),quote_request_items(product_name_snapshot,notes,variant_label_snapshot,product_specifications_snapshot)",
         )
         .eq("id", event.aggregate_id)
         .maybeSingle(),
@@ -659,6 +659,8 @@ async function resolveEvent(
     const product = item.data.quote_request_items as unknown as {
       product_name_snapshot: string;
       notes: string | null;
+      variant_label_snapshot: string | null;
+      product_specifications_snapshot: string[];
     };
     const request = source.quote_requests;
     const prefix =
@@ -674,7 +676,7 @@ async function resolveEvent(
         profileId: provider.data.owner_profile_id,
         mobile: provider.data.mobile,
         actionUrl: `/merchant/quote-requests/${item.data.id}`,
-        text: `${prefix}\nالطلب: ${source.internal_code}\nالمنتج: ${product.product_name_snapshot}\n${event.event_type === "provider.rfq_outbid" ? `أقل تكلفة منافسة الآن: ${event.payload?.competitor_landed_cost || "—"} ر.س. عرضك السابق محفوظ ومقفل؛ افتح الطلب إذا رغبت في تخفيضه قبل نهاية المهلة.\n` : ""}هذا الطلب خاص بهذا المنتج فقط؛ سعّره حتى لو لم توفر بقية منتجات العميل.\nالكمية: ${item.data.quantity} ${item.data.unit_snapshot}\nالقياس: ${item.data.measurement_snapshot || "—"}\nالمواصفات: ${product.notes || "—"}\nوصف موقع التسليم: ${request?.location_hint || "—"}\nالمستلم: ${request?.recipient_name || "—"} · ${request?.recipient_mobile || "—"}\nمسؤول الموقع: ${request?.site_responsible_name || "—"} · ${request?.site_responsible_mobile || "—"}\nمواعيد العمل: ${request?.working_hours || "—"}\nالتحميل: ${request?.loading_option || "—"}\nالتنزيل: ${request?.unloading_option || "—"}\nسهولة الوصول: ${request?.road_access || "—"}\nتعليمات الوصول: ${request?.access_instructions || "—"}\nطريقة الاستلام: ${request?.delivery_mode === "pickup" ? "استلام" : "توصيل"}\nGoogle Maps: ${request?.google_maps_url || "غير مرفق"}\nتنبيه مهم: افتح رابط Google Maps وراجع موقع التسليم ومسار الوصول بعناية قبل اعتماد السعر والتوفر.\nفتح التسعير: ${request?.pricing_opens_at ? new Date(request.pricing_opens_at).toLocaleString("ar-SA") : "—"}\nبدء عداد 3 ساعات: ${request?.pricing_countdown_starts_at ? new Date(request.pricing_countdown_starts_at).toLocaleString("ar-SA") : "—"}\nآخر رد: ${new Date(source.response_deadline_at).toLocaleString("ar-SA")}\nالموعد المطلوب: ${new Date(item.data.required_at).toLocaleString("ar-SA")}\nيتم اعتماد أقل تكلفة مؤهلة شاملة المنتج والضريبة والتوصيل.\n${site}/merchant/quote-requests/${item.data.id}`,
+        text: `${prefix}\nالطلب: ${source.internal_code}\nالمنتج: ${product.product_name_snapshot}\n${event.event_type === "provider.rfq_outbid" ? `أقل تكلفة منافسة الآن: ${event.payload?.competitor_landed_cost || "—"} ر.س. عرضك السابق محفوظ ومقفل؛ افتح الطلب إذا رغبت في تخفيضه قبل نهاية المهلة.\n` : ""}هذا الطلب خاص بهذا المنتج فقط؛ سعّره حتى لو لم توفر بقية منتجات العميل.\nالكمية: ${item.data.quantity} ${item.data.unit_snapshot}\nالقياس: ${item.data.measurement_snapshot || "—"}\nالخيارات المحددة: ${product.variant_label_snapshot || "—"}\nالمواصفات: ${product.product_specifications_snapshot?.join(" · ") || "—"}\nملاحظات العميل: ${product.notes || "—"}\nوصف موقع التسليم: ${request?.location_hint || "—"}\nالمستلم: ${request?.recipient_name || "—"} · ${request?.recipient_mobile || "—"}\nمسؤول الموقع: ${request?.site_responsible_name || "—"} · ${request?.site_responsible_mobile || "—"}\nمواعيد العمل: ${request?.working_hours || "—"}\nالتحميل: ${request?.loading_option || "—"}\nالتنزيل: ${request?.unloading_option || "—"}\nسهولة الوصول: ${request?.road_access || "—"}\nتعليمات الوصول: ${request?.access_instructions || "—"}\nطريقة الاستلام: ${request?.delivery_mode === "pickup" ? "استلام" : "توصيل"}\nGoogle Maps: ${request?.google_maps_url || "غير مرفق"}\nتنبيه مهم: افتح رابط Google Maps وراجع موقع التسليم ومسار الوصول بعناية قبل اعتماد السعر والتوفر.\nفتح التسعير: ${request?.pricing_opens_at ? new Date(request.pricing_opens_at).toLocaleString("ar-SA") : "—"}\nبدء عداد 3 ساعات: ${request?.pricing_countdown_starts_at ? new Date(request.pricing_countdown_starts_at).toLocaleString("ar-SA") : "—"}\nآخر رد: ${new Date(source.response_deadline_at).toLocaleString("ar-SA")}\nالموعد المطلوب: ${new Date(item.data.required_at).toLocaleString("ar-SA")}\nيتم اعتماد أقل تكلفة مؤهلة شاملة المنتج والضريبة والتوصيل.\n${site}/merchant/quote-requests/${item.data.id}`,
       },
     ];
   }

@@ -12,8 +12,8 @@ import { copy as paymentCopy } from "@/components/payments/PaymobCheckout";
 import { CustomerProductImage } from "@/components/customer/CustomerProductImage";
 import styles from "./CustomerCommerce.module.css";
 import { customerMapUrl, customerReadableText } from "@/lib/customer/presentation";
-
-type Product = { id: string; name: string; base_unit: string };
+import { fixedProductBrand, initialProductSelection, minimumQuantity, productMeasurements, productSelectionError, productUnits, productVariantGroups, rfqProductSelect, variantAttributes, type RfqProduct, type RfqSelection } from "@/lib/products/rfq-options";
+import { RequestedProductDetails } from "@/components/commerce/RequestedProductDetails";
 
 function RfqSection({ number, title, description, children }: {
   number: number;
@@ -49,10 +49,8 @@ function customerDate(value: unknown, locale: string) {
 
 export function CustomerRfqForm() {
   const router = useRouter();
-  const [products, setProducts] = useState<Product[]>([]);
-  const [items, setItems] = useState([
-    { product_id: "", quantity: "1", unit: "", measurement: "", notes: "" },
-  ]);
+  const [products, setProducts] = useState<RfqProduct[]>([]);
+  const [items, setItems] = useState<RfqSelection[]>([initialProductSelection()]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [productsLoading, setProductsLoading] = useState(true);
@@ -61,15 +59,16 @@ export function CustomerRfqForm() {
     let active = true;
     void createClient()
       .from("products")
-      .select("id,name,base_unit")
+      .select(rfqProductSelect)
       .eq("is_published", true)
       .eq("review_status", "approved")
+      .neq("availability_status", "unavailable")
       .order("name")
       .then(({ data, error }) => {
         if (!active) return;
         setProductsLoading(false);
         if (error) setProductsError("تعذر تحميل المنتجات. أعد تحميل الصفحة للمحاولة مجددًا.");
-        else setProducts((data ?? []) as Product[]);
+        else setProducts((data ?? []) as unknown as RfqProduct[]);
       });
     return () => { active = false; };
   }, []);
@@ -77,6 +76,8 @@ export function CustomerRfqForm() {
     event.preventDefault();
     setBusy(true);
     setMessage("");
+    const invalidItem = items.map(item => productSelectionError(products.find(product => product.id === item.product_id), item)).find(Boolean);
+    if (invalidItem) { setMessage(invalidItem); setBusy(false); return; }
     const data = new FormData(event.currentTarget);
     const siteHoursStart = String(data.get("site_hours_start") || "");
     const siteHoursEnd = String(data.get("site_hours_end") || "");
@@ -96,13 +97,13 @@ export function CustomerRfqForm() {
           productId: item.product_id,
           productName: product?.name || "",
           quantity: Number(item.quantity),
-          unit: item.unit || product?.base_unit || "وحدة",
-          measurementId: "",
-          measurementLabel: item.measurement || "بدون قياس إضافي",
-          selectedVariants: [],
+          unitId: item.unit_id,
+          unit: productUnits(product).find(unit => unit.id === item.unit_id)?.name || "",
+          measurementId: item.measurement_id,
+          measurementLabel: product?.product_measurements.find(measurement => measurement.id === item.measurement_id)?.label || "",
+          selectedVariants: (product?.product_variants ?? []).filter(variant => variant.is_active && Object.values(item.variant_ids).includes(variant.id)).map(variant => ({ id: variant.id, name: variant.name, attributes: variantAttributes(variant) })),
           desiredReceiptDate: "",
           mapsUrl: "",
-          notes: item.notes || undefined,
           createdAt: new Date().toISOString(),
         };
       }),
@@ -187,16 +188,17 @@ export function CustomerRfqForm() {
       </nav>
       <div className={styles.layout}>
         <form className={styles.form} onSubmit={submit} aria-busy={busy}>
-          <RfqSection number={1} title="المنتجات المطلوبة" description="اختر المنتجات والكميات. أضف القياس والمواصفات لتساعد المزود على تسعير طلبك بدقة.">
+          <RfqSection number={1} title="المنتجات المطلوبة" description="اختر الكمية من المنتج المعروض، وحدد المقاس والعلامة من الخيارات التي أتاحها المورد. المواصفات أدناه ثابتة كما سجلها المورد.">
             {productsLoading ? <p className={styles.notice} role="status">جارٍ تحميل المنتجات المتاحة…</p> : null}
             {productsError ? <p className={styles.error} role="alert">{productsError}</p> : null}
             {!productsLoading && !productsError && !products.length ? <p className={styles.notice}>لا توجد منتجات متاحة لطلب التسعير حاليًا.</p> : null}
             <div className={styles.productList}>
               {items.map((item, index) => {
                 const product = products.find((entry) => entry.id === item.product_id);
-                const update = (field: "product_id" | "quantity" | "unit" | "measurement" | "notes", value: string) => {
-                  setItems((current) => current.map((entry, entryIndex) => entryIndex === index ? { ...entry, [field]: value } : entry));
-                };
+                const units = productUnits(product);
+                const measurements = productMeasurements(product, item.unit_id);
+                const groups = productVariantGroups(product);
+                const update = (patch: Partial<RfqSelection>) => setItems(current => current.map((entry, entryIndex) => entryIndex === index ? { ...entry, ...patch } : entry));
                 return (
                   <fieldset className={styles.productEditor} key={index}>
                     <legend className={styles.productLegend}>المنتج {index + 1}</legend>
@@ -204,20 +206,22 @@ export function CustomerRfqForm() {
                       <div className={styles.selectedProduct}>
                         <CustomerProductImage productId={item.product_id || null} name={product?.name || "اختر المنتج لعرض صورته"} variant="tile" className={styles.editorImage} />
                         <strong>{product?.name || "منتجك التالي"}</strong>
-                        <small>{product?.base_unit ? `وحدة البيع: ${product.base_unit}` : "اختر من منتجات بُنية المتاحة"}</small>
+                        <small>{product ? `وحدة البيع: ${units.find(unit => unit.id === item.unit_id)?.name || product.base_unit}` : "اختر من منتجات بُنية المتاحة"}</small>
+                        {fixedProductBrand(product) ? <span className={styles.fixedBrand}>المصنّع / العلامة: {customerReadableText(fixedProductBrand(product))}</span> : null}
                       </div>
                       <div className={styles.fields}>
                         <label className={`${styles.field} ${styles.fullWidth}`}>
                           <span>المنتج <small>مطلوب</small></span>
-                          <select required value={item.product_id} disabled={productsLoading || !!productsError} onChange={(event) => update("product_id", event.target.value)}>
+                          <select required value={item.product_id} disabled={productsLoading || !!productsError} onChange={(event) => update(initialProductSelection(products.find(entry => entry.id === event.target.value)))}>
                             <option value="">اختر المنتج من القائمة</option>
-                            {products.map((entry) => <option value={entry.id} key={entry.id}>{entry.name}</option>)}
+                            {products.map((entry) => <option value={entry.id} key={entry.id}>{entry.name}{fixedProductBrand(entry) ? ` — ${fixedProductBrand(entry)}` : ""}</option>)}
                           </select>
                         </label>
-                        <label className={styles.field}><span>الكمية <small>مطلوبة</small></span><input type="number" min="0.001" step="0.001" required value={item.quantity} onChange={(event) => update("quantity", event.target.value)} inputMode="decimal" /></label>
-                        <label className={styles.field}><span>الوحدة</span><input value={item.unit} placeholder={product?.base_unit || "وحدة المنتج الأساسية"} onChange={(event) => update("unit", event.target.value)} /></label>
-                        <label className={styles.field}><span>القياس <small>اختياري</small></span><input value={item.measurement} placeholder="مثل الطول أو المقاس" onChange={(event) => update("measurement", event.target.value)} /></label>
-                        <label className={styles.field}><span>المواصفات <small>اختيارية</small></span><input value={item.notes} placeholder="أي تفاصيل خاصة بالمنتج" onChange={(event) => update("notes", event.target.value)} /></label>
+                        <label className={styles.field}><span>الكمية <small>مطلوبة</small></span><input type="number" min={minimumQuantity(product)} max={1000000} step="0.001" required disabled={!product} value={item.quantity} onChange={(event) => update({ quantity: event.target.value })} inputMode="decimal" />{product ? <small>الحد الأدنى: {minimumQuantity(product)} {units.find(unit => unit.id === item.unit_id)?.name}{product.stock_quantity != null ? ` · المخزون: ${product.stock_quantity}` : ""}</small> : null}</label>
+                        <label className={styles.field}><span>وحدة البيع <small>حسب المورد</small></span>{units.length > 1 ? <select required value={item.unit_id} onChange={event => { const options = productMeasurements(product, event.target.value); update({ unit_id: event.target.value, measurement_id: options.find(option => option.is_default)?.id || (options.length === 1 ? options[0].id : "") }); }}>{units.map(unit => <option key={unit.id} value={unit.id}>{unit.name}</option>)}</select> : <input readOnly value={units[0]?.name || "اختر المنتج أولًا"} />}</label>
+                        <label className={styles.field}><span>المقاس المتوفر <small>{measurements.length > 1 ? "مطلوب" : "حسب المورد"}</small></span>{measurements.length > 1 ? <select required value={item.measurement_id} onChange={event => update({ measurement_id: event.target.value })}><option value="" disabled>اختر المقاس من خيارات المورد</option>{measurements.map(measurement => <option key={measurement.id} value={measurement.id}>{measurement.label}{measurement.is_default ? " · القياس الافتراضي" : ""}</option>)}</select> : <input readOnly value={measurements[0]?.label || (product ? "لا يوجد قياس إضافي مسجل لهذه الوحدة" : "اختر المنتج أولًا")} />}</label>
+                        {groups.map(group => <label className={styles.field} key={group.key}><span>{group.label}<small>{group.options.length > 1 ? "اختر من المتوفر" : "حسب المورد"}</small></span>{group.options.length > 1 ? <select required value={item.variant_ids[group.key] || ""} onChange={event => update({ variant_ids: { ...item.variant_ids, [group.key]: event.target.value } })}><option value="" disabled>اختر {group.label}</option>{group.options.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}</select> : <input readOnly value={group.options[0].label} />}</label>)}
+                        {product ? <section className={`${styles.supplierSpecifications} ${styles.fullWidth}`} aria-label="المواصفات الفنية المسجلة"><h3>المواصفات الفنية من المورد</h3>{product.description ? <p>{customerReadableText(product.description)}</p> : null}{product.product_specifications.length ? <ul>{[...product.product_specifications].sort((a, b) => a.sort_order - b.sort_order).map((specification, specificationIndex) => <li key={specificationIndex}>{customerReadableText(specification.value)}</li>)}</ul> : <p>لم يضف المورد مواصفات فنية أخرى لهذا المنتج.</p>}<small>تُرسل اختياراتك مع مواصفات المنتج المسجلة؛ لا يمكن إدخال مقاس أو علامة غير معروضة.</small></section> : null}
                         {items.length > 1 ? <button className={styles.removeButton} type="button" aria-label={`حذف المنتج ${index + 1}${product ? `: ${product.name}` : ""}`} onClick={() => setItems((current) => current.filter((_, entryIndex) => entryIndex !== index))}>حذف المنتج</button> : null}
                       </div>
                     </div>
@@ -225,7 +229,7 @@ export function CustomerRfqForm() {
                 );
               })}
             </div>
-            <button type="button" className={styles.addButton} onClick={() => setItems((current) => [...current, { product_id: "", quantity: "1", unit: "", measurement: "", notes: "" }])}><span aria-hidden="true">＋</span> إضافة منتج آخر</button>
+            <button type="button" className={styles.addButton} disabled={items.length >= 50} onClick={() => setItems(current => [...current, initialProductSelection()])}><span aria-hidden="true">＋</span> إضافة منتج آخر</button>
           </RfqSection>
           <RfqSection number={2} title="الموقع وموعد التسليم" description="ثبّت الموقع ووقت الاستلام، ثم وضّح تجهيزات الموقع ومتطلبات الوصول.">
             <div className={styles.fields}>
@@ -260,9 +264,10 @@ export function CustomerRfqForm() {
           <RfqSection number={4} title="مراجعة الطلب وإرساله" description="راجع المنتجات والبيانات أعلاه، وأضف ما تود أن يعرفه المزود قبل التسعير.">
             {selectedItems.length ? <ul className={styles.reviewList}>{selectedItems.map((item, index) => {
               const product = products.find((entry) => entry.id === item.product_id);
-              return <li key={index}><CustomerProductImage productId={item.product_id} name={product?.name || "المنتج"} variant="line" className={styles.reviewImage} /><div><strong>{product?.name}</strong><span>{item.quantity} {item.unit || product?.base_unit || "وحدة"}{item.measurement ? ` · ${item.measurement}` : ""}</span></div></li>;
+              const measurement = product?.product_measurements.find(entry => entry.id === item.measurement_id);
+              return <li key={index}><CustomerProductImage productId={item.product_id} name={product?.name || "المنتج"} variant="line" className={styles.reviewImage} /><div><strong>{product?.name}</strong><span>{item.quantity} {productUnits(product).find(unit => unit.id === item.unit_id)?.name}{measurement ? ` · ${measurement.label}` : ""}</span>{fixedProductBrand(product) ? <span>المصنّع / العلامة: {fixedProductBrand(product)}</span> : null}{productVariantGroups(product).map(group => <span key={group.key}>{group.label}: {group.options.find(option => option.id === item.variant_ids[group.key])?.label || "لم يُحدد بعد"}</span>)}</div></li>;
             })}</ul> : <p className={styles.notice}>ابدأ باختيار منتج في القسم الأول، وسيظهر ملخصه هنا.</p>}
-            <label className={styles.field}><span>ملاحظات الطلب <small>اختيارية</small></span><textarea name="request_notes" rows={3} placeholder="أي تفاصيل إضافية تساعد في تجهيز عرض السعر" /></label>
+            <label className={styles.field}><span>ملاحظات التجهيز والتسليم <small>اختيارية</small></span><textarea name="request_notes" rows={3} placeholder="ملاحظات التنسيق فقط؛ لا تغيّر المقاسات أو العلامات أو مواصفات المنتجات المختارة" /></label>
             <div className={styles.acknowledgments}>
               <label><input name="driver_ack" type="checkbox" required /><span>أقر بتحمل المسؤولية الكاملة إذا وصل السائق حسب الموعد والبيانات ثم غادر لعدم وجود مستلم أو تعذر الاستلام من طرفي.</span></label>
               <label><input name="data_ack" type="checkbox" required /><span>أقر بصحة رابط الموقع وبيانات التواصل ومواعيد العمل وخيارات التحميل والتنزيل وتعليمات الوصول.</span></label>
@@ -310,7 +315,7 @@ export function CustomerQuoteDecision({ id }: { id: string }) {
         db
           .from("bunya_customer_quote_items")
           .select(
-            "id,product_id,product_name_snapshot,product_name_translations,quantity,unit_snapshot,unit_name_translations,measurement_snapshot,measurement_label_translations,unit_price,line_total",
+            "id,product_id,product_name_snapshot,product_name_translations,quantity,unit_snapshot,unit_name_translations,measurement_snapshot,measurement_label_translations,unit_price,line_total,quote_request_items(variant_label_snapshot,variant_selections,product_specifications_snapshot)",
           )
           .eq("bunya_customer_quote_id", id),
         db.rpc("get_customer_delivery_tracking", {
@@ -422,6 +427,7 @@ export function CustomerQuoteDecision({ id }: { id: string }) {
                         <div><dt>سعر الوحدة</dt><dd>{money(item.unit_price)}</dd></div>
                         <div className={styles.lineTotal}><dt>إجمالي المنتج</dt><dd>{money(item.line_total)}</dd></div>
                       </dl>
+                      <RequestedProductDetails snapshot={item.quote_request_items} />
                     </div>
                   </article>
                 );

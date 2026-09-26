@@ -5,12 +5,15 @@ import Link from "next/link";
 import { useAuthIdentity } from "@/components/auth/AuthIdentityProvider";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { CustomerProductImage } from "@/components/customer/CustomerProductImage";
+import { RequestedProductDetails } from "@/components/commerce/RequestedProductDetails";
+import { matchOrderItemSnapshots, type QuoteLineSnapshot } from "@/lib/quotes/order-item-snapshots";
 import { intlLocale } from "@/lib/i18n/config";
 import { localizedSnapshot } from "@/lib/i18n/content";
 import { createClient } from "@/lib/supabase/client";
 import styles from "./CustomerOrderDetail.module.css";
 
 export const CUSTOMER_ORDER_DETAIL_SELECT = "id,order_code,customer_quote_id,subtotal,vat_amount,delivery_fee,discount_code,discount_amount,total,payment_status,status,desired_receipt_at,google_maps_url,notes,completed_at,created_at,updated_at,order_items(id,product_id,product_name_snapshot,product_name_translations,quantity,unit_name_snapshot,unit_name_translations,measurement_snapshot,measurement_label_translations,unit_price,line_total),order_status_history(id,to_status,changed_at),invoices(id,invoice_code,status,issued_at,paid_at,total)";
+export const CUSTOMER_ORDER_SOURCE_ITEMS_SELECT = "id,product_id,product_name_snapshot,quantity,unit_snapshot,measurement_snapshot,unit_price,line_total,quote_request_items(variant_label_snapshot,variant_selections,product_specifications_snapshot)";
 
 type OrderItem = {
   id: string;
@@ -48,6 +51,7 @@ type Order = {
   order_items: OrderItem[];
   order_status_history: OrderHistory[];
   invoices: OrderInvoice | OrderInvoice[] | null;
+  sourceQuoteItems: QuoteLineSnapshot[];
 };
 
 const orderLabels: Record<string, string> = {
@@ -102,8 +106,11 @@ export function CustomerOrderDetail({ id }: { id: string }) {
       if (!userId) throw new Error("missing-session");
       const response = await createClient().from("orders").select(CUSTOMER_ORDER_DETAIL_SELECT).eq("id", id).eq("customer_profile_id", userId).maybeSingle();
       if (response.error) throw response.error;
+      const order = response.data as Omit<Order, "sourceQuoteItems"> | null;
+      const source = order?.customer_quote_id ? await createClient().from("bunya_customer_quote_items").select(CUSTOMER_ORDER_SOURCE_ITEMS_SELECT).eq("bunya_customer_quote_id", order.customer_quote_id) : null;
+      if (source?.error) throw source.error;
       if (!active) return;
-      setResult({ key, order: response.data as Order | null });
+      setResult({ key, order: order ? { ...order, sourceQuoteItems: (source?.data ?? []) as QuoteLineSnapshot[] } : null });
       setError(null);
     })().catch(() => {
       if (active) setError({ key, message: userId ? "تعذر تحميل تفاصيل الطلب. تحقق من الاتصال ثم حاول مجددًا." : "يرجى تسجيل الدخول لعرض تفاصيل طلبك." });
@@ -132,6 +139,7 @@ export function CustomerOrderDetail({ id }: { id: string }) {
   const date = (value: string | null | undefined) => orderDate(value, intlLocale(locale));
   const history = [...(order.order_status_history ?? [])].sort((a, b) => new Date(a.changed_at).getTime() - new Date(b.changed_at).getTime());
   const items = order.order_items ?? [];
+  const itemSnapshots = matchOrderItemSnapshots(items, order.sourceQuoteItems);
   const invoices = Array.isArray(order.invoices) ? order.invoices : order.invoices ? [order.invoices] : [];
   const mapsUrl = orderMapsDestination(order.google_maps_url);
   const isPaid = ["paid", "succeeded"].includes(order.payment_status);
@@ -159,7 +167,7 @@ export function CustomerOrderDetail({ id }: { id: string }) {
               const measurement = localizedSnapshot(item.measurement_snapshot, item.measurement_label_translations, locale);
               return <article className={styles.product} key={item.id}>
                 <CustomerProductImage productId={item.product_id} name={name} variant="line" className={styles.productImage} />
-                <div className={styles.productBody}><h3>{name}</h3>{measurement && measurement !== "—" ? <p>{measurement}</p> : null}<dl className={styles.productNumbers}><div><dt>الكمية</dt><dd>{String(item.quantity)} {unit}</dd></div><div><dt>سعر الوحدة</dt><dd>{money(item.unit_price)}</dd></div><div><dt>إجمالي المنتج</dt><dd>{money(item.line_total)}</dd></div></dl></div>
+                <div className={styles.productBody}><h3>{name}</h3>{measurement && measurement !== "—" ? <p>{measurement}</p> : null}<RequestedProductDetails snapshot={itemSnapshots.get(item.id)} />{order.customer_quote_id && !itemSnapshots.has(item.id) ? <p><Link href={`/customer/quotes/${order.customer_quote_id}`}>عرض الخيارات والمواصفات في عرض السعر الأصلي</Link></p> : null}<dl className={styles.productNumbers}><div><dt>الكمية</dt><dd>{String(item.quantity)} {unit}</dd></div><div><dt>سعر الوحدة</dt><dd>{money(item.unit_price)}</dd></div><div><dt>إجمالي المنتج</dt><dd>{money(item.line_total)}</dd></div></dl></div>
               </article>;
             })}</div> : <p className={styles.notice}>لا توجد تفاصيل منتجات متاحة لهذا الطلب حاليًا.</p>}
           </section>

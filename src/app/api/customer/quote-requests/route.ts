@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
       quantity: item.quantity,
       unit: item.unit,
       measurement: item.measurementLabel === "بدون قياس إضافي" ? "" : item.measurementLabel,
-      unit_id: "",
+      unit_id: item.unitId || "",
       measurement_id: item.measurementId,
       variant_ids: item.selectedVariants.map((variant) => variant.id),
       notes: item.notes || "",
@@ -82,9 +82,24 @@ export async function POST(request: NextRequest) {
     p_idempotency_key: draft.idempotencyKey,
   });
   if (result.error || !result.data) {
-    const message = result.error?.message.includes("Verified customer required")
+    const catalogErrors: Record<string, string> = {
+      "Invalid item quantity": "أدخل كمية موجبة لا تتجاوز مليونًا، وبحد أقصى ثلاث خانات عشرية.",
+      "Product minimum order not met": "الكمية أقل من الحد الأدنى الذي حدده المزود لهذا المنتج.",
+      "Product is not available": "أحد المنتجات لم يعد متاحًا لطلب التسعير. راجع المنتجات المختارة.",
+      "Product unit is not available": "اختر وحدة متاحة من وحدات المنتج.",
+      "Product unit is required": "اختر وحدة المنتج قبل إرسال الطلب.",
+      "Product measurement is not available": "اختر قياسًا متاحًا لهذا المنتج والوحدة.",
+      "Product measurement is required": "اختر القياس المطلوب من الخيارات المتاحة للمنتج.",
+      "Product measurement unit mismatch": "القياس المختار لا يتبع وحدة المنتج المحددة.",
+      "Product variant is not available": "أحد خيارات المنتج لم يعد متاحًا. أعد اختيار المواصفات.",
+      "Product variant is required": "اختر المواصفات المتاحة للمنتج قبل إرسال الطلب.",
+      "Select every product variant group": "اختر قيمة لكل مجموعة من مواصفات المنتج.",
+      "Select one value per product variant group": "اختر قيمة واحدة فقط لكل مجموعة من المواصفات.",
+      "Duplicate product variant": "لا يمكن تكرار خيار المواصفات في المنتج نفسه.",
+    };
+    const message = catalogErrors[result.error?.message || ""] || (result.error?.message.includes("Verified customer required")
       ? "الاعتماد متاح لحساب العميل الموثق فقط."
-      : "تعذر اعتماد طلب عرض السعر. راجع البيانات وحاول مرة أخرى.";
+      : "تعذر اعتماد طلب عرض السعر. راجع البيانات وحاول مرة أخرى.");
     return NextResponse.json({ message }, { status: 400 });
   }
 

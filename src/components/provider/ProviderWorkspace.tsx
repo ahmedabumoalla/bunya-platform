@@ -15,6 +15,7 @@ import styles from "./ProviderWorkspace.module.css";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { intlLocale } from "@/lib/i18n/config";
 import { localizedSnapshot } from "@/lib/i18n/content";
+import { RequestedProductDetails } from "@/components/commerce/RequestedProductDetails";
 import { policyForAudience, policyParagraphs, type PolicyAudience } from "@/lib/policies/registry";
 
 type Row = Record<string, any>;
@@ -205,11 +206,9 @@ export function ProviderQuoteRequests() {
                     {row.measurement_snapshot ? (
                       <span>القياس: {row.measurement_snapshot}</span>
                     ) : null}
-                    {row.variant_snapshot ? (
-                      <span>الخيارات: {row.variant_snapshot}</span>
-                    ) : null}
                     <span>الاستلام {date(row.required_at)}</span>
                   </div>
+                  <RequestedProductDetails snapshot={row} />
                   <div className={styles.priceSignal}>
                     <span>{answered ? "سعر وحدتك المحفوظ" : "أقل سعر وحدة من مزود آخر حتى الآن"}</span>
                     <strong>

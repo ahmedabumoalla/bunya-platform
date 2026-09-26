@@ -120,7 +120,7 @@ function createInitialForm(product?: Product): QuoteFormState {
   const variantGroups = getProductVariantGroups(product);
 
   return {
-    quantity: 1,
+    quantity: Math.max(product?.minimumOrder || 1, .001),
     unit: defaultMeasurement?.unit ?? units[0] ?? "",
     measurementId: defaultMeasurement?.id ?? "",
     variantIds: Object.fromEntries(
@@ -461,8 +461,9 @@ export function HomeStorefront({
   const validateQuote = () => {
     const nextErrors: QuoteErrors = {};
 
-    if (!quoteForm.quantity || quoteForm.quantity < 1) {
-      nextErrors.quantity = "أدخل كمية صحيحة أكبر من صفر.";
+    const minimum = Math.max(selectedProduct?.minimumOrder || 1, .001);
+    if (!Number.isFinite(quoteForm.quantity) || quoteForm.quantity < minimum || quoteForm.quantity > 1000000) {
+      nextErrors.quantity = `الحد الأدنى لهذا المنتج ${minimum}، والحد الأعلى مليون وحدة.`;
     }
 
     if (!quoteForm.unit) {
@@ -603,7 +604,9 @@ export function HomeStorefront({
   };
 
   const updateQuoteItemQuantity = (id: string, quantity: number) => {
-    if (!Number.isFinite(quantity) || quantity < 1) return;
+    const item = quoteItems.find(entry => entry.id === id);
+    const product = products.find(entry => entry.id === item?.productId);
+    if (!Number.isFinite(quantity) || quantity < Math.max(product?.minimumOrder || 1, .001) || quantity > 1000000) return;
     setQuoteItems((current) =>
       current.map((item) => (item.id === id ? { ...item, quantity } : item)),
     );
@@ -1244,7 +1247,9 @@ export function HomeStorefront({
                               <span>الكمية</span>
                               <input
                                 aria-label={`كمية ${item.productName}`}
-                                min="1"
+                                min={Math.max(product?.minimumOrder || 1, .001)}
+                                max={1000000}
+                                step="0.001"
                                 onChange={(event) =>
                                   updateQuoteItemQuantity(
                                     item.id,
@@ -1992,7 +1997,9 @@ export function HomeStorefront({
                 <label className="store-field store-field-half">
                   <span>الكمية</span>
                   <input
-                    min="1"
+                    min={Math.max(selectedProduct.minimumOrder || 1, .001)}
+                    max={1000000}
+                    step="0.001"
                     onChange={(event) =>
                       updateForm("quantity", Number(event.target.value))
                     }

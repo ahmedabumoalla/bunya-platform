@@ -8,6 +8,7 @@ import { signProductImage } from "@/lib/products/image-urls";
 import { createClient } from "@/lib/supabase/client";
 import { PricingWindow, pricingWindowState, useLiveNow } from "./LiveDeadline";
 import styles from "./ProviderRfqResponse.module.css";
+import { RequestedProductDetails } from "./RequestedProductDetails";
 
 type Target = {
   sourcing_request_item_id: string;
@@ -25,6 +26,8 @@ type Target = {
   unit_snapshot: string;
   measurement_snapshot: string | null;
   variant_snapshot: string | null;
+  variant_selections: unknown;
+  product_specifications_snapshot: string[];
   item_notes: string | null;
   delivery_region: string;
   required_at: string;
@@ -261,14 +264,11 @@ export function ProviderRfqResponse({ id }: { id: string }) {
                   </strong>
                 </div>
                 <div className={styles.field}>
-                  <span>الخيارات والفئات</span>
-                  <strong>{target.variant_snapshot || "بدون خيارات إضافية"}</strong>
-                </div>
-                <div className={styles.field}>
                   <span>موعد الاستلام</span>
                   <strong>{format(target.required_at)}</strong>
                 </div>
               </div>
+              <RequestedProductDetails snapshot={target} />
             </div>
           </section>
           <section className={styles.section}>
@@ -293,8 +293,8 @@ export function ProviderRfqResponse({ id }: { id: string }) {
             </div>
             <div className={styles.notes}>
               <div className={styles.field}>
-                <span>مواصفات المنتج</span>
-                <strong>{target.item_notes || "لا توجد مواصفات إضافية"}</strong>
+                <span>ملاحظات العميل على المنتج</span>
+                <strong>{target.item_notes || "لا توجد ملاحظات إضافية"}</strong>
               </div>
               <div className={styles.field}>
                 <span>ملاحظات العميل</span>

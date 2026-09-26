@@ -758,9 +758,9 @@ export function ProviderProductCreate() {
           <div className={styles.repeatBuilder}>
             <div className={styles.repeatInputs}>
               <label className="provider-field">
-                <span>نوع الخيار</span>
+                <span>نوع الخيار</span><small>لعدة علامات أو مصانع، أضف كل قيمة متاحة كخيار مستقل من النوع نفسه.</small>
                 <select value={variantType} onChange={(event) => setVariantType(event.target.value)}>
-                  {["المقاس", "الضغط", "الكثافة", "السماكة", "الدرجة", "اللون", "الموديل", "أخرى"].map((value) => (
+                  {["المقاس", "الضغط", "الكثافة", "السماكة", "الدرجة", "اللون", "الموديل", "العلامة التجارية", "المصنّع", "أخرى"].map((value) => (
                     <option key={value}>{value}</option>
                   ))}
                 </select>

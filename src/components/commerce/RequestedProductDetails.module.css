@@ -1,0 +1,7 @@
+.details { display: grid; gap: 12px; min-width: 0; margin-block: 14px; padding: 13px 15px; border: 1px solid var(--customer-line, #dce5dd); border-radius: 9px; background: var(--customer-bg, #f3f6f1); }
+.details .options, .details .specifications { min-width: 0; }
+.details b { display: block; color: var(--customer-muted, #627268); font-size: 11px; font-weight: 500; }
+.details .options p { margin: 5px 0 0; color: var(--customer-ink, #20392e); font-size: 13px; line-height: 1.9; overflow-wrap: anywhere; }
+.details ul { margin: 7px 0 0; padding-inline-start: 18px; color: var(--customer-ink, #20392e); font-size: 12px; line-height: 1.9; }
+.details li { overflow-wrap: anywhere; }
+@media (max-width: 600px) { .details { padding: 11px 12px; } }

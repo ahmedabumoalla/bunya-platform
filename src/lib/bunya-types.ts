@@ -92,6 +92,7 @@ export type QuoteRequestItem = {
   productName: string;
   quantity: number;
   unit: string;
+  unitId?: string;
   measurementId: string;
   measurementLabel: string;
   selectedVariants: QuoteVariantSelection[];

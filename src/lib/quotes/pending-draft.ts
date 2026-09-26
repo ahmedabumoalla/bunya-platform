@@ -75,17 +75,24 @@ export function normalizePendingStorefrontQuote(value: unknown): PendingStorefro
   for (const candidate of raw.items) {
     if (!candidate || typeof candidate !== "object") return null;
     const item = candidate as Record<string, unknown>;
+    if ((typeof item.quantity !== "number" && typeof item.quantity !== "string")
+      || (typeof item.quantity === "string" && !/^\+?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(item.quantity.trim()))
+      || (item.unitId !== undefined && item.unitId !== null && typeof item.unitId !== "string")
+      || (item.measurementId !== undefined && item.measurementId !== null && typeof item.measurementId !== "string")) return null;
     const productId = text(item.productId, 40);
+    const unitId = text(item.unitId, 40);
     const measurementId = text(item.measurementId, 40);
     const quantity = Number(item.quantity);
-    if (!isUuid(productId) || (measurementId && !isUuid(measurementId)) || !Number.isFinite(quantity) || quantity <= 0 || quantity > 1_000_000) return null;
+    if (!isUuid(productId) || (unitId && !isUuid(unitId)) || (measurementId && !isUuid(measurementId)) || !Number.isFinite(quantity) || quantity <= 0 || quantity > 1_000_000 || quantity !== Number(quantity.toFixed(3))) return null;
     const selectedVariants: QuoteVariantSelection[] = [];
+    if (item.selectedVariants !== undefined && !Array.isArray(item.selectedVariants)) return null;
     if (Array.isArray(item.selectedVariants)) {
-      for (const candidateVariant of item.selectedVariants.slice(0, 20)) {
+      if (item.selectedVariants.length > 20) return null;
+      for (const candidateVariant of item.selectedVariants) {
         if (!candidateVariant || typeof candidateVariant !== "object") return null;
         const variant = candidateVariant as Record<string, unknown>;
         const id = text(variant.id, 40);
-        if (!isUuid(id) || !Array.isArray(variant.attributes)) return null;
+        if (!isUuid(id) || selectedVariants.some((entry) => entry.id.toLowerCase() === id.toLowerCase()) || !Array.isArray(variant.attributes)) return null;
         selectedVariants.push({
           id,
           name: text(variant.name, 160),
@@ -107,6 +114,7 @@ export function normalizePendingStorefrontQuote(value: unknown): PendingStorefro
       productName: text(item.productName, 160),
       quantity,
       unit: text(item.unit, 80),
+      unitId,
       measurementId,
       measurementLabel: text(item.measurementLabel, 160),
       selectedVariants,

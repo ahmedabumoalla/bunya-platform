@@ -78,5 +78,6 @@
   "077_fix_proposal_acceptance_milestone_guard.sql": "263ad54506054f6bf1bd3ea2897a26b3a6003b1ebef7cad9713a9abe9cc0fd13",
   "078_fix_proposal_acceptance_financial_entry.sql": "dce4207380ef91bde0e3bdd3eacc9c3bd80d2e816f237414fcad1d055dc84314",
   "079_fix_contractor_notification_event_idempotency.sql": "ee67ae4f20da3350869882c07cf5e6199b3824b8e87d88b5043d250f0c8bfd6e",
-  "080_restrict_rfq_window_trigger_function.sql": "0e0f2a486e1aaf343c38a17d7efac036762026521a9219726e657ef4cdd6f005"
+  "080_restrict_rfq_window_trigger_function.sql": "0e0f2a486e1aaf343c38a17d7efac036762026521a9219726e657ef4cdd6f005",
+  "081_canonical_rfq_catalog_selections.sql": "dce12e2a37fe109c666a30457b0008e4c01c156992d7530864794457c9fab632"
 }

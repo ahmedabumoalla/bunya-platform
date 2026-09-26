@@ -21,6 +21,7 @@ import { intlLocale } from "@/lib/i18n/config";
 import { localizedSnapshot } from "@/lib/i18n/content";
 import { copy as paymentCopy } from "@/components/payments/PaymobCheckout";
 import { CustomerProductImage } from "@/components/customer/CustomerProductImage";
+import { RequestedProductDetails } from "@/components/commerce/RequestedProductDetails";
 import styles from "./CustomerWorkspace.module.css";
 import { customerMapUrl } from "@/lib/customer/presentation";
 
@@ -612,7 +613,7 @@ export function CustomerQuoteRequestDetail({ id }: { id: string }) {
         db
           .from("quote_request_items")
           .select(
-            "id,product_id,product_name_snapshot,product_name_translations,measurement_label_snapshot,measurement_label_translations,variant_label_snapshot,variant_selections,unit_name_snapshot,unit_name_translations,quantity,notes,created_at",
+            "id,product_id,product_name_snapshot,product_name_translations,measurement_label_snapshot,measurement_label_translations,variant_label_snapshot,variant_selections,product_specifications_snapshot,unit_name_snapshot,unit_name_translations,quantity,notes,created_at",
           )
           .eq("request_id", id)
           .order("created_at", { ascending: true }),
@@ -737,11 +738,9 @@ export function CustomerQuoteRequestDetail({ id }: { id: string }) {
                     {item.measurement_label_snapshot
                       ? localizedSnapshot(item.measurement_label_snapshot, item.measurement_label_translations, locale)
                       : "بدون قياس إضافي"}
-                    {item.variant_label_snapshot
-                      ? ` · ${item.variant_label_snapshot}`
-                      : ""}
-                    {item.notes ? ` · ${item.notes}` : ""}
                   </p>
+                  <RequestedProductDetails snapshot={item} />
+                  {item.notes ? <p>ملاحظاتك: {item.notes}</p> : null}
                 </div>
                 <strong>
                   {Number(item.quantity).toLocaleString(intlLocale(locale))}{" "}
