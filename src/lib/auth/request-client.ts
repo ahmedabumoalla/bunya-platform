@@ -5,6 +5,8 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { getSupabasePublicEnv } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
+import { cookies } from "next/headers";
+import { IMPERSONATION_COOKIE } from "./impersonation-cookie";
 
 export function isLocalAppOrigin(request: NextRequest) {
   const origin = request.headers.get("origin");
@@ -42,6 +44,11 @@ export function authRouteOptions(request: NextRequest) {
 }
 
 export async function createAuthRequestClient(request: NextRequest) {
+  if ((await cookies()).has(IMPERSONATION_COOKIE)) {
+    const supabase = await createClient();
+    const result = await supabase.auth.getUser();
+    return { supabase, user: result.data.user, error: result.error, usesBearer: false };
+  }
   const authorization = request.headers.get("authorization") || "";
   const token = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
   const supabase = token

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import styles from "./AdminUsers.module.css";
+import { AdminUserDetails } from "./AdminUserDetails";
 
 type RoleKey = "customer" | "provider" | "contractor" | "driver" | "admin";
 type RoleRow = { role: RoleKey; is_primary: boolean; revoked_at: string | null };
@@ -40,6 +41,7 @@ function formatDate(value: string) {
 }
 
 export function AdminUsers() {
+  const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -119,9 +121,10 @@ export function AdminUsers() {
     </section>
 
     {error ? <div className="database-state database-error"><span>!</span><h2>تعذر تحميل المستخدمين</h2><p>{error}</p></div> : loading ? <div className="database-state"><span className="database-spinner"/><h2>جارٍ تحميل المستخدمين...</h2></div> : visible.length ? <section className={`admin-panel ${styles.tablePanel}`}>
-      <div className={styles.tableWrap} tabIndex={0} role="region" aria-label="قائمة المستخدمين"><table><thead><tr><th>المستخدم</th><th>بيانات التواصل</th><th>الأدوار النشطة</th><th>الحالة</th><th>تاريخ التسجيل</th><th>آخر تحديث</th></tr></thead><tbody>{visible.map(user => <tr key={user.id}><td><div className={styles.identity}><span>{initials(user)}</span><div><strong>{user.full_name || "بدون اسم كامل"}</strong><small>@{user.username || "غير محدد"}</small></div></div></td><td><div className={styles.contact}><b dir="ltr">{user.email || "بدون بريد"}</b><span dir="ltr">{user.mobile || "بدون جوال موثق"}</span></div></td><td><div className={styles.roles}>{activeRoles(user).map(item => <span data-role={item.role} key={item.role}>{roleLabels[item.role]}{item.is_primary ? <i title="الدور الأساسي">●</i> : null}</span>)}</div></td><td><div className={styles.accountState} data-active={user.is_active}><i/><div><b>{user.is_active ? "نشط" : "موقوف"}</b><small>{user.mobile ? "رقم الجوال مسجل" : "لم يُسجل رقم جوال"}</small></div></div></td><td><time dateTime={user.created_at}>{formatDate(user.created_at)}</time></td><td><time dateTime={user.updated_at}>{formatDate(user.updated_at)}</time></td></tr>)}</tbody></table></div>
+      <div className={styles.tableWrap} tabIndex={0} role="region" aria-label="قائمة المستخدمين"><table><thead><tr><th>المستخدم</th><th>بيانات التواصل</th><th>الأدوار النشطة</th><th>الحالة</th><th>تاريخ التسجيل</th><th>آخر تحديث</th></tr></thead><tbody>{visible.map(user => <tr key={user.id}><td><div className={styles.identity}><span>{initials(user)}</span><div><button type="button" className={styles.userLink} onClick={() => setSelectedUser(user.id)} aria-label={`عرض ملف ${user.full_name || user.username || "المستخدم"}`} aria-haspopup="dialog">{user.full_name || "بدون اسم كامل"}</button><small>@{user.username || "غير محدد"}</small></div></div></td><td><div className={styles.contact}><b dir="ltr">{user.email || "بدون بريد"}</b><span dir="ltr">{user.mobile || "بدون جوال موثق"}</span></div></td><td><div className={styles.roles}>{activeRoles(user).map(item => <span data-role={item.role} key={item.role}>{roleLabels[item.role]}{item.is_primary ? <i title="الدور الأساسي">●</i> : null}</span>)}</div></td><td><div className={styles.accountState} data-active={user.is_active}><i/><div><b>{user.is_active ? "نشط" : "موقوف"}</b><small>{user.mobile ? "رقم الجوال مسجل" : "لم يُسجل رقم جوال"}</small></div></div></td><td><time dateTime={user.created_at}>{formatDate(user.created_at)}</time></td><td><time dateTime={user.updated_at}>{formatDate(user.updated_at)}</time></td></tr>)}</tbody></table></div>
     </section> : <div className="admin-empty"><span>⌕</span><h3>لا توجد نتائج مطابقة</h3><p>غيّر كلمات البحث أو امسح أحد الفلاتر للوصول إلى الحساب المطلوب.</p>{hasFilters ? <button className="admin-secondary" onClick={reset}>مسح جميع الفلاتر</button> : null}</div>}
 
     {!loading && !error && pages > 1 ? <nav className={styles.pagination} aria-label="صفحات المستخدمين"><button disabled={currentPage === 1} onClick={() => setPage(value => Math.max(1, value - 1))}>السابق</button><span>صفحة {currentPage.toLocaleString("ar-SA")} من {pages.toLocaleString("ar-SA")}</span><button disabled={currentPage === pages} onClick={() => setPage(value => Math.min(pages, value + 1))}>التالي</button></nav> : null}
+    {selectedUser && <AdminUserDetails key={selectedUser} userId={selectedUser} onClose={() => setSelectedUser(null)}/>}
   </div>;
 }

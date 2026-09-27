@@ -43,6 +43,7 @@
   },
   "devDependencies": {
     "@capacitor/cli": "^8.5.0",
+    "@electric-sql/pglite": "0.3.16",
     "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
     "@types/ffmpeg-static": "^3.0.3",

@@ -19,6 +19,12 @@ export function LogoutButton({
   const logout = async () => {
     if (busy) return;
     setBusy(true);
+    if (document.cookie.split("; ").includes("bunya-maintenance-active=1")) {
+      const response = await fetch("/api/maintenance", { method: "DELETE" });
+      if (response.ok) window.location.assign("/admin/users");
+      else setBusy(false);
+      return;
+    }
     const supabase = createClient();
     await supabase.auth.signOut();
     router.replace("/login");

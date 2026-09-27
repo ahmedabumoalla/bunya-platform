@@ -4,8 +4,11 @@ import { createClient as createTokenClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSupabasePublicEnv } from "@/lib/supabase/env";
+import { cookies } from "next/headers";
+import { IMPERSONATION_COOKIE } from "@/lib/auth/impersonation-cookie";
 
 export async function requireJoinReviewer(request?: Request) {
+  if ((await cookies()).has(IMPERSONATION_COOKIE)) return { error: "forbidden" as const };
   const authorization = request?.headers.get("authorization") || "";
   const token = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
   const session = token ? (() => {

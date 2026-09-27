@@ -7,6 +7,8 @@ export function NativePushRuntime() {
     let disposed = false;
     const handles: Array<{ remove: () => Promise<void> }> = [];
     const start = async () => {
+      // Maintenance must never register the operator's device on the user's account.
+      if (document.cookie.split("; ").includes("bunya-maintenance-active=1")) return;
       const preview = new URLSearchParams(window.location.search).get("app") === "1";
       if (preview) {
         document.documentElement.dataset.nativeApp = "preview";

@@ -14,6 +14,8 @@ import {cookies} from "next/headers";
 import {LocaleProvider} from "@/components/i18n/LocaleProvider";
 import {FloatingLanguageSwitcher} from "@/components/i18n/LanguageSwitcher";
 import {defaultLocale,isAppLocale,localeCookieName,localeDirection} from "@/lib/i18n/config";
+import {ImpersonationBanner} from "@/components/auth/ImpersonationBanner";
+import {IMPERSONATION_COOKIE} from "@/lib/auth/impersonation-cookie";
 
 const plexArabic = localFont({
   src: [
@@ -41,11 +43,12 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const storedLocale=(await cookies()).get(localeCookieName)?.value;
+  const cookieStore=await cookies();
+  const storedLocale=cookieStore.get(localeCookieName)?.value;
   const locale=isAppLocale(storedLocale)?storedLocale:defaultLocale;
   return (
     <html className={plexArabic.variable} lang={locale} dir={localeDirection(locale)}>
-      <body><LocaleProvider initialLocale={locale}><LegacyPwaCleanup/><NativePushRuntime/><BunyaVisualRuntime/><FloatingLanguageSwitcher/>{children}</LocaleProvider></body>
+      <body><LocaleProvider initialLocale={locale}><ImpersonationBanner present={cookieStore.has(IMPERSONATION_COOKIE)}/><LegacyPwaCleanup/><NativePushRuntime/><BunyaVisualRuntime/><FloatingLanguageSwitcher/>{children}</LocaleProvider></body>
     </html>
   );
 }

@@ -20,6 +20,7 @@ export async function refreshSupabaseSession(request: NextRequest) {
 
   const { data, error } = await supabase.auth.getClaims();
   return {
+    supabase,
     response,
     userId: error ? null : data?.claims.sub ?? null,
   };
