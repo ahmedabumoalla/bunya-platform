@@ -6,10 +6,7 @@ import {
 import { sendJoinApplicantDecision } from "@/lib/notifications/send-join-applicant-decision";
 import { sendOnboardingCredentials } from "@/lib/notifications/send-onboarding-credentials";
 import { OFFICIAL_PLATFORM_URL } from "@/lib/notifications/site-url";
-import {
-  isValidJoinUsername,
-  normalizeJoinUsername,
-} from "@/lib/join/username";
+import { isValidProviderUsername, normalizeProviderText } from "@/lib/join/provider-fields";
 import { createHash, randomBytes } from "node:crypto";
 import { normalizeSaudiPhone } from "@/lib/auth/phone-verification";
 
@@ -227,7 +224,7 @@ export async function POST(
   if (kind === "provider") {
     const username = await resolveAvailableProviderUsername(
       auth.admin,
-      String(application.data.requested_username ?? ""),
+      String(application.data.requested_username || application.data.company_name_en || ""),
       id,
     );
     if (username.error) {
@@ -481,28 +478,24 @@ async function resolveAvailableProviderUsername(
   requestedUsername: string,
   applicationId: string,
 ) {
-  const normalized = normalizeJoinUsername(requestedUsername);
-  if (!isValidJoinUsername(normalized)) return { value: null, error: null };
+  const normalized = normalizeProviderText(requestedUsername);
+  if (!isValidProviderUsername(normalized)) return { value: null, error: null };
 
-  const suffix = applicationId.replaceAll("-", "").slice(0, 6);
-  const candidates = [
-    normalized,
-    `${normalized.slice(0, Math.max(4, 33))}_${suffix}`,
-  ];
+  const candidates = [normalized];
   for (const candidate of candidates) {
     const [profiles, providerProfiles, applications] = await Promise.all([
-      admin.from("profiles").select("id").ilike("username", candidate).limit(1),
+      admin.from("profiles").select("id").ilike("username", candidate.replace(/[\\%_]/g, "\\$&")).limit(1),
       admin
         .from("provider_profiles")
         .select("provider_id")
-        .ilike("username", candidate)
+        .ilike("username", candidate.replace(/[\\%_]/g, "\\$&"))
         .limit(1),
       admin
         .from("provider_applications")
         .select("id")
         .neq("id", applicationId)
         .in("status", ["pending", "needs_changes"])
-        .ilike("requested_username", candidate)
+        .ilike("requested_username", candidate.replace(/[\\%_]/g, "\\$&"))
         .limit(1),
     ]);
     const error =

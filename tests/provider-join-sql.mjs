@@ -56,6 +56,9 @@ assert.ok(finalize);
 await db.exec(finalize);
 await db.exec("revoke all on function finalize_provider_application_approval(uuid,uuid,uuid,text) from public,anon,authenticated; grant execute on function finalize_provider_application_approval(uuid,uuid,uuid,text) to service_role");
 await db.exec(await readFile(new URL("../supabase/migrations/084_provider_join_details_and_policy.sql", import.meta.url), "utf8"));
+await db.exec(`alter table profiles add constraint profiles_username_format check(username is null or char_length(username) between 4 and 40);
+alter table provider_profiles add constraint provider_profiles_username_format check(username is null or username ~ '^[^[:space:]]{4,40}$');`);
+await db.exec(await readFile(new URL("../supabase/migrations/085_provider_optional_username.sql", import.meta.url), "utf8"));
 const policy = (await db.query("update platform_policies set is_published=true where policy_key='provider-join' returning id,version,updated_at")).rows[0];
 const fields = () => ({ company_name: "  شركة   مواد  البناء  ", company_name_en: "  Building   Materials  Company  ", contact_name: null, service_cities: ["الرياض", "المدينة المنورة"], email: "provider@invalid.example", mobile: "0500000001", requested_username: "test_provider", google_maps_url: "https://maps.google.com/?q=24,46", latitude: 24, longitude: 46, delivery_available: false, joining_policy_id: policy.id, joining_policy_version: policy.version, joining_policy_updated_at: policy.updated_at, joining_policy_accepted_at: "2026-09-30T00:00:00Z", public_idempotency_key: "provider-test-idempotency-key" });
 const types = ["commercial_registration", "municipal_license", "national_address", "vat_certificate"];
@@ -151,6 +154,30 @@ await test("approval propagates bilingual company and cities; absent contact use
   assert.equal((await db.query("select full_name from profiles where id=$1", [applicantId])).rows[0].full_name, "شركة مواد البناء");
   assert.equal((await db.query("select status from provider_applications")).rows[0].status, "approved");
   assert.equal(await count("account_onboarding_deliveries"), 1);
+});
+for (const companyName of ["Building Supply Company", "AB", "International Building Materials and Construction Supply Company"]) {
+  await test(`blank username uses full English company name through approval: ${companyName}`, async () => {
+    await save({ requested_username: null, company_name_en: `  ${companyName}  ` });
+    const application = (await db.query("select requested_username,username_is_custom from provider_applications")).rows[0];
+    assert.equal(application.requested_username, companyName);
+    assert.equal(application.username_is_custom, false);
+    await db.query("select finalize_provider_application_approval($1,$2,$3,'Approved after review')", [applicationId, applicantId, reviewerId]);
+    assert.equal((await db.query("select username from profiles where id=$1", [applicantId])).rows[0].username, companyName);
+    assert.equal((await db.query("select username from provider_profiles")).rows[0].username, companyName);
+  });
+}
+await test("explicit username is preserved instead of company fallback", async () => {
+  await save({ requested_username: "  My   Chosen Company  " });
+  const row = (await db.query("select requested_username,username_is_custom from provider_applications")).rows[0];
+  assert.equal(row.requested_username, "My Chosen Company");
+  assert.equal(row.username_is_custom, true);
+});
+await test("revision with blank username follows revised English company name", async () => {
+  await revision();
+  await save({ requested_username: null, company_name_en: "New English Company" }, [], "revision-hash");
+  const row = (await db.query("select requested_username,username_is_custom from provider_applications")).rows[0];
+  assert.equal(row.requested_username, "New English Company");
+  assert.equal(row.username_is_custom, false);
 });
 console.log(`${passed} provider join migration regression checks passed.`);
 await db.close();

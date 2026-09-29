@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { prepareUpload } from "@/lib/uploads/server";
 import { notifyJoinReviewers } from "@/lib/notifications/join-reviewers";
 import { normalizeEmail, normalizeMobile, PublicJoinError, randomObjectName, requiredText, stringArray } from "./security";
-import { isValidJoinUsername } from "./username";
+import { isValidProviderUsername, resolveProviderUsername } from "./provider-fields";
 import { providerDocuments, providerFields, providerPolicyAcceptance } from "./provider-validation";
 
 export async function submitProvider(data: FormData, idempotencyKey: string | null, revision?: { applicationId: string; token: string }) {
@@ -13,12 +13,13 @@ export async function submitProvider(data: FormData, idempotencyKey: string | nu
   const acceptance = await providerPolicyAcceptance(data, admin);
   const email = normalizeEmail(data.get("email"));
   const mobile = normalizeMobile(data.get("mobile"));
-  const username = requiredText(data, "username", 4, 40);
-  if (!isValidJoinUsername(username)) throw new PublicJoinError("اسم المستخدم يجب أن يكون من 4 إلى 40 حرفًا وبدون مسافات. استخدم _ أو - للفصل.", 400);
+  const requestedUsername = String(data.get("username") ?? "").trim();
+  const username = resolveProviderUsername(requestedUsername, identity.company_name_en);
+  if (!isValidProviderUsername(username)) throw new PublicJoinError("اسم المستخدم يجب أن يكون من حرفين إلى 160 حرفًا، والمسافات مسموحة.", 400);
   const delivery = data.get("deliveryAvailable") === "true";
   const categories = stringArray(data, "categories");
   const regions = delivery ? stringArray(data, "regions") : [];
-  const fields = { ...identity, ...acceptance, email, mobile, requested_username: username, delivery_available: delivery,
+  const fields = { ...identity, ...acceptance, email, mobile, requested_username: requestedUsername ? username : null, delivery_available: delivery,
     google_maps_url: requiredText(data, "mapsUrl", 8, 2000), latitude: coordinate(data.get("latitude"), -90, 90), longitude: coordinate(data.get("longitude"), -180, 180), public_idempotency_key: idempotencyKey };
   let existingTypes: string[] = [];
   if (revision) {

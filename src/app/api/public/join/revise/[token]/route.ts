@@ -58,7 +58,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const application = found.record.application_kind === "provider"
     ? await found.admin
         .from("provider_applications")
-        .select("id,email,mobile,company_name,company_name_en,service_cities,contact_name,requested_username,google_maps_url,latitude,longitude,delivery_available,status,review_notes,provider_application_categories(custom_category,product_categories(name)),provider_delivery_regions(region_name),provider_application_documents(id,document_type,is_current,files(original_name))")
+        .select("id,email,mobile,company_name,company_name_en,service_cities,contact_name,requested_username,username_is_custom,google_maps_url,latitude,longitude,delivery_available,status,review_notes,provider_application_categories(custom_category,product_categories(name)),provider_delivery_regions(region_name),provider_application_documents(id,document_type,is_current,files(original_name))")
         .eq("id", found.record.application_id)
         .maybeSingle()
     : await found.admin

@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     if (!companyName || companyName.length < 2 || !contactName || contactName.length < 2) throw new PublicJoinError("اسم المنشأة واسم المسؤول مطلوبان.", 400);
     const core = { company_name: companyName, contact_name: contactName, mobile: normalizeMobile(form.get("mobile")), email: normalizeEmail(form.get("email")), google_maps_url: text(form, "googleMapsUrl", 500) };
     const profile = {
-      provider_id: provider.providerId, public_description: text(form, "publicDescription", 2000), username: text(form, "username", 40),
+      provider_id: provider.providerId, public_description: text(form, "publicDescription", 2000), username: text(form, "username", 160),
       commercial_registration_number: text(form, "commercialRegistrationNumber", 80), vat_number: text(form, "vatNumber", 80),
       national_address_short_code: text(form, "nationalAddressShortCode", 20), building_number: text(form, "buildingNumber", 20),
       street_name: text(form, "streetName", 150), district: text(form, "district", 100), city: text(form, "city", 100), region: text(form, "region", 100),

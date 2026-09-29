@@ -7,7 +7,7 @@ import { MultiValueInput, PortalShell } from "@/components/PortalUI";
 import type { ParsedMapLocation } from "@/lib/bunya-types";
 import { parseGoogleMapsLink } from "@/lib/bunya-local";
 import { optimizeUploadFiles } from "@/lib/uploads/client";
-import { isValidJoinUsername } from "@/lib/join/username";
+import { isValidProviderUsername, resolveProviderUsername } from "@/lib/join/provider-fields";
 import { normalizeProviderText, normalizeServiceCities } from "@/lib/join/provider-fields";
 import { appendProviderConsent, appendProviderFiles, ProviderDocuments, ProviderPolicyConsent, ServiceCitiesInput, useProviderPolicy, validateProviderFiles, type ProviderFiles, type ExistingProviderDocument } from "@/components/join/ProviderJoinFields";
 
@@ -21,6 +21,7 @@ type Application = {
   contact_name?: string;
   contractor_name?: string;
   requested_username?: string;
+  username_is_custom?: boolean;
   google_maps_url?: string;
   latitude?: number | null;
   longitude?: number | null;
@@ -109,7 +110,7 @@ export default function ReviseJoinApplicationPage() {
           contractorName: application.contractor_name || "",
           email: application.email,
           mobile: application.mobile,
-          username: application.requested_username || "",
+          username: application.username_is_custom === false ? "" : application.requested_username || "",
           mapsUrl: application.google_maps_url || "",
           latitude: application.latitude === null || application.latitude === undefined ? "" : String(application.latitude),
           longitude: application.longitude === null || application.longitude === undefined ? "" : String(application.longitude),
@@ -184,8 +185,8 @@ export default function ReviseJoinApplicationPage() {
         if (!policyState.policy || !policyState.accepted) throw new Error("يلزم الاطلاع على سياسة الانضمام الحالية والموافقة عليها.");
         const documentError = validateProviderFiles(providerFiles, documents);
         if (documentError) throw new Error(documentError);
-        if (!isValidJoinUsername(form.username.trim())) {
-          throw new Error("اسم المستخدم يجب أن يكون من 4 إلى 40 حرفًا وبدون مسافات. استخدم _ أو - للفصل.");
+        if (!isValidProviderUsername(resolveProviderUsername(form.username, form.companyNameEn))) {
+          throw new Error("اسم المستخدم يجب أن يكون من حرفين إلى 160 حرفًا، والمسافات مسموحة.");
         }
         parsedMap = await analyzeMap();
         if (parsedMap.kind === "invalid") throw new Error(parsedMap.message);
@@ -260,7 +261,7 @@ export default function ReviseJoinApplicationPage() {
               {kind === "provider" ? <><label className="portal-field"><span>اسم الشركة بالإنجليزية</span><input required dir="ltr" value={form.companyNameEn} onChange={(event) => update("companyNameEn", event.target.value)} /></label><label className="portal-field"><span>اسم المسؤول (اختياري)</span><input value={form.contactName} onChange={(event) => update("contactName", event.target.value)} /></label></> : null}
               <label className="portal-field"><span>البريد الإلكتروني</span><input type="email" required value={form.email} onChange={(event) => update("email", event.target.value)} /></label>
               <label className="portal-field"><span>رقم الجوال</span><input inputMode="tel" required value={form.mobile} onChange={(event) => update("mobile", event.target.value)} /></label>
-              {kind === "provider" ? <label className="portal-field"><span>اسم المستخدم المطلوب</span><input required value={form.username} onChange={(event) => update("username", event.target.value)} /></label> : null}
+              {kind === "provider" ? <label className="portal-field"><span>اسم المستخدم (اختياري)</span><input placeholder="اتركه فارغًا لاستخدام اسم الشركة بالإنجليزية" value={form.username} onChange={(event) => update("username", event.target.value)} /></label> : null}
               {kind === "provider" ? <ServiceCitiesInput values={serviceCities} onChange={setServiceCities} /> : null}
             </div>
             {kind === "provider" ? <p className="portal-hint">يمكن أن يتكوّن اسم الشركة من عدة كلمات تفصل بينها مسافات.</p> : null}

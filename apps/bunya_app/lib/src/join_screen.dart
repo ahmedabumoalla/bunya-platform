@@ -375,12 +375,21 @@ class _JoinApplicationScreenState extends State<JoinApplicationScreen> {
           const SizedBox(height: 11),
           TextFormField(
             controller: username,
-            validator: (value) => RegExp(r'^[^\s]{4,40}$').hasMatch(value ?? '')
-                ? null
-                : 'استخدم 4–40 حرفًا بدون مسافات',
+            validator: (value) {
+              final candidate = normalizeWords(
+                value?.trim().isNotEmpty == true ? value! : nameEn.text,
+              );
+              return candidate.length >= 2 &&
+                      candidate.length <= 160 &&
+                      !RegExp(r'[\x00-\x1f\x7f]').hasMatch(candidate)
+                  ? null
+                  : 'استخدم من حرفين إلى 160 حرفًا؛ المسافات مسموحة';
+            },
             textDirection: TextDirection.ltr,
             decoration: const InputDecoration(
-              labelText: 'اسم المستخدم المطلوب',
+              labelText: 'اسم المستخدم (اختياري)',
+              helperText: 'إذا تركته فارغًا نستخدم اسم الشركة بالإنجليزية',
+              helperMaxLines: 2,
               prefixIcon: Icon(Icons.alternate_email_rounded),
             ),
           ),

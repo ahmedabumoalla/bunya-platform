@@ -235,4 +235,23 @@ await check("revision keeps existing files and hashes revision token", async () 
   assert.equal(receipt.applicationId, "existing-application"); assert.equal(sample.uploads.length, 0);
   assert.equal(sample.rpcCalls[0].p_revision_token_hash, crypto.createHash("sha256").update("mock-revision-token").digest("hex"));
 });
+await check("blank or omitted username delegates English-name fallback to the database", async () => {
+  for (const username of [null, "", "   "]) {
+    const sample = harness();
+    await sample.submitProvider(documents(form({ username })), "test-key");
+    assert.equal(sample.rpcCalls[0].p_fields.requested_username, null);
+    assert.equal(sample.rpcCalls[0].p_fields.company_name_en, "Arabian Building Materials Company");
+  }
+});
+await check("provided username is preserved with spaces and no generated suffix", async () => {
+  const sample = harness();
+  await sample.submitProvider(documents(form({ username: "  My   Chosen Company  " })), "test-key");
+  assert.equal(sample.rpcCalls[0].p_fields.requested_username, "My Chosen Company");
+});
+await check("long company name remains valid when username is omitted", async () => {
+  const sample = harness();
+  const companyNameEn = "Building Materials Company For Distribution And Supply Services";
+  await sample.submitProvider(documents(form({ username: null, companyNameEn })), "test-key");
+  assert.equal(sample.rpcCalls[0].p_fields.company_name_en, companyNameEn);
+});
 console.log(`Provider join validation/submission regression groups passed: ${checks} (mocked database, Storage and messaging only).`);
