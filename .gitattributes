@@ -1,0 +1,2 @@
+# Keep the new migration's version-controlled checksum identical on Windows and CI.
+supabase/migrations/084_provider_join_details_and_policy.sql text eol=lf

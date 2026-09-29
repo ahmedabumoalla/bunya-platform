@@ -82,5 +82,5 @@
   "081_canonical_rfq_catalog_selections.sql": "dce12e2a37fe109c666a30457b0008e4c01c156992d7530864794457c9fab632",
   "082_additive_provider_markup_pricing.sql": "2953bd0373b2ef321310ecf401c6fe66b2ce4bca5dd0699dd92eb5a0865beb00",
   "083_super_admin_impersonation.sql": "c8e988b9c8b40abf836fc5098005e22d0440b2678a52c55579b0c201c6493666",
-  "084_provider_join_details_and_policy.sql": "da9dd7c202b74757c0aea3ab9ec52a7e502213547b481bb13a1a12aa14eee556"
+  "084_provider_join_details_and_policy.sql": "e39aecf6d546f8008691811d667d83a6e6340c24cbf930636fabaf2415a4f759"
 }
