@@ -1,0 +1,48 @@
+.cities, .documents, .policyConsent, .policyOverlay {
+  --join-ink: #19392e;
+  --join-muted: #53655b;
+  --join-border: #becdc3;
+  --join-paper: #ffffff;
+  --join-soft: #f2f6f2;
+  --join-accent: #9b5a30;
+}
+.cities { grid-column: 1 / -1; }
+.cityEntry { display: flex; gap: .6rem; }
+.cityEntry input { flex: 1; min-width: 0; }
+.cityEntry button, .retryPolicy, .policyDialog button { min-height: 44px; padding: .5rem 1rem; border: 1px solid var(--join-border); border-radius: .65rem; color: var(--join-ink); background: var(--join-paper); font: inherit; cursor: pointer; }
+.cityEntry button:disabled { background: var(--join-soft); color: var(--join-muted); cursor: default; }
+.chips { display: flex; gap: .5rem; flex-wrap: wrap; padding: 0; margin: .4rem 0 0; list-style: none; }
+.chips li { display: inline-flex; align-items: center; max-width: 100%; padding-inline-start: .8rem; background: var(--join-soft); color: var(--join-ink); border: 1px solid var(--join-border); border-radius: .6rem; }
+.chips li span { overflow-wrap: anywhere; }
+.chips button { flex: 0 0 44px; min-width: 44px; min-height: 44px; padding: 0; border: 0; background: transparent; color: var(--join-ink); font-size: 1.3rem; cursor: pointer; }
+.documentGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .8rem; }
+.documentCard { display: flex; flex-direction: column; align-items: center; padding: 1rem .7rem; border: 1px solid var(--join-border); border-radius: .8rem; background: var(--join-paper); text-align: center; min-width: 0; }
+.documentIcon { color: var(--join-ink); margin-bottom: .75rem; flex-shrink: 0; }
+.documentTitle { font-size: .86rem; font-weight: 700; line-height: 1.6; min-height: 2.8rem; color: var(--join-ink); }
+.uploadControl { position: relative; display: grid; place-items: center; width: 100%; min-height: 44px; margin-top: .65rem; border: 1px solid var(--join-border); border-radius: .6rem; color: var(--join-ink); background: var(--join-soft); font-size: .82rem; font-weight: 700; }
+.uploadControl input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.uploadControl:focus-within { outline: 2px solid var(--join-accent); outline-offset: 3px; }
+.fileStatus { max-width: 100%; margin: .6rem 0 0; font-size: .78rem; line-height: 1.6; overflow-wrap: anywhere; color: var(--join-muted); }
+.currentDocument, .removeFile { display: inline-flex; justify-content: center; align-items: center; min-height: 44px; color: var(--join-ink); font: inherit; font-size: .78rem; }
+.removeFile { background: transparent; border: 0; text-decoration: underline; cursor: pointer; }
+.legacyDocuments { display: grid; gap: .5rem; font-size: .86rem; color: var(--join-ink); }
+.legacyDocuments a { min-height: 44px; overflow-wrap: anywhere; }
+.policyConsent { border-top: 1px solid var(--join-border); padding-top: 1rem; }
+.consentRow { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; }
+.consentRow input { width: 22px; height: 22px; margin: 11px; accent-color: var(--join-ink); }
+.consentRow label { min-height: 44px; display: inline-flex; align-items: center; cursor: pointer; }
+.policyLink { min-height: 44px; color: var(--join-ink); font: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 4px; border: 0; background: transparent; padding: .3rem; cursor: pointer; text-align: start; }
+.policyLink:disabled { color: var(--join-muted); cursor: default; }
+.policyOverlay { position: fixed; inset: 0; z-index: 10000; display: grid; place-items: center; padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left)); background: rgb(12 29 23 / 60%); }
+.policyDialog { width: min(100%, 700px); max-height: 85dvh; display: flex; flex-direction: column; background: var(--join-paper); color: var(--join-ink); border-radius: 1rem; box-shadow: 0 16px 60px rgb(0 0 0 / 18%); overflow: hidden; }
+.policyDialog header { display: flex; justify-content: space-between; align-items: flex-start; gap: .75rem; padding: 1.25rem; border-bottom: 1px solid var(--join-border); }
+.policyDialog header button { min-width: 44px; font-size: 1.35rem; }
+.policyDialog h2 { margin: 0; font-size: clamp(1.1rem, 3vw, 1.5rem); line-height: 1.6; }
+.policyDialog header p { margin: .35rem 0 0; color: var(--join-muted); font-size: .85rem; }
+.policyBody { min-height: 0; padding: .4rem 1.25rem 1.25rem; overflow-y: auto; overscroll-behavior: contain; line-height: 1.9; }
+.policyBody p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.policyDialog footer { padding: .85rem 1.25rem; border-top: 1px solid var(--join-border); }
+.policyDialog footer button { width: 100%; background: var(--join-ink); color: var(--join-paper); }
+.cities :is(button, input):focus-visible, .documents :is(button, a):focus-visible, .policyConsent :is(button, input):focus-visible, .policyDialog :is(button, a):focus-visible { outline: 2px solid var(--join-accent); outline-offset: 3px; }
+@media (max-width: 760px) { .documentGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 420px) { .cityEntry { flex-direction: column; } .documentGrid { gap: .5rem; } .documentCard { padding: .8rem .5rem; } .consentRow { gap: .15rem; } .policyLink { flex-basis: 100%; margin-inline-start: 0; } }

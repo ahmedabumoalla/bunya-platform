@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveAuthIdentity } from "@/lib/auth/resolve-identity";
 import { formatRecordField, stateLabels, type AdminRow } from "@/lib/admin/records";
+import { providerDocumentLabel } from "@/lib/join/provider-fields";
 import type { UserDetailField, UserDetailSection, UserDetailSource } from "./user-details-types";
 
 export const userIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -95,21 +96,29 @@ export function documentQuery(access: UserDetailAccess, links: UserDetailLinks, 
   const { admin } = access;
   if (source === "files") return admin.from("files").select(`id,original_name,mime_type,size_bytes,created_at,scan_status${full ? ",bucket_id,object_path" : ""}`, { count: "exact" }).eq("owner_profile_id", id).is("deleted_at", null);
   if (source === "provider") return admin.from("provider_documents").select(`id,file_name,document_type,status,expires_at,size_bytes,mime_type,created_at${full ? ",storage_path" : ""}`, { count: "exact" }).in("provider_id", links.providerIds);
-  if (source === "provider_application") return admin.from("provider_application_documents").select(`id,document_type,status,created_at,files!inner(original_name,mime_type,size_bytes,scan_status,deleted_at${full ? ",bucket_id,object_path" : ""})`, { count: "exact" }).in("application_id", links.providerApplicationIds).is("files.deleted_at", null);
+  if (source === "provider_application") return admin.from("provider_application_documents").select(`id,document_type,status,created_at,files!inner(original_name,mime_type,size_bytes,scan_status,deleted_at${full ? ",bucket_id,object_path" : ""})`, { count: "exact" }).in("application_id", links.providerApplicationIds).eq("is_current", true).is("files.deleted_at", null);
   const filters = [...(links.contractorIds.length ? [`contractor_profile_id.in.(${links.contractorIds.join(",")})`] : []), ...(links.contractorApplicationIds.length ? [`application_id.in.(${links.contractorApplicationIds.join(",")})`] : [])];
   return admin.from("contractor_documents").select(`id,file_name,document_type,status,expires_at,size_bytes,mime_type,created_at${full ? ",storage_path,application_id" : ""}`, { count: "exact" }).or(filters.join(","));
 }
 const maintenanceLabels: Record<string, string> = { maintenance_started: "بدء الدخول بالنيابة", maintenance_ended: "إنهاء الدخول بالنيابة", admin_impersonation_sessions: "جلسات الصيانة", storage_objects: "المستندات والملفات", storage_post: "إجراء على الملفات", storage_put: "رفع ملف", storage_delete: "حذف ملف", insert: "إضافة", update: "تعديل", delete: "حذف" };
-export function translated(value: unknown, fallback = "غير محدد") { return maintenanceLabels[String(value)] ?? stateLabels[String(value)] ?? roleNames[String(value)] ?? fallback; }
+export function translated(value: unknown, fallback = "غير محدد") {
+  const key = String(value);
+  if (["commercial_registration", "municipal_license", "national_address", "vat_certificate"].includes(key)) return providerDocumentLabel(key);
+  return maintenanceLabels[key] ?? stateLabels[key] ?? roleNames[key] ?? fallback;
+}
 export async function overviewSections(access: UserDetailAccess, links: UserDetailLinks): Promise<UserDetailSection[]> {
   const { admin, profile } = access;
   const sections: UserDetailSection[] = [{ title: "بيانات الحساب", fields: fields(profile, [["full_name", "الاسم الكامل"], ["username", "اسم المستخدم"], ["email", "البريد الإلكتروني"], ["mobile", "رقم الجوال"], ["created_at", "تاريخ التسجيل", "date"], ["updated_at", "آخر تحديث", "date"], ["must_change_password", "يلزم تغيير كلمة المرور", "boolean"], ["password_changed_at", "آخر تغيير لكلمة المرور", "date"]]) }];
   if (access.permissions.has("reviews.manage")) {
     if (links.providerIds.length) {
-      const providers = rows(await admin.from("providers").select("id,company_name,contact_name,mobile,email,status,google_maps_url,review_notes,reviewed_at").in("id", links.providerIds));
-      for (const provider of providers) sections.push({ title: `المنشأة · ${provider.company_name}`, fields: fields(provider, [["company_name", "اسم المنشأة"], ["contact_name", "مسؤول التواصل"], ["mobile", "الجوال"], ["email", "البريد"], ["status", "حالة المنشأة", "status"], ["google_maps_url", "الموقع"], ["reviewed_at", "وقت المراجعة", "date"], ["review_notes", "ملاحظات المراجعة"]]) });
+      const providers = rows(await admin.from("providers").select("id,company_name,company_name_en,contact_name,service_cities,mobile,email,status,google_maps_url,review_notes,reviewed_at").in("id", links.providerIds));
+      for (const provider of providers) sections.push({ title: `المنشأة · ${provider.company_name}`, fields: fields(provider, [["company_name", "اسم المنشأة بالعربية"], ["company_name_en", "اسم المنشأة بالإنجليزية"], ["contact_name", "مسؤول التواصل (اختياري)"], ["service_cities", "المدن التي يخدمها المزود"], ["mobile", "الجوال"], ["email", "البريد"], ["status", "حالة المنشأة", "status"], ["google_maps_url", "الموقع"], ["reviewed_at", "وقت المراجعة", "date"], ["review_notes", "ملاحظات المراجعة"]]) });
       const details = rows(await admin.from("provider_profiles").select("provider_id,public_description,username,delivery_available,commercial_registration_number,vat_number,national_address_short_code,building_number,street_name,district,city,region,postal_code,secondary_number,country,website_url").in("provider_id", links.providerIds));
       for (const detail of details) sections.push({ title: `البيانات التجارية · ${providers.find(row => row.id === detail.provider_id)?.company_name ?? "المنشأة"}`, fields: fields(detail, [["public_description", "نبذة المنشأة"], ["commercial_registration_number", "السجل التجاري"], ["vat_number", "الرقم الضريبي"], ["delivery_available", "التوصيل متاح", "boolean"], ["national_address_short_code", "العنوان المختصر"], ["building_number", "رقم المبنى"], ["street_name", "الشارع"], ["district", "الحي"], ["city", "المدينة"], ["region", "المنطقة"], ["postal_code", "الرمز البريدي"], ["secondary_number", "الرقم الإضافي"], ["country", "الدولة"], ["website_url", "الموقع الإلكتروني"]]) });
+    }
+    if (links.providerApplicationIds.length) {
+      const applications = rows(await admin.from("provider_applications").select("id,company_name,company_name_en,contact_name,service_cities,status,created_at,joining_policy_title,joining_policy_version,joining_policy_accepted_at").in("id", links.providerApplicationIds));
+      for (const application of applications) sections.push({ title: `طلب انضمام المزود · ${application.company_name}`, fields: fields(application, [["company_name", "اسم الشركة بالعربية"], ["company_name_en", "اسم الشركة بالإنجليزية"], ["contact_name", "اسم المسؤول (اختياري)"], ["service_cities", "المدن التي يخدمها المزود"], ["status", "حالة الطلب", "status"], ["created_at", "تاريخ التقديم", "date"], ["joining_policy_title", "سياسة الانضمام المقبولة"], ["joining_policy_version", "إصدار السياسة"], ["joining_policy_accepted_at", "وقت الموافقة على السياسة", "date"]]) });
     }
     if (links.contractorIds.length) {
       const contractors = rows(await admin.from("contractor_profiles").select("display_name,commercial_name,city,badge,years_experience,summary,phone,email,subscription_active,approval_status,availability,google_maps_url,average_rating,projects_count,directory_visible,professional_links").in("id", links.contractorIds));

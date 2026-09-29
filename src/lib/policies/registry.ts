@@ -5,6 +5,7 @@ export const policyDestinations = [
   { key: "account-deletion", label: "حذف الحساب والبيانات", location: "صفحة حذف الحساب وجميع الحسابات", href: "/account-deletion", audiences: ["customer", "provider", "contractor", "driver"] },
   { key: "customer", label: "سياسة العملاء", location: "حساب العميل ومركز السياسات", href: "/customer/policies", audiences: ["customer"] },
   { key: "provider", label: "سياسة المزودين", location: "حساب المزود وصفحة الانضمام", href: "/merchant/policies", audiences: ["provider"] },
+  { key: "provider-join", label: "سياسة انضمام مزود الخدمات أو المورد", location: "نافذة سياسة التقديم في طلب انضمام المزود", href: "/providers/join", audiences: ["provider"] },
   { key: "contractor", label: "سياسة المقاولين", location: "حساب المقاول وصفحة الانضمام", href: "/contractor/policies", audiences: ["contractor"] },
   { key: "delivery", label: "سياسة التوصيل والاستلام", location: "مركز السياسات وحسابات العميل والمزود والسائق", href: "/policies#delivery", audiences: ["customer", "provider", "driver"] },
   { key: "payments", label: "سياسة الدفع", location: "صفحة الدفع ومركز السياسات", href: "/policies#payments", audiences: ["customer", "provider", "contractor"] },

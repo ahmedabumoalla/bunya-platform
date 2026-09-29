@@ -80,7 +80,7 @@ export async function POST(
   } as Record<string, unknown>;
   const applicantName = String(
     kind === "provider"
-      ? application.data.contact_name
+      ? (application.data.contact_name || application.data.company_name)
       : application.data.contractor_name,
   );
   let details = applicationDetails(
@@ -280,7 +280,7 @@ export async function POST(
     user_metadata: {
       full_name:
         kind === "provider"
-          ? application.data.contact_name
+          ? (application.data.contact_name || application.data.company_name)
           : application.data.contractor_name,
       ...(kind === "contractor" ? { mobile: application.data.mobile } : {}),
       onboarding_role: kind,
@@ -546,7 +546,8 @@ function applicationDetails(
         label: "اسم المستخدم",
         value: String(application.requested_username || "—"),
       },
-      { label: "كود الخصم", value: String(application.discount_code || "—") },
+      { label: "اسم الشركة بالإنجليزية", value: String(application.company_name_en || "—") },
+      { label: "المدن المخدومة", value: Array.isArray(application.service_cities) ? application.service_cities.join("، ") : "—" },
       {
         label: "رابط Google Maps",
         value: String(application.google_maps_url || "—"),

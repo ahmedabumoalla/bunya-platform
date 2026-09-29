@@ -12,7 +12,7 @@ import {
 } from "@/lib/join/security";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { prepareUpload } from "@/lib/uploads/server";
-import { isValidJoinUsername } from "@/lib/join/username";
+import { submitProvider } from "@/lib/join/submit-provider";
 
 export const runtime = "nodejs";
 
@@ -58,7 +58,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const application = found.record.application_kind === "provider"
     ? await found.admin
         .from("provider_applications")
-        .select("id,email,mobile,company_name,contact_name,requested_username,google_maps_url,latitude,longitude,discount_code,delivery_available,status,review_notes,provider_application_categories(custom_category,product_categories(name)),provider_delivery_regions(region_name),provider_application_documents(id,files(original_name))")
+        .select("id,email,mobile,company_name,company_name_en,service_cities,contact_name,requested_username,google_maps_url,latitude,longitude,delivery_available,status,review_notes,provider_application_categories(custom_category,product_categories(name)),provider_delivery_regions(region_name),provider_application_documents(id,document_type,is_current,files(original_name))")
         .eq("id", found.record.application_id)
         .maybeSingle()
     : await found.admin
@@ -84,8 +84,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     : ((row.contractor_work_regions as { region_name: string }[] | undefined) ?? []).map((item) => item.region_name);
   const specialties = ((row.contractor_specialties as { specialty_name: string }[] | undefined) ?? []).map((item) => item.specialty_name);
   const documents = found.record.application_kind === "provider"
-    ? ((row.provider_application_documents as Record<string, unknown>[] | undefined) ?? []).map((item) => ({
+    ? ((row.provider_application_documents as Record<string, unknown>[] | undefined) ?? []).filter(item => item.is_current !== false).map((item) => ({
         id: String(item.id),
+        documentType: String(item.document_type),
         name: String((item.files as { original_name?: string } | null)?.original_name || "مستند"),
         url: `/api/public/join/revise/${encodeURIComponent(token)}/documents/${item.id}`,
       }))
@@ -123,7 +124,6 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 export async function POST(request: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   let found: Awaited<ReturnType<typeof resolveToken>> = null;
   const uploaded: string[] = [];
-  const providerFileIds: string[] = [];
   const contractorDocumentIds: string[] = [];
   try {
     assertSameOrigin(request);
@@ -131,54 +131,30 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!found) return NextResponse.json({ message: "الرابط غير صالح أو منتهي." }, { status: 410 });
 
     const data = await request.formData();
+    if (found.record.application_kind === "provider") {
+      const receipt = await submitProvider(data, null, { applicationId: found.record.application_id, token: (await params).token });
+      return NextResponse.json(receipt);
+    }
     const email = normalizeEmail(data.get("email"));
     const mobile = normalizeMobile(data.get("mobile"));
     const files = validateFiles(data);
     const applicationId = found.record.application_id;
     const kind = found.record.application_kind;
-    const table = kind === "provider" ? "provider_applications" : "contractor_applications";
+    const table = "contractor_applications";
     const current = await found.admin.from(table).select("id,status").eq("id", applicationId).maybeSingle();
     if (current.error || !current.data) throw new PublicJoinError("الطلب غير موجود.", 404);
     if (current.data.status !== "needs_changes") throw new PublicJoinError("لم يعد الطلب متاحًا للتعديل.", 409);
 
-    const documentTable = kind === "provider" ? "provider_application_documents" : "contractor_documents";
+    const documentTable = "contractor_documents";
     const existingDocuments = await found.admin.from(documentTable).select("id", { count: "exact", head: true }).eq("application_id", applicationId);
     if (existingDocuments.error) throw existingDocuments.error;
     if ((existingDocuments.count ?? 0) + files.length > 5) {
       throw new PublicJoinError("الحد الأقصى خمسة مستندات إجمالًا. ارفع الملفات المصححة المطلوبة فقط.", 400);
     }
 
-    const deliveryAvailable = data.get("deliveryAvailable") === "true";
-    const categories = kind === "provider" ? stringArray(data, "categories") : [];
-    const regions = kind === "provider" && !deliveryAvailable ? [] : stringArray(data, "regions");
-    const specialties = kind === "contractor" ? stringArray(data, "specialties") : [];
-
-    const requestedUsername = kind === "provider" ? requiredText(data, "username", 4, 40) : "";
-    if (kind === "provider" && !isValidJoinUsername(requestedUsername)) {
-      throw new PublicJoinError("اسم المستخدم يجب أن يكون من 4 إلى 40 حرفًا وبدون مسافات. استخدم _ أو - للفصل.", 400);
-    }
-    const update = kind === "provider"
-      ? {
-          company_name: requiredText(data, "companyName", 2, 160),
-          contact_name: requiredText(data, "contactName", 2, 120),
-          email,
-          mobile,
-          requested_username: requestedUsername,
-          google_maps_url: requiredText(data, "mapsUrl", 8, 2000),
-          latitude: optionalNumber(data.get("latitude"), -90, 90),
-          longitude: optionalNumber(data.get("longitude"), -180, 180),
-          discount_code: String(data.get("discountCode") || "").trim() || null,
-          delivery_available: deliveryAvailable,
-        }
-      : {
-          contractor_name: requiredText(data, "contractorName", 3, 160),
-          email,
-          mobile,
-        };
-
-    if (kind === "provider" && update.delivery_available && !regions.length) {
-      throw new PublicJoinError("أضف منطقة توصيل واحدة على الأقل.", 400);
-    }
+    const regions = stringArray(data, "regions");
+    const specialties = stringArray(data, "specialties");
+    const update = { contractor_name: requiredText(data, "contractorName", 3, 160), email, mobile };
 
     for (const file of files) {
       const prepared = await prepareUpload(file);
@@ -190,27 +166,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       if (storage.error) throw storage.error;
       uploaded.push(objectPath);
 
-      if (kind === "provider") {
-        const registry = await found.admin.from("files").insert({
-          owner_profile_id: null,
-          bucket_id: "join-applications",
-          object_path: objectPath,
-          purpose: "provider_join_document",
-          original_name: prepared.fileName,
-          mime_type: prepared.mimeType,
-          size_bytes: prepared.size,
-          checksum_sha256: createHash("sha256").update(prepared.bytes).digest("hex"),
-          uploaded_at: new Date().toISOString(),
-        }).select("id").single();
-        if (registry.error) throw registry.error;
-        providerFileIds.push(registry.data.id);
-        const linked = await found.admin.from("provider_application_documents").insert({
-          application_id: applicationId,
-          file_id: registry.data.id,
-          document_type: "supporting_document",
-        });
-        if (linked.error) throw linked.error;
-      } else {
         const linked = await found.admin.from("contractor_documents").insert({
           application_id: applicationId,
           document_type: "supporting_document",
@@ -221,22 +176,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         }).select("id").single();
         if (linked.error) throw linked.error;
         contractorDocumentIds.push(linked.data.id);
-      }
     }
 
-    if (kind === "provider") {
-      const removedCategories = await found.admin.from("provider_application_categories").delete().eq("application_id", applicationId);
-      if (removedCategories.error) throw removedCategories.error;
-      const savedCategories = await found.admin.from("provider_application_categories").insert(categories.map((name) => ({ application_id: applicationId, custom_category: name })));
-      if (savedCategories.error) throw savedCategories.error;
-
-      const removedRegions = await found.admin.from("provider_delivery_regions").delete().eq("application_id", applicationId);
-      if (removedRegions.error) throw removedRegions.error;
-      if (update.delivery_available) {
-        const savedRegions = await found.admin.from("provider_delivery_regions").insert(regions.map((name) => ({ application_id: applicationId, region_name: name })));
-        if (savedRegions.error) throw savedRegions.error;
-      }
-    } else {
       const removedRegions = await found.admin.from("contractor_work_regions").delete().eq("application_id", applicationId);
       if (removedRegions.error) throw removedRegions.error;
       const savedRegions = await found.admin.from("contractor_work_regions").insert(regions.map((name) => ({ application_id: applicationId, region_name: name })));
@@ -246,7 +187,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       if (removedSpecialties.error) throw removedSpecialties.error;
       const savedSpecialties = await found.admin.from("contractor_specialties").insert(specialties.map((name) => ({ application_id: applicationId, specialty_name: name })));
       if (savedSpecialties.error) throw savedSpecialties.error;
-    }
 
     const result = await found.admin.from(table).update({
       ...update,
@@ -268,10 +208,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   } catch (error) {
     if (found) {
       if (uploaded.length) await found.admin.storage.from("join-applications").remove(uploaded).catch(() => undefined);
-      if (providerFileIds.length) {
-        await found.admin.from("provider_application_documents").delete().in("file_id", providerFileIds);
-        await found.admin.from("files").delete().in("id", providerFileIds);
-      }
+
       if (contractorDocumentIds.length) {
         await found.admin.from("contractor_documents").delete().in("id", contractorDocumentIds);
       }
@@ -280,11 +217,4 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (error instanceof PublicJoinError) return NextResponse.json({ message: error.message }, { status: error.status });
     return NextResponse.json({ message: "تعذر حفظ التعديلات." }, { status: 500 });
   }
-}
-
-function optionalNumber(value: FormDataEntryValue | null, min: number, max: number) {
-  if (value === null || String(value).trim() === "") return null;
-  const number = Number(value);
-  if (!Number.isFinite(number) || number < min || number > max) throw new PublicJoinError("الإحداثيات غير صالحة.", 400);
-  return number;
 }

@@ -248,7 +248,8 @@ export type ProviderApplication = {
   mapsUrl: string;
   latitude?: number;
   longitude?: number;
-  discountCode?: string;
+  companyNameEn?: string;
+  serviceCities?: string[];
   categories: string[];
   deliveryAvailable: boolean;
   deliveryRegions: string[];

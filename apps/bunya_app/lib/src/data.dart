@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'product_image_urls.dart';
@@ -362,6 +363,49 @@ class Profile {
 class JoinSubmission {
   const JoinSubmission({required this.id, required this.status});
   final String id, status;
+}
+
+class JoinSubmissionException implements Exception {
+  const JoinSubmissionException(this.statusCode, this.message);
+
+  final int statusCode;
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+class ProviderJoinPolicy {
+  const ProviderJoinPolicy({
+    required this.id,
+    required this.title,
+    required this.version,
+    required this.body,
+    required this.updatedAt,
+  });
+
+  final String id, title, version, updatedAt;
+  final List<String> body;
+
+  factory ProviderJoinPolicy.fromJson(Map<String, dynamic> json) =>
+      ProviderJoinPolicy(
+        id: json['id'] as String,
+        title: json['title'] as String,
+        version: '${json['version']}',
+        body: List<String>.from(json['body'] as List),
+        updatedAt: json['updatedAt'] as String,
+      );
+}
+
+class JoinDocument {
+  const JoinDocument({
+    required this.name,
+    required this.bytes,
+    required this.mimeType,
+  });
+
+  final String name, mimeType;
+  final Uint8List bytes;
 }
 
 class AppDataRefresh {
@@ -1023,12 +1067,31 @@ class BunyaRepository {
     notifyDataChanged();
   }
 
+  Future<ProviderJoinPolicy?> loadProviderJoinPolicy() async {
+    final response = await http
+        .get(
+          Uri.parse(
+            '${_appUrl.replaceFirst(RegExp(r'/$'), '')}/api/public/join/provider/policy',
+          ),
+        )
+        .timeout(const Duration(seconds: 20));
+    if (response.statusCode != 200) {
+      throw Exception('تعذر تحميل سياسة الانضمام. أعد المحاولة.');
+    }
+    final payload = jsonDecode(response.body) as Map<String, dynamic>;
+    final policy = payload['policy'];
+    return policy == null
+        ? null
+        : ProviderJoinPolicy.fromJson(policy as Map<String, dynamic>);
+  }
+
   Future<JoinSubmission> submitJoinApplication({
     required String kind,
     required Map<String, String> fields,
     required List<String> regions,
     List<String> categories = const [],
     List<String> specialties = const [],
+    Map<String, JoinDocument> documents = const {},
   }) async {
     final request = http.MultipartRequest(
       'POST',
@@ -1044,11 +1107,24 @@ class BunyaRepository {
       ..['categories'] = jsonEncode(categories)
       ..['specialties'] = jsonEncode(specialties)
       ..['website'] = '';
+    for (final entry in documents.entries) {
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'document:${entry.key}',
+          entry.value.bytes,
+          filename: entry.value.name,
+          contentType: MediaType.parse(entry.value.mimeType),
+        ),
+      );
+    }
     final streamed = await request.send();
     final response = await http.Response.fromStream(streamed);
     final body = jsonDecode(response.body) as Map<String, dynamic>;
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception('${body['message'] ?? 'تعذر إرسال طلب الانضمام'}');
+      throw JoinSubmissionException(
+        response.statusCode,
+        '${body['message'] ?? 'تعذر إرسال طلب الانضمام'}',
+      );
     }
     final submission = JoinSubmission(
       id: '${body['applicationId']}',

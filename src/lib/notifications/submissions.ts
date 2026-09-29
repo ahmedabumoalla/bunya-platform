@@ -5,7 +5,9 @@ import type {ProviderSubmission} from "./providers/green-api";
 export async function recordProviderSubmission(input:{eventType:string;channel:"whatsapp"|"email";destinationMasked:string;idempotencyKey:string;result:ProviderSubmission}){
   const admin=createAdminClient();
   const existing=await admin.from("notification_provider_submissions").select("attempts").eq("idempotency_key",input.idempotencyKey).maybeSingle();
-  await admin.from("notification_provider_submissions").upsert({event_type:input.eventType,channel:input.channel,masked_destination:input.destinationMasked,idempotency_key:input.idempotencyKey,status:input.result.status,provider_message_id:input.result.providerMessageId,submitted_at:input.result.submittedAt,sanitized_error:input.result.sanitizedError,attempts:Number(existing.data?.attempts??0)+1},{onConflict:"idempotency_key"});
+  if(existing.error)throw new Error("notification_submission_lookup_failed");
+  const saved=await admin.from("notification_provider_submissions").upsert({event_type:input.eventType,channel:input.channel,masked_destination:input.destinationMasked,idempotency_key:input.idempotencyKey,status:input.result.status,provider_message_id:input.result.providerMessageId,submitted_at:input.result.submittedAt,sanitized_error:input.result.sanitizedError,attempts:Number(existing.data?.attempts??0)+1},{onConflict:"idempotency_key"});
+  if(saved.error)throw new Error("notification_submission_record_failed");
   if(input.result.status==="failed"||input.result.status==="configuration_missing"){
     const since=new Date(Date.now()-60*60*1000).toISOString();
     const failures=await admin.from("notification_provider_submissions").select("id",{count:"exact",head:true}).eq("channel",input.channel).in("status",["failed","configuration_missing"]).gte("created_at",since);

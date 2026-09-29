@@ -8,49 +8,52 @@ import type { ParsedMapLocation } from "@/lib/bunya-types";
 import { parseGoogleMapsLink } from "@/lib/bunya-local";
 import { optimizeUploadFiles } from "@/lib/uploads/client";
 import { isValidJoinUsername } from "@/lib/join/username";
+import { normalizeProviderText, normalizeServiceCities } from "@/lib/join/provider-fields";
+import { appendProviderConsent, appendProviderFiles, ProviderDocuments, ProviderPolicyConsent, ServiceCitiesInput, useProviderPolicy, validateProviderFiles, type ProviderFiles, type ExistingProviderDocument } from "@/components/join/ProviderJoinFields";
 
 type Application = {
   id: string;
   email: string;
   mobile: string;
   company_name?: string;
+  company_name_en?: string;
+  service_cities?: string[];
   contact_name?: string;
   contractor_name?: string;
   requested_username?: string;
   google_maps_url?: string;
   latitude?: number | null;
   longitude?: number | null;
-  discount_code?: string | null;
   delivery_available?: boolean;
   review_notes?: string;
   categories: string[];
   regions: string[];
   specialties: string[];
-  documents: Array<{ id: string; name: string; url: string }>;
+  documents: ExistingProviderDocument[];
 };
 
 type FormState = {
   companyName: string;
+  companyNameEn: string;
   contactName: string;
   contractorName: string;
   email: string;
   mobile: string;
   username: string;
   mapsUrl: string;
-  discountCode: string;
   latitude: string;
   longitude: string;
 };
 
 const emptyForm: FormState = {
   companyName: "",
+  companyNameEn: "",
   contactName: "",
   contractorName: "",
   email: "",
   mobile: "",
   username: "",
   mapsUrl: "",
-  discountCode: "",
   latitude: "",
   longitude: "",
 };
@@ -66,12 +69,15 @@ export default function ReviseJoinApplicationPage() {
   const [delivery, setDelivery] = useState(false);
   const [documents, setDocuments] = useState<Application["documents"]>([]);
   const [files, setFiles] = useState<File[]>([]);
+  const [providerFiles, setProviderFiles] = useState<ProviderFiles>({});
+  const [serviceCities, setServiceCities] = useState<string[]>([]);
   const [mapMessage, setMapMessage] = useState("");
   const [mapBusy, setMapBusy] = useState(false);
   const [state, setState] = useState<"loading" | "ready" | "saving" | "done" | "error">("loading");
   const [message, setMessage] = useState("");
   const [requestedChanges, setRequestedChanges] = useState("");
   const [applicationId, setApplicationId] = useState("");
+  const policyState = useProviderPolicy(kind === "provider" && Boolean(applicationId));
 
   useEffect(() => {
     let active = true;
@@ -95,15 +101,16 @@ export default function ReviseJoinApplicationPage() {
         setSpecialties(application.specialties || []);
         setDelivery(Boolean(application.delivery_available));
         setDocuments(application.documents || []);
+        setServiceCities(application.service_cities || []);
         setForm({
           companyName: application.company_name || "",
+          companyNameEn: application.company_name_en || "",
           contactName: application.contact_name || "",
           contractorName: application.contractor_name || "",
           email: application.email,
           mobile: application.mobile,
           username: application.requested_username || "",
           mapsUrl: application.google_maps_url || "",
-          discountCode: application.discount_code || "",
           latitude: application.latitude === null || application.latitude === undefined ? "" : String(application.latitude),
           longitude: application.longitude === null || application.longitude === undefined ? "" : String(application.longitude),
         });
@@ -162,11 +169,21 @@ export default function ReviseJoinApplicationPage() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (state === "saving") return;
     setState("saving");
     setMessage("");
     try {
       let parsedMap: ParsedMapLocation | null = null;
       if (kind === "provider") {
+        for (const name of [form.companyName, form.companyNameEn]) {
+          const normalized = normalizeProviderText(name);
+          if (normalized.length < 2 || normalized.length > 160) throw new Error("أدخل اسم الشركة بالعربية والإنجليزية من حرفين إلى 160 حرفًا لكل اسم.");
+        }
+        if (normalizeProviderText(form.contactName).length > 120) throw new Error("اسم المسؤول لا يتجاوز 120 حرفًا.");
+        if (!serviceCities.length) throw new Error("أضف مدينة واحدة على الأقل ثم اضغط Enter أو إضافة مدينة.");
+        if (!policyState.policy || !policyState.accepted) throw new Error("يلزم الاطلاع على سياسة الانضمام الحالية والموافقة عليها.");
+        const documentError = validateProviderFiles(providerFiles, documents);
+        if (documentError) throw new Error(documentError);
         if (!isValidJoinUsername(form.username.trim())) {
           throw new Error("اسم المستخدم يجب أن يكون من 4 إلى 40 حرفًا وبدون مسافات. استخدم _ أو - للفصل.");
         }
@@ -179,13 +196,15 @@ export default function ReviseJoinApplicationPage() {
       data.set("mobile", form.mobile);
       data.set("regions", JSON.stringify(kind === "provider" && !delivery ? [] : regions));
       if (kind === "provider") {
-        data.set("companyName", form.companyName);
-        data.set("contactName", form.contactName);
+        data.set("companyName", normalizeProviderText(form.companyName));
+        data.set("companyNameEn", normalizeProviderText(form.companyNameEn));
+        data.set("contactName", normalizeProviderText(form.contactName));
+        data.set("serviceCities", JSON.stringify(normalizeServiceCities(serviceCities)));
+        appendProviderConsent(data, policyState.policy!);
         data.set("username", form.username);
         data.set("mapsUrl", parsedMap?.url || form.mapsUrl);
         data.set("latitude", parsedMap?.kind === "coordinates" ? String(parsedMap.latitude) : form.latitude);
         data.set("longitude", parsedMap?.kind === "coordinates" ? String(parsedMap.longitude) : form.longitude);
-        data.set("discountCode", form.discountCode);
         data.set("deliveryAvailable", String(delivery));
         data.set("categories", JSON.stringify(categories));
       } else {
@@ -193,14 +212,18 @@ export default function ReviseJoinApplicationPage() {
         data.set("specialties", JSON.stringify(specialties));
       }
 
-      const optimized = await optimizeUploadFiles(files);
-      optimized.forEach((file) => data.append("documents", file));
+      if (kind === "provider") {
+        await appendProviderFiles(data, providerFiles);
+      } else {
+        const optimized = await optimizeUploadFiles(files);
+        optimized.forEach((file) => data.append("documents", file));
+      }
       const response = await fetch(`/api/public/join/revise/${encodeURIComponent(token)}`, {
         method: "POST",
         body: data,
       });
       const body = await response.json() as { message?: string };
-      if (!response.ok) throw new Error(body.message || "تعذر حفظ التعديلات.");
+      if (!response.ok) { if (kind === "provider" && response.status === 409) policyState.reload(); throw new Error(body.message || "تعذر حفظ التعديلات."); }
       setState("done");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "تعذر حفظ التعديلات.");
@@ -233,13 +256,14 @@ export default function ReviseJoinApplicationPage() {
           <fieldset className="form-section">
             <legend><span>01</span> بيانات مقدم الطلب</legend>
             <div className="form-grid">
-              <label className="portal-field"><span>{kind === "provider" ? "اسم الشركة" : "اسم المقاول"}</span><input required value={kind === "provider" ? form.companyName : form.contractorName} onChange={(event) => update(kind === "provider" ? "companyName" : "contractorName", event.target.value)} /></label>
-              {kind === "provider" ? <label className="portal-field"><span>اسم المسؤول</span><input required value={form.contactName} onChange={(event) => update("contactName", event.target.value)} /></label> : null}
+              <label className="portal-field"><span>{kind === "provider" ? "اسم الشركة بالعربية" : "اسم المقاول"}</span><input required value={kind === "provider" ? form.companyName : form.contractorName} onChange={(event) => update(kind === "provider" ? "companyName" : "contractorName", event.target.value)} /></label>
+              {kind === "provider" ? <><label className="portal-field"><span>اسم الشركة بالإنجليزية</span><input required dir="ltr" value={form.companyNameEn} onChange={(event) => update("companyNameEn", event.target.value)} /></label><label className="portal-field"><span>اسم المسؤول (اختياري)</span><input value={form.contactName} onChange={(event) => update("contactName", event.target.value)} /></label></> : null}
               <label className="portal-field"><span>البريد الإلكتروني</span><input type="email" required value={form.email} onChange={(event) => update("email", event.target.value)} /></label>
               <label className="portal-field"><span>رقم الجوال</span><input inputMode="tel" required value={form.mobile} onChange={(event) => update("mobile", event.target.value)} /></label>
               {kind === "provider" ? <label className="portal-field"><span>اسم المستخدم المطلوب</span><input required value={form.username} onChange={(event) => update("username", event.target.value)} /></label> : null}
-              {kind === "provider" ? <label className="portal-field"><span>كود الخصم (اختياري)</span><input value={form.discountCode} onChange={(event) => update("discountCode", event.target.value)} /></label> : null}
+              {kind === "provider" ? <ServiceCitiesInput values={serviceCities} onChange={setServiceCities} /> : null}
             </div>
+            {kind === "provider" ? <p className="portal-hint">يمكن أن يتكوّن اسم الشركة من عدة كلمات تفصل بينها مسافات.</p> : null}
           </fieldset>
 
           {kind === "provider" ? (
@@ -286,18 +310,18 @@ export default function ReviseJoinApplicationPage() {
             </>
           )}
 
-          <fieldset className="form-section">
-            <legend><span>{kind === "provider" ? "05" : "04"}</span> المستندات الرسمية</legend>
+          {kind === "provider" ? <><ProviderDocuments files={providerFiles} onChange={setProviderFiles} existing={documents}/><ProviderPolicyConsent value={policyState}/></> : <fieldset className="form-section">
+            <legend><span>04</span> المستندات الرسمية</legend>
             <div className="revision-current-documents">
               {documents.length ? documents.map((document) => <a href={document.url} target="_blank" rel="noreferrer" key={document.id}>{document.name} — عرض المستند الحالي</a>) : <p className="portal-hint">لا توجد مستندات حالية.</p>}
             </div>
             <label className="portal-field"><span>إضافة مستندات مصححة — الحد الإجمالي خمسة ملفات</span><input type="file" accept=".pdf,image/jpeg,image/png,image/webp" multiple onChange={selectFiles} /></label>
             <p className="portal-hint">تُضغط الصور تلقائيًا قبل التخزين. المستندات الجديدة تُضاف إلى الطلب الحالي.</p>
             {files.map((file) => <p className="portal-hint" key={`${file.name}-${file.size}`}>{file.name} — {(file.size / 1024 / 1024).toFixed(2)} MB</p>)}
-          </fieldset>
+          </fieldset>}
 
           {message ? <p className="portal-form-error" role="alert">{message}</p> : null}
-          <button className="portal-primary-button application-submit" disabled={state === "saving"}>{state === "saving" ? "جارٍ حفظ وإرسال الطلب..." : "حفظ التعديلات وإعادة الإرسال"}</button>
+          <button className="portal-primary-button application-submit" disabled={state === "saving" || (kind === "provider" && (!policyState.policy || !policyState.accepted))}>{state === "saving" ? "جارٍ حفظ وإرسال الطلب..." : "حفظ التعديلات وإعادة الإرسال"}</button>
         </form>
       </section>
     </PortalShell>

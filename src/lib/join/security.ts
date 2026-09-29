@@ -3,7 +3,7 @@ import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import type { NextRequest } from "next/server";
 
-const MAX_BODY_BYTES = 30 * 1024 * 1024;
+const MAX_BODY_BYTES = 45 * 1024 * 1024;
 const WINDOW_MS = 15 * 60 * 1000;
 const MAX_REQUESTS = 5;
 const attempts = new Map<string, { count: number; resetAt: number }>();

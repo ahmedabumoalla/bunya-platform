@@ -2,6 +2,7 @@
 "use client";
 
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
+import { providerDocumentLabel } from "@/lib/join/provider-fields";
 import { useDialogFocus } from "./useDialogFocus";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -22,7 +23,7 @@ type Application = Row & {
   created_at: string;
   email: string;
   mobile: string;
-  documents: Array<{ id: string; name: string; url: string | null }>;
+  documents: Array<{ id: string; name: string; document_type?: string; url: string | null }>;
   reviews?: Row[];
   onboarding?: Row | null;
 };
@@ -156,6 +157,7 @@ function RequestDetails({
   const workRegions = (item.contractor_work_regions as Row[] | undefined) ?? [];
   const specialties = (item.contractor_specialties as Row[] | undefined) ?? [];
   const reviews = item.reviews ?? [];
+  const serviceCities = Array.isArray(item.service_cities) ? item.service_cities.filter((city): city is string => typeof city === "string") : [];
   const name = displayValue(kind === "provider" ? item.company_name : item.contractor_name);
   const [documentPreview, setDocumentPreview] = useState<DocumentPreviewState | null>(null);
 
@@ -221,8 +223,9 @@ function RequestDetails({
           <dl className="admin-request-detail-grid">
             {kind === "provider" ? (
               <>
-                <Detail label="اسم الشركة">{displayValue(item.company_name)}</Detail>
-                <Detail label="اسم المسؤول">{displayValue(item.contact_name)}</Detail>
+                <Detail label="اسم الشركة بالعربية">{displayValue(item.company_name)}</Detail>
+                <Detail label="اسم الشركة بالإنجليزية" dir="ltr">{displayValue(item.company_name_en)}</Detail>
+                <Detail label="اسم المسؤول (اختياري)">{displayValue(item.contact_name)}</Detail>
               </>
             ) : (
               <Detail label="اسم المقاول">{displayValue(item.contractor_name)}</Detail>
@@ -230,9 +233,6 @@ function RequestDetails({
             <Detail label="البريد الإلكتروني" dir="ltr">{displayValue(item.email)}</Detail>
             <Detail label="رقم الجوال" dir="ltr">{displayValue(item.mobile)}</Detail>
             <Detail label="اسم المستخدم المطلوب">{item.requested_username ? displayValue(item.requested_username) : "لم يُحدد"}</Detail>
-            {kind === "provider" ? (
-              <Detail label="كود الخصم">{displayValue(item.discount_code)}</Detail>
-            ) : null}
             <Detail label="وقت تقديم الطلب">{dateTime(item.created_at)}</Detail>
             <Detail label="آخر تحديث">{dateTime(item.updated_at)}</Detail>
           </dl>
@@ -243,6 +243,9 @@ function RequestDetails({
             <h4>الموقع والتوصيل</h4>
             <dl className="admin-request-detail-grid">
               <Detail label="خدمة التوصيل">{displayValue(item.delivery_available)}</Detail>
+              <Detail label="المدن التي يخدمها المزود">
+                <div className="admin-request-chips">{serviceCities.length ? serviceCities.map((city, index) => <span key={`${city}-${index}`}>{city}</span>) : "لم تُحدد"}</div>
+              </Detail>
               <Detail label="الإحداثيات" dir="ltr">
                 {item.latitude && item.longitude ? `${item.latitude}, ${item.longitude}` : "—"}
               </Detail>
@@ -292,13 +295,13 @@ function RequestDetails({
                 document.url ? (
                   <button type="button" onClick={() => void openDocument(document)} key={document.id}>
                     <em className="admin-request-file-type" aria-hidden="true">{/\.pdf$/i.test(document.name) ? "PDF" : /\.(png|jpe?g|webp|heic)$/i.test(document.name) ? "صورة" : "ملف"}</em>
-                    <span dir="auto">{document.name}</span>
+                    <span dir="auto">{kind === "provider" && document.document_type ? <>{providerDocumentLabel(document.document_type)}<br /></> : null}{document.name}</span>
                     <b>عرض المستند</b>
                   </button>
                 ) : (
                   <div key={document.id}>
                     <em className="admin-request-file-type" aria-hidden="true">ملف</em>
-                    <span dir="auto">{document.name}</span>
+                    <span dir="auto">{kind === "provider" && document.document_type ? <>{providerDocumentLabel(document.document_type)}<br /></> : null}{document.name}</span>
                     <b>تعذر إنشاء رابط العرض</b>
                   </div>
                 ),
@@ -308,6 +311,19 @@ function RequestDetails({
             )}
           </div>
         </section>
+
+        {kind === "provider" ? (
+          <section className="admin-request-section">
+            <h4>الموافقة على سياسة الانضمام</h4>
+            {item.joining_policy_accepted_at ? (
+              <dl className="admin-request-detail-grid">
+                <Detail label="السياسة">{displayValue(item.joining_policy_title)}</Detail>
+                <Detail label="الإصدار">{displayValue(item.joining_policy_version)}</Detail>
+                <Detail label="وقت الموافقة">{dateTime(item.joining_policy_accepted_at)}</Detail>
+              </dl>
+            ) : <p>لا توجد موافقة مسجلة على سياسة الانضمام لهذا الطلب.</p>}
+          </section>
+        ) : null}
 
         <section className="admin-request-section admin-request-review">
           <h4>المراجعة وحالة إنشاء الحساب</h4>
@@ -496,7 +512,7 @@ export function AdminJoinRequests({ kind }: { kind: "provider" | "contractor" })
                 <tr key={item.id}>
                   <th scope="row">
                     <strong>{displayValue(kind === "provider" ? item.company_name : item.contractor_name)}</strong>
-                    <small>{kind === "provider" ? "منشأة توريد" : "مقاول"}</small>
+                    <small dir={kind === "provider" && item.company_name_en ? "ltr" : undefined}>{kind === "provider" ? displayValue(item.company_name_en || "منشأة توريد") : "مقاول"}</small>
                   </th>
                   <td><span dir="ltr">{item.email}</span><span dir="ltr">{item.mobile}</span></td>
                   <td><AdminStatus value={displayStatus(item.status)} /></td>
