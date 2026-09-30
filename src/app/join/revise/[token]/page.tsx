@@ -1,12 +1,13 @@
 "use client";
 
 import type { ChangeEvent, FormEvent } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { MultiValueInput, PortalShell } from "@/components/PortalUI";
 import type { ParsedMapLocation } from "@/lib/bunya-types";
 import { parseGoogleMapsLink } from "@/lib/bunya-local";
 import { optimizeUploadFiles } from "@/lib/uploads/client";
+import { ProviderUploadError, uploadProviderDocuments } from "@/lib/uploads/provider-resumable-client";
 import { isValidProviderUsername, resolveProviderUsername } from "@/lib/join/provider-fields";
 import { normalizeProviderText, normalizeServiceCities } from "@/lib/join/provider-fields";
 import { appendProviderConsent, appendProviderFiles, ProviderDocuments, ProviderPolicyConsent, ServiceCitiesInput, useProviderPolicy, validateProviderFiles, type ProviderFiles, type ExistingProviderDocument } from "@/components/join/ProviderJoinFields";
@@ -79,6 +80,8 @@ export default function ReviseJoinApplicationPage() {
   const [requestedChanges, setRequestedChanges] = useState("");
   const [applicationId, setApplicationId] = useState("");
   const policyState = useProviderPolicy(kind === "provider" && Boolean(applicationId));
+  const submitting = useRef(false);
+  const [uploadStatus, setUploadStatus] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -170,7 +173,8 @@ export default function ReviseJoinApplicationPage() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (state === "saving") return;
+    if (submitting.current) return;
+    submitting.current = true;
     setState("saving");
     setMessage("");
     try {
@@ -214,7 +218,10 @@ export default function ReviseJoinApplicationPage() {
       }
 
       if (kind === "provider") {
-        await appendProviderFiles(data, providerFiles);
+        appendProviderFiles(data, providerFiles);
+        setUploadStatus("جارٍ تجهيز وضغط المستندات...");
+        await uploadProviderDocuments(data, { revisionToken: token, onProgress: (percent) => setUploadStatus(`جارٍ رفع المستندات: ${percent}٪`) });
+        setUploadStatus("جارٍ حفظ وإرسال الطلب...");
       } else {
         const optimized = await optimizeUploadFiles(files);
         optimized.forEach((file) => data.append("documents", file));
@@ -227,8 +234,12 @@ export default function ReviseJoinApplicationPage() {
       if (!response.ok) { if (kind === "provider" && response.status === 409) policyState.reload(); throw new Error(body.message || "تعذر حفظ التعديلات."); }
       setState("done");
     } catch (error) {
+      if (error instanceof ProviderUploadError && error.status === 409) policyState.reload();
       setMessage(error instanceof Error ? error.message : "تعذر حفظ التعديلات.");
       setState("ready");
+    } finally {
+      submitting.current = false;
+      setUploadStatus("");
     }
   }
 
@@ -322,6 +333,7 @@ export default function ReviseJoinApplicationPage() {
           </fieldset>}
 
           {message ? <p className="portal-form-error" role="alert">{message}</p> : null}
+          {kind === "provider" ? <p className="portal-hint" role="status" aria-live="polite" aria-atomic="true">{uploadStatus}</p> : null}
           <button className="portal-primary-button application-submit" disabled={state === "saving" || (kind === "provider" && (!policyState.policy || !policyState.accepted))}>{state === "saving" ? "جارٍ حفظ وإرسال الطلب..." : "حفظ التعديلات وإعادة الإرسال"}</button>
         </form>
       </section>

@@ -6,6 +6,7 @@ import { notifyJoinReviewers } from "@/lib/notifications/join-reviewers";
 import { normalizeEmail, normalizeMobile, PublicJoinError, randomObjectName, requiredText, stringArray } from "./security";
 import { isValidProviderUsername, resolveProviderUsername } from "./provider-fields";
 import { providerDocuments, providerFields, providerPolicyAcceptance } from "./provider-validation";
+import { resolveProviderUpload, verifyProviderUpload, validDocumentHeader } from "./provider-upload-batches";
 
 export async function submitProvider(data: FormData, idempotencyKey: string | null, revision?: { applicationId: string; token: string }) {
   const admin = createAdminClient();
@@ -27,19 +28,22 @@ export async function submitProvider(data: FormData, idempotencyKey: string | nu
     if (result.error) throw result.error;
     existingTypes = (result.data ?? []).map(row => row.document_type);
   }
-  const documents = providerDocuments(data, existingTypes);
-  const applicationId = revision?.applicationId ?? randomUUID();
+  const batch = data.has("uploadToken") ? await resolveProviderUpload(data, idempotencyKey, revision, admin) : null;
+  if (batch?.committed_at) {
+    const receipt = await admin.from("provider_applications").select("id,status,created_at").eq("id", batch.application_id).single();
+    if (receipt.error) throw receipt.error;
+    return { applicationId: receipt.data.id, status: receipt.data.status, submittedAt: receipt.data.created_at };
+  }
+  const documents = batch ? [] : providerDocuments(data, existingTypes);
+  const applicationId = batch?.application_id ?? revision?.applicationId ?? randomUUID();
   const uploaded: string[] = [];
   const records: Record<string, unknown>[] = [];
   let saved = false;
   try {
+    if (batch) records.push(...await verifyProviderUpload(batch, admin));
     for (const document of documents) {
       const header = new Uint8Array(await document.file.slice(0, 12).arrayBuffer());
-      const ascii = new TextDecoder().decode(header);
-      const valid = document.file.type === "application/pdf" ? ascii.startsWith("%PDF-")
-        : document.file.type === "image/jpeg" ? header[0] === 0xff && header[1] === 0xd8 && header[2] === 0xff
-        : document.file.type === "image/png" ? header[0] === 0x89 && ascii.slice(1, 4) === "PNG"
-        : ascii.startsWith("RIFF") && ascii.slice(8, 12) === "WEBP";
+      const valid = validDocumentHeader(header, document.file.type);
       if (!valid) throw new PublicJoinError("محتوى أحد المستندات لا يطابق نوع الملف. ارفع ملف PDF أو صورة صالحة.", 400);
       const file = await prepareUpload(document.file);
       const path = `join-applications/provider/${applicationId}/${randomObjectName()}`;
@@ -48,7 +52,9 @@ export async function submitProvider(data: FormData, idempotencyKey: string | nu
       uploaded.push(path);
       records.push({ id: randomUUID(), object_path: path, original_name: file.fileName, mime_type: file.mimeType, size_bytes: file.size, checksum_sha256: createHash("sha256").update(file.bytes).digest("hex"), document_type: document.type });
     }
-    const result = await admin.rpc("save_provider_join_application", { p_application_id: applicationId, p_fields: fields, p_categories: categories, p_regions: regions, p_documents: records, p_revision_token_hash: revision ? createHash("sha256").update(revision.token).digest("hex") : null });
+    const result = batch
+      ? await admin.rpc("commit_provider_join_upload", { p_token_hash: batch.token_hash, p_binding_hash: batch.binding_hash, p_fields: fields, p_categories: categories, p_regions: regions, p_documents: records })
+      : await admin.rpc("save_provider_join_application", { p_application_id: applicationId, p_fields: fields, p_categories: categories, p_regions: regions, p_documents: records, p_revision_token_hash: revision ? createHash("sha256").update(revision.token).digest("hex") : null });
     if (result.error) {
       if (result.error.code === "23505") throw new PublicJoinError("يوجد طلب مرتبط بهذه البيانات أو تم تسجيل هذه المحاولة مسبقًا.", 409);
       if (result.error.code === "23514") throw new PublicJoinError("تعذر حفظ الطلب بعد تغير السياسة أو حالة الطلب. حدّث البيانات والسياسة وأعد المحاولة.", 409);

@@ -1,10 +1,11 @@
 "use client";
 
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { ParsedMapLocation } from "@/lib/bunya-types";
 import { parseGoogleMapsLink } from "@/lib/bunya-local";
 import { optimizeUploadFiles } from "@/lib/uploads/client";
+import { ProviderUploadError, uploadProviderDocuments } from "@/lib/uploads/provider-resumable-client";
 import { isValidProviderUsername, resolveProviderUsername } from "@/lib/join/provider-fields";
 import { MultiValueInput, PortalShell } from "./PortalUI";
 import { PolicyLinks } from "@/components/legal/PolicyLinks";
@@ -72,6 +73,8 @@ export function ProviderJoinFlow({ categories }: { categories: string[] }) {
   const [delivery, setDelivery] = useState<boolean | null>(null); const [regions, setRegions] = useState<string[]>([]); const [files, setFiles] = useState<ProviderFiles>({});
   const [serviceCities, setServiceCities] = useState<string[]>([]);
   const policyState = useProviderPolicy();
+  const submitting = useRef(false);
+  const [uploadStatus, setUploadStatus] = useState("");
   const [map, setMap] = useState<ParsedMapLocation | null>(null); const [mapBusy, setMapBusy] = useState(false); const [errors, setErrors] = useState<Errors>({}); const [result, setResult] = useState<Result | null>(null); const [busy, setBusy] = useState(false); const [submitError, setSubmitError] = useState("");
   const update = (key: keyof typeof form, value: string) => { setForm((current) => ({ ...current, [key]: value })); setErrors((current) => ({ ...current, [key]: "" })); };
   const analyzeMap = async () => {
@@ -84,21 +87,25 @@ export function ProviderJoinFlow({ categories }: { categories: string[] }) {
   };
   const submit = async (event: FormEvent) => {
     event.preventDefault(); const next: Errors = {};
-    if (busy) return;
-    const companyName = normalizeProviderText(form.companyName);
-    const companyNameEn = normalizeProviderText(form.companyNameEn);
-    const contactName = normalizeProviderText(form.contactName);
-    if (companyName.length < 2 || companyName.length > 160) next.companyName = "أدخل اسم الشركة بالعربية من حرفين إلى 160 حرفًا.";
-    if (companyNameEn.length < 2 || companyNameEn.length > 160) next.companyNameEn = "أدخل اسم الشركة بالإنجليزية من حرفين إلى 160 حرفًا.";
-    if (contactName.length > 120) next.contactName = "اسم المسؤول لا يتجاوز 120 حرفًا.";
-    if (!serviceCities.length) next.serviceCities = "أضف مدينة واحدة على الأقل ثم اضغط Enter أو إضافة مدينة.";
-    if (!policyState.policy || !policyState.accepted) next.policy = "يلزم الاطلاع على سياسة الانضمام والموافقة عليها.";
-    if (!mobilePattern.test(form.mobile.replace(/\s/g, ""))) next.mobile = "أدخل رقم جوال صحيحًا."; if (!emailPattern.test(form.email.trim())) next.email = "أدخل بريدًا إلكترونيًا صحيحًا."; if (!isValidProviderUsername(resolveProviderUsername(form.username, form.companyNameEn))) next.username = "استخدم من حرفين إلى 160 حرفًا؛ المسافات مسموحة.";
-    const parsed = map?.url === form.mapsUrl.trim() && map.kind === "coordinates" ? map : await analyzeMap(); if (parsed.kind === "invalid") next.mapsUrl = parsed.message;
-    const allCategories = [...selected, ...custom]; if (!allCategories.length) next.categories = "اختر تصنيفًا واحدًا على الأقل."; if (delivery === null) next.delivery = "حدد توفر التوصيل."; if (delivery && !regions.length) next.regions = "أضف منطقة توصيل واحدة على الأقل.";
-    const documentError = validateProviderFiles(files); if (documentError) next.documents = documentError;
-    if (Object.keys(next).length) return setErrors(next); setBusy(true); setSubmitError("");
+    if (submitting.current) return;
+    submitting.current = true;
+    setBusy(true);
+    setSubmitError("");
+    setUploadStatus("جارٍ التحقق من الطلب...");
     try {
+      const companyName = normalizeProviderText(form.companyName);
+      const companyNameEn = normalizeProviderText(form.companyNameEn);
+      const contactName = normalizeProviderText(form.contactName);
+      if (companyName.length < 2 || companyName.length > 160) next.companyName = "أدخل اسم الشركة بالعربية من حرفين إلى 160 حرفًا.";
+      if (companyNameEn.length < 2 || companyNameEn.length > 160) next.companyNameEn = "أدخل اسم الشركة بالإنجليزية من حرفين إلى 160 حرفًا.";
+      if (contactName.length > 120) next.contactName = "اسم المسؤول لا يتجاوز 120 حرفًا.";
+      if (!serviceCities.length) next.serviceCities = "أضف مدينة واحدة على الأقل ثم اضغط Enter أو إضافة مدينة.";
+      if (!policyState.policy || !policyState.accepted) next.policy = "يلزم الاطلاع على سياسة الانضمام والموافقة عليها.";
+      if (!mobilePattern.test(form.mobile.replace(/\s/g, ""))) next.mobile = "أدخل رقم جوال صحيحًا."; if (!emailPattern.test(form.email.trim())) next.email = "أدخل بريدًا إلكترونيًا صحيحًا."; if (!isValidProviderUsername(resolveProviderUsername(form.username, form.companyNameEn))) next.username = "استخدم من حرفين إلى 160 حرفًا؛ المسافات مسموحة.";
+      const parsed = map?.url === form.mapsUrl.trim() && map.kind === "coordinates" ? map : await analyzeMap(); if (parsed.kind === "invalid") next.mapsUrl = parsed.message;
+      const allCategories = [...selected, ...custom]; if (!allCategories.length) next.categories = "اختر تصنيفًا واحدًا على الأقل."; if (delivery === null) next.delivery = "حدد توفر التوصيل."; if (delivery && !regions.length) next.regions = "أضف منطقة توصيل واحدة على الأقل.";
+      const documentError = validateProviderFiles(files); if (documentError) next.documents = documentError;
+      if (Object.keys(next).length) return setErrors(next);
       const data = new FormData();
       Object.entries({ ...form, companyName, companyNameEn, contactName, mapsUrl: parsed.url, latitude: String(parsed.latitude ?? ""), longitude: String(parsed.longitude ?? ""), deliveryAvailable: String(delivery) }).forEach(([key, value]) => data.set(key, value));
       data.set("categories", JSON.stringify(allCategories));
@@ -106,12 +113,19 @@ export function ProviderJoinFlow({ categories }: { categories: string[] }) {
       data.set("serviceCities", JSON.stringify(normalizeServiceCities(serviceCities)));
       data.set("website", "");
       appendProviderConsent(data, policyState.policy!);
-      await appendProviderFiles(data, files);
-      const response = await fetch("/api/public/join/provider", { method: "POST", body: data, headers: { "Idempotency-Key": crypto.randomUUID().replaceAll("-", "") } });
+      appendProviderFiles(data, files);
+      const idempotencyKey = crypto.randomUUID().replaceAll("-", "");
+      setUploadStatus("جارٍ تجهيز وضغط المستندات...");
+      await uploadProviderDocuments(data, { idempotencyKey, onProgress: (percent) => setUploadStatus(`جارٍ رفع المستندات: ${percent}٪`) });
+      setUploadStatus("جارٍ حفظ وإرسال الطلب...");
+      const response = await fetch("/api/public/join/provider", { method: "POST", body: data, headers: { "Idempotency-Key": idempotencyKey } });
       const body = await response.json() as Result & { message?: string };
       if (!response.ok) { if (response.status === 409) policyState.reload(); throw new Error(body.message || "تعذر إرسال الطلب."); }
       setResult(body);
-    } catch (error) { setSubmitError(error instanceof Error ? error.message : "تعذر إرسال الطلب."); } finally { setBusy(false); }
+    } catch (error) {
+      if (error instanceof ProviderUploadError && error.status === 409) policyState.reload();
+      setSubmitError(error instanceof Error ? error.message : "تعذر إرسال الطلب.");
+    } finally { submitting.current = false; setBusy(false); setUploadStatus(""); }
   };
   if (result) return <Success result={result} kind="provider"/>;
   return <Frame eyebrow="بوابة الشركاء" title="طلب انضمام مزود" description="قدّم بيانات منشأتك دون الحاجة إلى تسجيل الدخول."><form className="application-form" onSubmit={submit} noValidate><input tabIndex={-1} autoComplete="off" className="sr-only" name="website"/>
@@ -119,7 +133,7 @@ export function ProviderJoinFlow({ categories }: { categories: string[] }) {
     <fieldset className="form-section"><legend><span>02</span> موقع مقدم الطلب</legend><div className="map-input-row"><Field id="provider-map" label="رابط Google Maps" value={form.mapsUrl} onChange={(v)=>{update("mapsUrl",v);setMap(null)}} error={errors.mapsUrl}/><button type="button" disabled={mapBusy} onClick={()=>void analyzeMap()}>{mapBusy?"جارٍ التحليل...":"تحليل الرابط"}</button></div>{map && map.kind!=="invalid"?<p className="portal-hint">{map.message}</p>:null}</fieldset>
     <fieldset className="form-section"><legend><span>03</span> التصنيفات الرئيسية المتوفرة لدى مقدم الطلب</legend><div className="choice-grid">{categories.map((category)=><label className={selected.includes(category)?"choice-card choice-card-active":"choice-card"} key={category}><input type="checkbox" checked={selected.includes(category)} onChange={()=>setSelected((current)=>current.includes(category)?current.filter((v)=>v!==category):[...current,category])}/>{category}</label>)}<label className={showOther?"choice-card choice-card-active":"choice-card"}><input type="checkbox" checked={showOther} onChange={(e)=>setShowOther(e.target.checked)}/>أخرى</label></div>{showOther?<MultiValueInput label="تصنيفات مخصصة" placeholder="اكتب التصنيف" values={custom} onChange={setCustom}/>:null}{errors.categories?<small className="portal-error">{errors.categories}</small>:null}</fieldset>
     <fieldset className="form-section"><legend><span>04</span> هل يوجد توصيل؟</legend><div className="binary-choice"><label className={delivery===true?"active":""}><input type="radio" checked={delivery===true} onChange={()=>setDelivery(true)}/>نعم</label><label className={delivery===false?"active":""}><input type="radio" checked={delivery===false} onChange={()=>{setDelivery(false);setRegions([])}}/>لا</label></div>{delivery?<MultiValueInput label="مناطق التوصيل" placeholder="مثال: شمال الرياض" values={regions} onChange={setRegions} error={errors.regions}/>:null}{errors.delivery?<small className="portal-error">{errors.delivery}</small>:null}</fieldset>
-    <ProviderDocuments files={files} onChange={setFiles} error={errors.documents}/><ProviderPolicyConsent value={policyState}/>{errors.policy && !policyState.accepted ? <p className="portal-error" role="alert">{errors.policy}</p> : null}{submitError?<p className="portal-form-error" role="alert">{submitError}</p>:null}<button className="portal-primary-button application-submit" disabled={busy || !policyState.policy || !policyState.accepted}>{busy?"جارٍ الإرسال...":"رفع طلب الانضمام"}</button></form></Frame>;
+    <ProviderDocuments files={files} onChange={setFiles} error={errors.documents}/><ProviderPolicyConsent value={policyState}/>{errors.policy && !policyState.accepted ? <p className="portal-error" role="alert">{errors.policy}</p> : null}{submitError?<p className="portal-form-error" role="alert">{submitError}</p>:null}<p className="portal-hint" role="status" aria-live="polite" aria-atomic="true">{uploadStatus}</p><button className="portal-primary-button application-submit" disabled={busy || !policyState.policy || !policyState.accepted}>{busy?"جارٍ الإرسال...":"رفع طلب الانضمام"}</button></form></Frame>;
 }
 
 export function ContractorJoinFlow() {

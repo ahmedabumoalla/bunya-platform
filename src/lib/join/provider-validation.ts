@@ -26,7 +26,7 @@ export function providerDocuments(data: FormData, existingTypes: string[] = []) 
     const file = values[0];
     if (file === undefined && existingTypes.includes(entry.key)) continue;
     if (!(file instanceof File) || !file.size) throw new PublicJoinError(`أرفق ${entry.label}.`, 400);
-    if (!allowedMimeTypes.has(file.type) || file.size > 10 * 1024 * 1024) throw new PublicJoinError("يُسمح بملفات PDF أو JPEG أو PNG أو WebP بحد 10 ميجابايت للملف.", 400);
+    if (!allowedMimeTypes.has(file.type)) throw new PublicJoinError("يُسمح بملفات PDF أو JPEG أو PNG أو WebP غير الفارغة.", 400);
     documents.push({ file, type: entry.key });
   }
   for (const [key] of data) if ((key.startsWith("document:") && !PROVIDER_DOCUMENT_TYPES.some(type => key === `document:${type.key}`)) || key === "documents") throw new PublicJoinError("ارفع كل مستند في الخانة المخصصة له.", 400);

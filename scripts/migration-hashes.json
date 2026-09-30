@@ -83,5 +83,6 @@
   "082_additive_provider_markup_pricing.sql": "2953bd0373b2ef321310ecf401c6fe66b2ce4bca5dd0699dd92eb5a0865beb00",
   "083_super_admin_impersonation.sql": "c8e988b9c8b40abf836fc5098005e22d0440b2678a52c55579b0c201c6493666",
   "084_provider_join_details_and_policy.sql": "e39aecf6d546f8008691811d667d83a6e6340c24cbf930636fabaf2415a4f759",
-  "085_provider_optional_username.sql": "e102e07e43b417a0db43ca4b27b0b38dfd1e9fafa210adb2d04d68249dea0ede"
+  "085_provider_optional_username.sql": "e102e07e43b417a0db43ca4b27b0b38dfd1e9fafa210adb2d04d68249dea0ede",
+  "086_provider_resumable_documents.sql": "8247bae721e6e6a01acdd1471cbe640c9649977b820cc3d18fc5cb66c815942d"
 }

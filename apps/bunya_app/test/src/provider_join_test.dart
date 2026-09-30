@@ -28,6 +28,7 @@ class _JoinRepository extends Fake implements BunyaRepository {
     List<String> categories = const [],
     List<String> specialties = const [],
     Map<String, JoinDocument> documents = const {},
+    void Function(double progress)? onUploadProgress,
   }) async =>
       throw const JoinSubmissionException(409, 'تم تحديث سياسة الانضمام');
 }

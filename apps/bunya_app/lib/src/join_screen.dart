@@ -4,6 +4,7 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
 import 'data.dart';
+import 'prepare_join_document.dart';
 import 'theme.dart';
 
 enum JoinKind { provider, contractor }
@@ -49,6 +50,7 @@ class _JoinApplicationScreenState extends State<JoinApplicationScreen> {
   bool policyLoading = true, policyAccepted = false;
   String? pickingDocument;
   bool delivery = true, busy = false;
+  double uploadProgress = 0;
   JoinSubmission? result;
 
   bool get provider => widget.kind == JoinKind.provider;
@@ -140,8 +142,8 @@ class _JoinApplicationScreenState extends State<JoinApplicationScreen> {
       if (file == null || !mounted) return;
       final size = await file.length();
       if (!mounted) return;
-      if (size == 0 || size > 10 * 1024 * 1024) {
-        message('اختر مستندًا غير فارغ بحجم لا يتجاوز 10 ميجابايت');
+      if (size == 0) {
+        message('اختر مستندًا غير فارغ');
         return;
       }
       final mime = switch (file.name.split('.').last.toLowerCase()) {
@@ -155,15 +157,13 @@ class _JoinApplicationScreenState extends State<JoinApplicationScreen> {
         message('الملفات المسموحة: PDF وJPEG وPNG وWebP');
         return;
       }
-      final bytes = await file.readAsBytes();
+      final prepared = await prepareJoinDocument(file, mime);
       if (mounted) {
-        setState(
-          () => documents[key] = JoinDocument(
-            name: file.name,
-            bytes: bytes,
-            mimeType: mime,
-          ),
-        );
+        final previous = documents[key];
+        setState(() => documents[key] = prepared);
+        await previous?.cleanup?.call();
+      } else {
+        await prepared.cleanup?.call();
       }
     } catch (_) {
       if (mounted) message('تعذر قراءة المستند. أعد اختيار الملف.');
@@ -193,6 +193,9 @@ class _JoinApplicationScreenState extends State<JoinApplicationScreen> {
 
   @override
   void dispose() {
+    for (final document in documents.values) {
+      document.cleanup?.call();
+    }
     for (final controller in [
       name,
       nameEn,
@@ -274,7 +277,10 @@ class _JoinApplicationScreenState extends State<JoinApplicationScreen> {
       message('يجب تحميل سياسة الانضمام والموافقة عليها قبل الإرسال');
       return;
     }
-    setState(() => busy = true);
+    setState(() {
+      busy = true;
+      uploadProgress = 0;
+    });
     try {
       final submitted = await widget.repository.submitJoinApplication(
         kind: provider ? 'provider' : 'contractor',
@@ -303,6 +309,9 @@ class _JoinApplicationScreenState extends State<JoinApplicationScreen> {
         categories: selectedCategories.toList(),
         specialties: values(specialties.text),
         documents: provider ? documents : const {},
+        onUploadProgress: (progress) {
+          if (mounted) setState(() => uploadProgress = progress);
+        },
       );
       if (mounted) setState(() => result = submitted);
     } catch (error) {
@@ -535,7 +544,7 @@ class _JoinApplicationScreenState extends State<JoinApplicationScreen> {
           const _Title(number: '03', text: 'المستندات الرئيسية'),
           const SizedBox(height: 8),
           const Text(
-            'أرفق كل مستند في مكانه. PDF أو JPEG أو PNG أو WebP، بحد أقصى 10 ميجابايت للمستند.',
+            'أرفق كل مستند في مكانه. PDF أو JPEG أو PNG أو WebP. تُضغط الصور عند الإمكان مع الحفاظ على وضوح المستند، وتُرفع الملفات على أجزاء.',
           ),
           const SizedBox(height: 12),
           LayoutBuilder(
@@ -683,7 +692,13 @@ class _JoinApplicationScreenState extends State<JoinApplicationScreen> {
                   ),
                 )
               : const Icon(Icons.send_rounded),
-          label: Text(busy ? 'جارٍ رفع الطلب...' : 'إرسال طلب الانضمام'),
+          label: Text(
+            busy
+                ? provider && uploadProgress < 1
+                      ? 'جارٍ رفع المستندات ${(uploadProgress * 100).round()}٪'
+                      : 'جارٍ إرسال الطلب...'
+                : 'إرسال طلب الانضمام',
+          ),
         ),
       ],
     ),

@@ -45,7 +45,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ki
     const email = normalizeEmail(data.get("email"));
     const mobile = normalizeMobile(data.get("mobile"));
     enforceRateLimit(request, createHash("sha256").update(`${kind}:${email}:${mobile}`).digest("hex"));
-    await verifyTurnstile(String(data.get("turnstileToken") || "") || null, request.headers.get("x-forwarded-for"));
+    // A verified, identity-bound upload batch already passed Turnstile at initiation.
+    if (!(kind === "provider" && data.has("uploadToken"))) await verifyTurnstile(String(data.get("turnstileToken") || "") || null, request.headers.get("x-forwarded-for"));
     const idempotencyKey = request.headers.get("idempotency-key");
     if (!idempotencyKey || !/^[A-Za-z0-9_-]{16,128}$/.test(idempotencyKey)) throw new PublicJoinError("تعذر تأكيد معرّف المحاولة. أعد الإرسال.", 400);
     if (kind === "provider") {

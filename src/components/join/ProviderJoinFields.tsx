@@ -3,7 +3,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
-import { optimizeUploadFiles } from "@/lib/uploads/client";
 import { PROVIDER_DOCUMENT_TYPES, normalizeProviderText, normalizeServiceCities, type ProviderDocumentType, type ProviderJoinPolicy } from "@/lib/join/provider-fields";
 import styles from "./provider-join.module.css";
 
@@ -15,15 +14,15 @@ export function validateProviderFiles(files: ProviderFiles, existing: ExistingPr
   for (const { key, label } of PROVIDER_DOCUMENT_TYPES) {
     const file = files[key];
     if (!file && !existing.some((document) => document.documentType === key)) return `أرفق ${label}.`;
-    if (file && (!allowedTypes.has(file.type) || file.size > 10 * 1024 * 1024 || file.size === 0)) return `${label}: اختر ملف PDF أو JPEG أو PNG أو WebP بحجم لا يتجاوز 10 ميجابايت.`;
+    if (file && (!allowedTypes.has(file.type) || file.size === 0)) return `${label}: اختر ملف PDF أو JPEG أو PNG أو WebP غير فارغ.`;
   }
   return "";
 }
 
-export async function appendProviderFiles(data: FormData, files: ProviderFiles) {
-  const entries = PROVIDER_DOCUMENT_TYPES.flatMap(({ key }) => files[key] ? [{ key, file: files[key]! }] : []);
-  const optimized = await optimizeUploadFiles(entries.map(({ file }) => file));
-  entries.forEach(({ key }, index) => data.append(`document:${key}`, optimized[index]));
+export function appendProviderFiles(data: FormData, files: ProviderFiles) {
+  for (const { key } of PROVIDER_DOCUMENT_TYPES) {
+    if (files[key]) data.set(`document:${key}`, files[key]);
+  }
 }
 
 export function ServiceCitiesInput({ values, onChange, error }: { values: string[]; onChange: (values: string[]) => void; error?: string }) {
@@ -57,7 +56,7 @@ export function ProviderDocuments({ files, onChange, existing = [], error }: { f
   const legacy = existing.filter((document) => !PROVIDER_DOCUMENT_TYPES.some(({ key }) => key === document.documentType));
   return <fieldset className={`form-section ${styles.documents}`} aria-describedby={`${id}-hint${error ? ` ${id}-error` : ""}`}>
     <legend><span>05</span> المستندات الرئيسية</legend>
-    <p className="portal-hint" id={`${id}-hint`}>أرفق المستندات الأربعة. PDF أو JPEG أو PNG أو WebP، بحد أقصى 10 ميجابايت لكل مستند.</p>
+    <p className="portal-hint" id={`${id}-hint`}>أرفق المستندات الأربعة بصيغة PDF أو JPEG أو PNG أو WebP. تدعم المستندات الكبيرة والرفع على دفعات مع إعادة المحاولة تلقائيًا عند انقطاع الاتصال.</p>
     <div className={styles.documentGrid}>{PROVIDER_DOCUMENT_TYPES.map(({ key, label }) => {
       const current = existing.find((document) => document.documentType === key);
       const file = files[key];
@@ -70,7 +69,7 @@ export function ProviderDocuments({ files, onChange, existing = [], error }: { f
         {file ? <button type="button" className={styles.removeFile} onClick={() => { const next = { ...files }; delete next[key]; onChange(next); }} aria-label={`إزالة الملف المختار: ${label}`}>إزالة الملف المختار</button> : null}
       </div>;
     })}</div>
-    <p className="portal-hint">تُضغط صور المستندات تلقائيًا قبل التخزين، ويُحفظ PDF بصيغته الأصلية.{existing.length ? " رفع مستند جديد يستبدل المستند من النوع نفسه." : ""}</p>
+    <p className="portal-hint">تُحسّن المستندات تلقائيًا لتقليل الحجم متى أمكن، مع الحفاظ على المحتوى ووضوح القراءة.{existing.length ? " رفع مستند جديد يستبدل المستند من النوع نفسه." : ""}</p>
     {legacy.length ? <div className={styles.legacyDocuments}><strong>مستندات داعمة سابقة</strong>{legacy.map((document) => <a key={document.id} href={document.url} target="_blank" rel="noreferrer">{document.name}</a>)}</div> : null}
     {error ? <small id={`${id}-error`} className="portal-error" role="alert">{error}</small> : null}
   </fieldset>;

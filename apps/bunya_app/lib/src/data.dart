@@ -9,6 +9,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'product_image_urls.dart';
 import 'localization.dart';
 import 'apple_auth.dart';
+import 'join_document.dart';
+import 'provider_document_upload.dart';
+
+export 'join_document.dart';
 
 const _appUrl = String.fromEnvironment(
   'APP_URL',
@@ -395,17 +399,6 @@ class ProviderJoinPolicy {
         body: List<String>.from(json['body'] as List),
         updatedAt: json['updatedAt'] as String,
       );
-}
-
-class JoinDocument {
-  const JoinDocument({
-    required this.name,
-    required this.bytes,
-    required this.mimeType,
-  });
-
-  final String name, mimeType;
-  final Uint8List bytes;
 }
 
 class AppDataRefresh {
@@ -1092,6 +1085,7 @@ class BunyaRepository {
     List<String> categories = const [],
     List<String> specialties = const [],
     Map<String, JoinDocument> documents = const {},
+    void Function(double progress)? onUploadProgress,
   }) async {
     final request = http.MultipartRequest(
       'POST',
@@ -1107,11 +1101,74 @@ class BunyaRepository {
       ..['categories'] = jsonEncode(categories)
       ..['specialties'] = jsonEncode(specialties)
       ..['website'] = '';
-    for (final entry in documents.entries) {
+    if (kind == 'provider') {
+      if (documents.values.any((document) => document.size <= 0)) {
+        throw const JoinSubmissionException(400, 'اختر مستندًا غير فارغ');
+      }
+      final connection = http.Client();
+      try {
+        final initialize =
+            http.MultipartRequest('POST', Uri.parse('${request.url}/uploads'))
+              ..headers.addAll(request.headers)
+              ..fields.addAll(request.fields);
+        initialize.fields['documents'] = jsonEncode(
+          documents.entries
+              .map(
+                (entry) => {
+                  'documentType': entry.key,
+                  'name': entry.value.name,
+                  'mimeType': entry.value.mimeType,
+                  'size': entry.value.size,
+                },
+              )
+              .toList(),
+        );
+        final initialized = await http.Response.fromStream(
+          await connection.send(initialize),
+        );
+        final upload = jsonDecode(initialized.body) as Map<String, dynamic>;
+        if (initialized.statusCode < 200 || initialized.statusCode >= 300) {
+          throw JoinSubmissionException(
+            initialized.statusCode,
+            '${upload['message'] ?? 'تعذر تجهيز المستندات'}',
+          );
+        }
+        final total = documents.values.fold<int>(
+          0,
+          (sum, document) => sum + document.size,
+        );
+        var completed = 0;
+        final grants = (upload['files'] as List).cast<Map<String, dynamic>>();
+        for (final entry in documents.entries) {
+          final grant = grants.singleWhere(
+            (grant) => grant['documentType'] == entry.key,
+          );
+          await uploadProviderDocument(
+            client: connection,
+            endpoint: Uri.parse(upload['endpoint'] as String),
+            bucket: upload['bucket'] as String,
+            path: grant['path'] as String,
+            token: grant['token'] as String,
+            document: entry.value,
+            onProgress: (uploaded) =>
+                onUploadProgress?.call((completed + uploaded) / total),
+          );
+          completed += entry.value.size;
+        }
+        request.fields['uploadToken'] = upload['uploadToken'] as String;
+      } finally {
+        connection.close();
+      }
+    }
+    for (final entry
+        in kind == 'provider'
+            ? <MapEntry<String, JoinDocument>>[]
+            : documents.entries) {
       request.files.add(
-        http.MultipartFile.fromBytes(
+        http.MultipartFile(
           'document:${entry.key}',
-          entry.value.bytes,
+          entry.value.openRead(),
+          entry.value.size,
           filename: entry.value.name,
           contentType: MediaType.parse(entry.value.mimeType),
         ),

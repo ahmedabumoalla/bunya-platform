@@ -59,6 +59,8 @@ await db.exec(await readFile(new URL("../supabase/migrations/084_provider_join_d
 await db.exec(`alter table profiles add constraint profiles_username_format check(username is null or char_length(username) between 4 and 40);
 alter table provider_profiles add constraint provider_profiles_username_format check(username is null or username ~ '^[^[:space:]]{4,40}$');`);
 await db.exec(await readFile(new URL("../supabase/migrations/085_provider_optional_username.sql", import.meta.url), "utf8"));
+await db.exec("alter table files add constraint files_size_bytes_check check(size_bytes>0 and size_bytes<=52428800)");
+await db.exec(await readFile(new URL("../supabase/migrations/086_provider_resumable_documents.sql", import.meta.url), "utf8"));
 const policy = (await db.query("update platform_policies set is_published=true where policy_key='provider-join' returning id,version,updated_at")).rows[0];
 const fields = () => ({ company_name: "  شركة   مواد  البناء  ", company_name_en: "  Building   Materials  Company  ", contact_name: null, service_cities: ["الرياض", "المدينة المنورة"], email: "provider@invalid.example", mobile: "0500000001", requested_username: "test_provider", google_maps_url: "https://maps.google.com/?q=24,46", latitude: 24, longitude: 46, delivery_available: false, joining_policy_id: policy.id, joining_policy_version: policy.version, joining_policy_updated_at: policy.updated_at, joining_policy_accepted_at: "2026-09-30T00:00:00Z", public_idempotency_key: "provider-test-idempotency-key" });
 const types = ["commercial_registration", "municipal_license", "national_address", "vat_certificate"];
@@ -178,6 +180,41 @@ await test("revision with blank username follows revised English company name", 
   const row = (await db.query("select requested_username,username_is_custom from provider_applications")).rows[0];
   assert.equal(row.requested_username, "New English Company");
   assert.equal(row.username_is_custom, false);
+});
+await test("provider documents above old10MB and integer32 sizes save without payload bytes", async () => {
+  const large = docs().map(document => ({ ...document, size_bytes: 3 * 1024 * 1024 * 1024 }));
+  await save({}, large);
+  assert.equal(await count("files"), 4);
+});
+async function stageBatch(overrides = {}) {
+  await db.query("insert into provider_upload_batches(id,application_id,token_hash,binding_hash,documents,expires_at) values($1,$2,$3,$4,$5::jsonb,$6)", [uid(300),applicationId,"a".repeat(64),"b".repeat(64),JSON.stringify(docs()),overrides.expires_at || "2099-01-01T00:00:00Z"]);
+}
+const commitBatch = (binding = "b".repeat(64), documents = docs()) => db.query("select commit_provider_join_upload($1,$2,$3::jsonb,$4::text[],$5::text[],$6::jsonb) as result", ["a".repeat(64),binding,JSON.stringify(fields()),["Building supplies"],[],JSON.stringify(documents)]);
+await test("staged upload commits atomically and retries do not duplicate application files", async () => {
+  await stageBatch();
+  await commitBatch(); await commitBatch();
+  assert.equal(await count("provider_applications"), 1); assert.equal(await count("files"), 4);
+  assert.ok((await db.query("select committed_at from provider_upload_batches")).rows[0].committed_at);
+});
+await test("wrong identity binding and changed document references cannot consume upload batch", async () => {
+  await stageBatch();
+  await rejected(() => commitBatch("c".repeat(64)), /Invalid upload batch/);
+  await rejected(() => commitBatch("b".repeat(64), docs().slice(1)), /changed upload batch/);
+  assert.equal(await count("provider_applications"), 0);
+  assert.equal((await db.query("select committed_at from provider_upload_batches")).rows[0].committed_at, null);
+});
+await test("expired upload batch fails before application creation", async () => {
+  await stageBatch({ expires_at: "2000-01-01T00:00:00Z" });
+  await rejected(() => commitBatch(), /Expired/);
+  assert.equal(await count("provider_applications"), 0);
+});
+await test("public clients cannot read upload capabilities or execute commit RPC", async () => {
+  for (const role of ["anon","authenticated"]) {
+    await db.exec(`set local role ${role}`);
+    await rejected(() => db.query("select * from provider_upload_batches"), /permission denied/);
+    await rejected(() => commitBatch(), /permission denied/);
+    await db.exec("reset role");
+  }
 });
 console.log(`${passed} provider join migration regression checks passed.`);
 await db.close();

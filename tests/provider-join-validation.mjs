@@ -15,6 +15,7 @@ const sources = {
   username: "../src/lib/join/username.ts",
   validation: "../src/lib/join/provider-validation.ts",
   submit: "../src/lib/join/submit-provider.ts",
+  batches: "../src/lib/join/provider-upload-batches.ts",
 };
 const compiled = Object.fromEntries(await Promise.all(Object.entries(sources).map(async ([name, path]) => [name,
   ts.transpileModule(await readFile(new URL(path, import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText,
@@ -57,7 +58,7 @@ function harness(options = {}) {
     },
   };
   const cache = {};
-  const aliases = { "./provider-fields": "fields", "./security": "security", "@/lib/policies/registry": "registry", "./username": "username", "./provider-validation": "validation" };
+  const aliases = { "./provider-upload-batches": "batches", "./provider-fields": "fields", "./security": "security", "@/lib/policies/registry": "registry", "./username": "username", "./provider-validation": "validation" };
   function load(name) {
     if (cache[name]) return cache[name];
     const exports = {};
@@ -68,6 +69,7 @@ function harness(options = {}) {
         if (dependency === "server-only") return {};
         if (dependency === "node:crypto") return crypto;
         if (dependency === "@/lib/supabase/admin") return { createAdminClient: () => db };
+        if (dependency === "@/lib/supabase/env") return { getSupabasePublicEnv: () => ({ url: "https://example.supabase.co" }) };
         if (dependency === "@/lib/uploads/server") return { async prepareUpload(file) { return { bytes: Buffer.from(await file.arrayBuffer()), mimeType: file.type, fileName: file.name, size: file.size }; } };
         if (dependency === "@/lib/notifications/join-reviewers") return { async notifyJoinReviewers(value) { notifications.push(value); if (options.notificationError) throw new Error("mock messaging failure"); } };
         if (aliases[dependency]) return load(aliases[dependency]);
@@ -144,11 +146,11 @@ await check("reject duplicate, untyped and unknown document fields", () => {
     assert.throws(() => validation.providerDocuments(data), status(400));
   }
 });
-await check("reject text/empty/disallowed/oversize documents; allow four MIME types", () => {
-  const badValues = ["text", new FileClass([], "empty.pdf", { type: "application/pdf" }), new FileClass(["x"], "bad.html", { type: "text/html" }), new FileClass([new Uint8Array(10 * 1024 * 1024 + 1)], "large.pdf", { type: "application/pdf" })];
+await check("reject text/empty/disallowed documents; accept large files and four MIME types", () => {
+  const badValues = ["text", new FileClass([], "empty.pdf", { type: "application/pdf" }), new FileClass(["x"], "bad.html", { type: "text/html" })];
   for (const value of badValues) { const data = documents(); data.set(`document:${keys[0]}`, value); assert.throws(() => validation.providerDocuments(data), status(400)); }
   for (const type of ["application/pdf", "image/jpeg", "image/png", "image/webp"]) { const data = documents(); data.set(`document:${keys[0]}`, new FileClass(["x"], "file", { type })); assert.equal(validation.providerDocuments(data).length, 4); }
-  const boundary = documents(); boundary.set(`document:${keys[0]}`, new FileClass([new Uint8Array(10 * 1024 * 1024)], "max.pdf", { type: "application/pdf" }));
+  const boundary = documents(); boundary.set(`document:${keys[0]}`, new FileClass([new Uint8Array(10 * 1024 * 1024 + 1)], "large.pdf", { type: "application/pdf" }));
   assert.equal(validation.providerDocuments(boundary).length, 4);
 });
 await check("consent must explicitly equal true", async () => {
