@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireJoinReviewer } from "@/lib/join/admin";
 import { getSupabasePublicEnv } from "@/lib/supabase/env";
+import { providerDocumentDownload } from "@/lib/join/provider-document-download";
 
 export const runtime = "nodejs";
 
@@ -28,7 +29,7 @@ export async function GET(
   if (kind === "provider") {
     const document = await auth.admin
       .from("provider_application_documents")
-      .select("id,files(object_path,original_name,mime_type)")
+      .select("id,files(object_path,original_name,mime_type,bucket_id,scan_status)")
       .eq("application_id", id)
       .eq("id", documentId)
       .maybeSingle();
@@ -41,10 +42,15 @@ export async function GET(
       object_path?: string;
       original_name?: string;
       mime_type?: string;
+      bucket_id?: string;
+      scan_status?: string;
     } | null;
     objectPath = file?.object_path ?? null;
     fileName = file?.original_name ?? fileName;
     mimeType = file?.mime_type ?? mimeType;
+    if (!objectPath) return NextResponse.json({ message: "المستند غير موجود." }, { status: 404 });
+    if (file?.bucket_id !== "join-applications") return NextResponse.json({ message: "المستند غير متاح." }, { status: 403 });
+    return providerDocumentDownload(auth.admin, objectPath, id, file.scan_status);
   } else {
     const document = await auth.admin
       .from("contractor_documents")

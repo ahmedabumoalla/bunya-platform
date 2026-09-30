@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSupabasePublicEnv } from "@/lib/supabase/env";
+import { providerDocumentDownload } from "@/lib/join/provider-document-download";
 
 export const runtime = "nodejs";
 
@@ -37,14 +38,18 @@ export async function GET(
   if (revision.data.application_kind === "provider") {
     const document = await admin
       .from("provider_application_documents")
-      .select("files(object_path,original_name,mime_type)")
+      .select("files(object_path,original_name,mime_type,bucket_id,scan_status)")
       .eq("application_id", revision.data.application_id)
       .eq("id", documentId)
       .maybeSingle();
-    const file = document.data?.files as unknown as { object_path?: string; original_name?: string; mime_type?: string } | null;
+    if (document.error) return NextResponse.json({ message: "تعذر تحميل بيانات المستند." }, { status: 500 });
+    const file = document.data?.files as unknown as { object_path?: string; original_name?: string; mime_type?: string; bucket_id?: string; scan_status?: string } | null;
     objectPath = file?.object_path ?? null;
     fileName = file?.original_name ?? fileName;
     mimeType = file?.mime_type ?? mimeType;
+    if (!objectPath) return NextResponse.json({ message: "المستند غير موجود." }, { status: 404 });
+    if (file?.bucket_id !== "join-applications") return NextResponse.json({ message: "المستند غير متاح." }, { status: 403 });
+    return providerDocumentDownload(admin, objectPath, revision.data.application_id, file.scan_status);
   } else {
     const document = await admin
       .from("contractor_documents")
