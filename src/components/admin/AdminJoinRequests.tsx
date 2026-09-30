@@ -3,6 +3,7 @@
 
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
 import { providerDocumentLabel } from "@/lib/join/provider-fields";
+import { contractorDocumentLabel } from "@/lib/join/contractor-fields";
 import { useDialogFocus } from "./useDialogFocus";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -23,7 +24,7 @@ type Application = Row & {
   created_at: string;
   email: string;
   mobile: string;
-  documents: Array<{ id: string; name: string; document_type?: string; url: string | null }>;
+  documents: Array<{ id: string; name: string; document_type?: string; mime_type?: string; url: string | null }>;
   reviews?: Row[];
   onboarding?: Row | null;
 };
@@ -95,6 +96,7 @@ function DocumentPreview({ preview, onClose }: { preview: DocumentPreviewState; 
   const dialogRef = useDialogFocus();
   const isImage = preview.mimeType?.startsWith("image/");
   const isPdf = preview.mimeType === "application/pdf" || preview.name.toLowerCase().endsWith(".pdf");
+  const isVideo = preview.mimeType?.startsWith("video/") || /\.(mp4|webm|mov)$/i.test(preview.name);
 
   return createPortal(
     <div className="admin-modal-backdrop admin-document-preview-backdrop" onMouseDown={onClose}>
@@ -121,7 +123,8 @@ function DocumentPreview({ preview, onClose }: { preview: DocumentPreviewState; 
             </object>
           ) : null}
           {preview.url && isPdf ? <iframe src={preview.url} title={preview.name} /> : null}
-          {preview.url && !isImage && !isPdf ? (
+          {preview.url && isVideo ? <video src={preview.url} controls preload="metadata" aria-label={preview.name} style={{ maxWidth: "100%", maxHeight: "100%" }} /> : null}
+          {preview.url && !isImage && !isPdf && !isVideo ? (
             <div className="admin-document-preview-unsupported">
               <p>لا يدعم المتصفح معاينة هذا النوع من الملفات.</p>
               <a href={preview.url} download={preview.name}>تنزيل المستند</a>
@@ -169,6 +172,10 @@ function RequestDetails({
 
   const openDocument = async (document: Application["documents"][number]) => {
     if (!document.url) return;
+    if (kind === "contractor") {
+      setDocumentPreview({ name: document.name, loading: false, url: document.url, mimeType: document.mime_type });
+      return;
+    }
     setDocumentPreview({ name: document.name, loading: true });
 
     try {
@@ -228,11 +235,17 @@ function RequestDetails({
                 <Detail label="اسم المسؤول (اختياري)">{displayValue(item.contact_name)}</Detail>
               </>
             ) : (
-              <Detail label="اسم المقاول">{displayValue(item.contractor_name)}</Detail>
+              <>
+                <Detail label="نوع المقاول">{item.contractor_type === "individual" ? "فرد" : "شركة / مؤسسة"}</Detail>
+                <Detail label="اسم المقاول بالعربية">{displayValue(item.contractor_name)}</Detail>
+                <Detail label="اسم المقاول بالإنجليزية" dir="ltr">{displayValue(item.contractor_name_en)}</Detail>
+                <Detail label="مسؤول التواصل (اختياري)">{displayValue(item.contact_name)}</Detail>
+              </>
             )}
             <Detail label="البريد الإلكتروني" dir="ltr">{displayValue(item.email)}</Detail>
             <Detail label="رقم الجوال" dir="ltr">{displayValue(item.mobile)}</Detail>
             <Detail label="اسم المستخدم المطلوب">{item.requested_username ? displayValue(item.requested_username) : "لم يُحدد"}</Detail>
+            <Detail label="مصدر اسم المستخدم">{item.username_is_custom === false ? "الاسم الإنجليزي الكامل" : item.requested_username ? "اختيار مقدم الطلب" : "لم يُحدد"}</Detail>
             <Detail label="وقت تقديم الطلب">{dateTime(item.created_at)}</Detail>
             <Detail label="آخر تحديث">{dateTime(item.updated_at)}</Detail>
           </dl>
@@ -294,14 +307,14 @@ function RequestDetails({
               item.documents.map((document) =>
                 document.url ? (
                   <button type="button" onClick={() => void openDocument(document)} key={document.id}>
-                    <em className="admin-request-file-type" aria-hidden="true">{/\.pdf$/i.test(document.name) ? "PDF" : /\.(png|jpe?g|webp|heic)$/i.test(document.name) ? "صورة" : "ملف"}</em>
-                    <span dir="auto">{kind === "provider" && document.document_type ? <>{providerDocumentLabel(document.document_type)}<br /></> : null}{document.name}</span>
+                    <em className="admin-request-file-type" aria-hidden="true">{/\.pdf$/i.test(document.name) ? "PDF" : /\.(png|jpe?g|webp|heic)$/i.test(document.name) ? "صورة" : /\.(mp4|webm|mov)$/i.test(document.name) ? "فيديو" : "ملف"}</em>
+                    <span dir="auto">{document.document_type ? <>{kind === "provider" ? providerDocumentLabel(document.document_type) : contractorDocumentLabel(document.document_type)}<br /></> : null}{document.name}</span>
                     <b>عرض المستند</b>
                   </button>
                 ) : (
                   <div key={document.id}>
                     <em className="admin-request-file-type" aria-hidden="true">ملف</em>
-                    <span dir="auto">{kind === "provider" && document.document_type ? <>{providerDocumentLabel(document.document_type)}<br /></> : null}{document.name}</span>
+                    <span dir="auto">{document.document_type ? <>{kind === "provider" ? providerDocumentLabel(document.document_type) : contractorDocumentLabel(document.document_type)}<br /></> : null}{document.name}</span>
                     <b>تعذر إنشاء رابط العرض</b>
                   </div>
                 ),
@@ -312,18 +325,21 @@ function RequestDetails({
           </div>
         </section>
 
-        {kind === "provider" ? (
+        {(
           <section className="admin-request-section">
             <h4>الموافقة على سياسة الانضمام</h4>
             {item.joining_policy_accepted_at ? (
               <dl className="admin-request-detail-grid">
                 <Detail label="السياسة">{displayValue(item.joining_policy_title)}</Detail>
+                <Detail label="مرجع السياسة" dir="ltr">{displayValue(item.joining_policy_id)}</Detail>
                 <Detail label="الإصدار">{displayValue(item.joining_policy_version)}</Detail>
                 <Detail label="وقت الموافقة">{dateTime(item.joining_policy_accepted_at)}</Detail>
+                <Detail label="آخر تحديث للسياسة المقبولة">{dateTime(item.joining_policy_updated_at)}</Detail>
+                <Detail label="نص السياسة وقت الموافقة"><div style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{Array.isArray(item.joining_policy_body) ? item.joining_policy_body.map(displayValue).join("\n\n") : displayValue(item.joining_policy_body)}</div></Detail>
               </dl>
             ) : <p>لا توجد موافقة مسجلة على سياسة الانضمام لهذا الطلب.</p>}
           </section>
-        ) : null}
+        )}
 
         <section className="admin-request-section admin-request-review">
           <h4>المراجعة وحالة إنشاء الحساب</h4>

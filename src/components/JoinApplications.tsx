@@ -1,13 +1,13 @@
 "use client";
 
-import type { ChangeEvent, FormEvent, ReactNode } from "react";
+import type { FormEvent, ReactNode } from "react";
 import { useRef, useState } from "react";
 import type { ParsedMapLocation } from "@/lib/bunya-types";
 import { parseGoogleMapsLink } from "@/lib/bunya-local";
-import { optimizeUploadFiles } from "@/lib/uploads/client";
 import { ProviderUploadError, uploadProviderDocuments } from "@/lib/uploads/provider-resumable-client";
 import { isValidProviderUsername, resolveProviderUsername } from "@/lib/join/provider-fields";
 import { MultiValueInput, PortalShell } from "./PortalUI";
+import { ContractorApplicationForm } from "@/components/join/ContractorApplicationForm";
 import { PolicyLinks } from "@/components/legal/PolicyLinks";
 import { normalizeProviderText, normalizeServiceCities } from "@/lib/join/provider-fields";
 import { appendProviderConsent, appendProviderFiles, ProviderDocuments, ProviderPolicyConsent, ServiceCitiesInput, useProviderPolicy, validateProviderFiles, type ProviderFiles } from "@/components/join/ProviderJoinFields";
@@ -16,7 +16,6 @@ type Errors = Record<string, string>;
 type Result = { applicationId: string; status: string; submittedAt: string };
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const mobilePattern = /^(?:\+?966|0)?5\d{8}$/;
-const quickRegions = ["المنطقة الجنوبية", "المنطقة الوسطى", "المنطقة الغربية", "المنطقة الشرقية", "المنطقة الشمالية"];
 
 function Frame({ eyebrow, title, description, children }: { eyebrow: string; title: string; description: string; children: ReactNode }) {
   return <PortalShell><section className="portal-card application-card"><header className="portal-heading application-heading"><p>{eyebrow}</p><h1>{title}</h1><span>{description}</span></header>{children}<PolicyLinks /></section></PortalShell>;
@@ -24,31 +23,9 @@ function Frame({ eyebrow, title, description, children }: { eyebrow: string; tit
 function Field({ id, label, value, onChange, error, type = "text", placeholder }: { id: string; label: string; value: string; onChange: (value: string) => void; error?: string; type?: string; placeholder?: string }) {
   return <div className="portal-field"><label htmlFor={id}>{label}</label><input id={id} type={type} dir="auto" placeholder={placeholder} value={value} aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined} onChange={(event) => onChange(event.target.value)} />{error ? <small id={`${id}-error`} className="portal-error">{error}</small> : null}</div>;
 }
-function Documents({ files, onChange, error }: { files: File[]; onChange: (files: File[]) => void; error?: string }) {
-  const select = (event: ChangeEvent<HTMLInputElement>) => onChange(Array.from(event.target.files || []));
-  return <fieldset className="form-section"><legend><span>05</span> المستندات الرسمية الخاصة بمقدم الطلب</legend><label className="portal-field"><span>PDF أو JPEG أو PNG أو WebP — خمسة ملفات كحد أقصى، 10 ميجابايت للملف</span><input type="file" accept=".pdf,image/jpeg,image/png,image/webp" multiple onChange={select}/></label><p className="portal-hint">تُضغط صور المستندات تلقائيًا قبل التخزين، بينما يُحفظ PDF الأصلي لحماية محتواه وتوقيعاته.</p>{files.map((file) => <p className="portal-hint" key={`${file.name}-${file.size}`}>{file.name} — {(file.size / 1024 / 1024).toFixed(2)} MB</p>)}{error ? <small className="portal-error">{error}</small> : null}</fieldset>;
-}
 function Success({ result, kind }: { result: Result; kind: "provider" | "contractor" }) {
   return <PortalShell><section className="portal-card application-card"><header className="portal-heading application-heading"><p>تم استلام الطلب</p><h1>طلب انضمام {kind === "provider" ? "المزود" : "المقاول"}</h1><span>سيصلك رد بعد مراجعة الإدارة.</span></header><dl className="admin-record-meta"><div><dt>رقم الطلب</dt><dd dir="ltr">{result.applicationId}</dd></div><div><dt>الحالة</dt><dd>{result.status === "pending" ? "قيد المراجعة" : result.status}</dd></div></dl></section></PortalShell>;
 }
-function validateDocuments(files: File[], errors: Errors) {
-  const allowed = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"]);
-  if (files.length > 5 || files.some((file) => file.size > 10 * 1024 * 1024 || !allowed.has(file.type))) errors.documents = "تحقق من عدد الملفات وأنواعها وأحجامها.";
-}
-async function send(kind: "provider" | "contractor", values: Record<string, string>, arrays: Record<string, string[]>, files: File[]) {
-  const data = new FormData();
-  Object.entries(values).forEach(([key, value]) => data.set(key, value));
-  Object.entries(arrays).forEach(([key, value]) => data.set(key, JSON.stringify(value)));
-  const optimizedFiles = await optimizeUploadFiles(files);
-  optimizedFiles.forEach((file) => data.append("documents", file));
-  data.set("website", "");
-  const idempotencyKey = crypto.randomUUID().replaceAll("-", "");
-  const response = await fetch(`/api/public/join/${kind}`, { method: "POST", body: data, headers: { "Idempotency-Key": idempotencyKey } });
-  const body = await response.json() as Result & { message?: string };
-  if (!response.ok) throw new Error(body.message || "تعذر إرسال الطلب.");
-  return body;
-}
-
 async function analyzeGoogleMapsLink(value: string): Promise<ParsedMapLocation> {
   const parsed = parseGoogleMapsLink(value);
   if (parsed.kind !== "short-link") return parsed;
@@ -137,8 +114,5 @@ export function ProviderJoinFlow({ categories }: { categories: string[] }) {
 }
 
 export function ContractorJoinFlow() {
-  const [form,setForm]=useState({contractorName:"",mobile:"",email:""}); const [regions,setRegions]=useState<string[]>([]); const [specialties,setSpecialties]=useState<string[]>([]); const [files,setFiles]=useState<File[]>([]); const [errors,setErrors]=useState<Errors>({}); const [result,setResult]=useState<Result|null>(null); const [busy,setBusy]=useState(false); const [submitError,setSubmitError]=useState("");
-  const submit=async(event:FormEvent)=>{event.preventDefault();const next:Errors={};if(form.contractorName.trim().length<3)next.contractorName="أدخل اسم المقاول.";if(!mobilePattern.test(form.mobile.replace(/\s/g,"")))next.mobile="أدخل رقم جوال صحيحًا.";if(!emailPattern.test(form.email.trim()))next.email="أدخل بريدًا إلكترونيًا صحيحًا.";if(!regions.length)next.regions="اختر منطقة عمل.";if(!specialties.length)next.specialties="أضف تخصصًا.";validateDocuments(files,next);if(Object.keys(next).length)return setErrors(next);setBusy(true);setSubmitError("");try{setResult(await send("contractor",form,{regions,specialties},files))}catch(error){setSubmitError(error instanceof Error?error.message:"تعذر إرسال الطلب.")}finally{setBusy(false)}};
-  if(result)return <Success result={result} kind="contractor"/>;
-  return <Frame eyebrow="بوابة المقاولين" title="طلب انضمام مقاول" description="عرّف بخبراتك ومناطق عملك دون الحاجة إلى تسجيل الدخول."><form className="application-form" onSubmit={submit} noValidate><fieldset className="form-section"><legend><span>01</span> البيانات الأساسية</legend><div className="form-grid"><Field id="contractor-name" label="اسم المقاول" value={form.contractorName} onChange={(v)=>setForm({...form,contractorName:v})} error={errors.contractorName}/><Field id="contractor-mobile" label="رقم الجوال" value={form.mobile} onChange={(v)=>setForm({...form,mobile:v})} error={errors.mobile}/><Field id="contractor-email" label="البريد الإلكتروني" type="email" value={form.email} onChange={(v)=>setForm({...form,email:v})} error={errors.email}/></div></fieldset><fieldset className="form-section"><legend><span>02</span> مناطق العمل</legend><div className="choice-grid region-grid">{quickRegions.map((region)=><label className={regions.includes(region)?"choice-card choice-card-active":"choice-card"} key={region}><input type="checkbox" checked={regions.includes(region)} onChange={()=>setRegions((current)=>current.includes(region)?current.filter((v)=>v!==region):[...current,region])}/>{region}</label>)}</div><MultiValueInput label="مناطق مخصصة" placeholder="اكتب المنطقة" values={regions.filter((r)=>!quickRegions.includes(r))} onChange={(custom)=>setRegions([...regions.filter((r)=>quickRegions.includes(r)),...custom])} error={errors.regions}/></fieldset><fieldset className="form-section"><legend><span>03</span> التخصصات</legend><MultiValueInput label="تخصصات المقاول" placeholder="مثال: بناء عظم" values={specialties} onChange={setSpecialties} error={errors.specialties}/></fieldset><Documents files={files} onChange={setFiles} error={errors.documents}/>{submitError?<p className="portal-form-error" role="alert">{submitError}</p>:null}<button className="portal-primary-button application-submit" disabled={busy}>{busy?"جارٍ الإرسال...":"إرسال طلب الانضمام"}</button></form></Frame>;
+  return <ContractorApplicationForm />;
 }

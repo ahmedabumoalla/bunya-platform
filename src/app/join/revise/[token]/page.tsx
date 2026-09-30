@@ -1,12 +1,12 @@
 "use client";
 
-import type { ChangeEvent, FormEvent } from "react";
+import type { FormEvent } from "react";
 import { useEffect, useRef, useState } from "react";
+import { ContractorApplicationForm, type ContractorRevisionApplication } from "@/components/join/ContractorApplicationForm";
 import { useParams } from "next/navigation";
 import { MultiValueInput, PortalShell } from "@/components/PortalUI";
 import type { ParsedMapLocation } from "@/lib/bunya-types";
 import { parseGoogleMapsLink } from "@/lib/bunya-local";
-import { optimizeUploadFiles } from "@/lib/uploads/client";
 import { ProviderUploadError, uploadProviderDocuments } from "@/lib/uploads/provider-resumable-client";
 import { isValidProviderUsername, resolveProviderUsername } from "@/lib/join/provider-fields";
 import { normalizeProviderText, normalizeServiceCities } from "@/lib/join/provider-fields";
@@ -70,7 +70,7 @@ export default function ReviseJoinApplicationPage() {
   const [specialties, setSpecialties] = useState<string[]>([]);
   const [delivery, setDelivery] = useState(false);
   const [documents, setDocuments] = useState<Application["documents"]>([]);
-  const [files, setFiles] = useState<File[]>([]);
+  const [contractorApplication, setContractorApplication] = useState<ContractorRevisionApplication | null>(null);
   const [providerFiles, setProviderFiles] = useState<ProviderFiles>({});
   const [serviceCities, setServiceCities] = useState<string[]>([]);
   const [mapMessage, setMapMessage] = useState("");
@@ -89,7 +89,7 @@ export default function ReviseJoinApplicationPage() {
       .then(async (response) => {
         const body = await response.json() as {
           kind?: "provider" | "contractor";
-          application?: Application;
+          application?: Application & ContractorRevisionApplication;
           availableCategories?: string[];
           message?: string;
         };
@@ -97,6 +97,7 @@ export default function ReviseJoinApplicationPage() {
         if (!active) return;
         const application = body.application;
         setKind(body.kind);
+        if (body.kind === "contractor") setContractorApplication(application);
         setApplicationId(application.id);
         setRequestedChanges(application.review_notes || "");
         setAvailableCategories(body.availableCategories || []);
@@ -160,17 +161,6 @@ export default function ReviseJoinApplicationPage() {
     return parsed;
   };
 
-  const selectFiles = (event: ChangeEvent<HTMLInputElement>) => {
-    const selected = Array.from(event.target.files || []);
-    if (documents.length + selected.length > 5) {
-      setMessage(`يمكنك إضافة ${Math.max(0, 5 - documents.length)} مستند فقط؛ الحد الإجمالي خمسة.`);
-      event.target.value = "";
-      return;
-    }
-    setMessage("");
-    setFiles(selected);
-  };
-
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (submitting.current) return;
@@ -222,9 +212,6 @@ export default function ReviseJoinApplicationPage() {
         setUploadStatus("جارٍ تجهيز وضغط المستندات...");
         await uploadProviderDocuments(data, { revisionToken: token, onProgress: (percent) => setUploadStatus(`جارٍ رفع المستندات: ${percent}٪`) });
         setUploadStatus("جارٍ حفظ وإرسال الطلب...");
-      } else {
-        const optimized = await optimizeUploadFiles(files);
-        optimized.forEach((file) => data.append("documents", file));
       }
       const response = await fetch(`/api/public/join/revise/${encodeURIComponent(token)}`, {
         method: "POST",
@@ -246,6 +233,8 @@ export default function ReviseJoinApplicationPage() {
   if (state === "loading") return <PortalShell><section className="portal-card application-card"><p>جارٍ تحميل الطلب كاملًا...</p></section></PortalShell>;
   if (state === "error") return <PortalShell><section className="portal-card application-card"><h1>تعذر فتح الرابط</h1><p className="portal-form-error">{message}</p></section></PortalShell>;
   if (state === "done") return <PortalShell><section className="portal-card application-card"><h1>تم استلام التعديلات</h1><p>عاد الطلب إلى قائمة المراجعة، وتم إلغاء رابط التعديل ولا يمكن استخدامه مرة أخرى.</p></section></PortalShell>;
+
+  if (kind === "contractor" && contractorApplication) return <ContractorApplicationForm initial={contractorApplication} revisionToken={token} />;
 
   const customCategories = categories.filter((category) => !availableCategories.includes(category));
   const standardCategories = categories.filter((category) => availableCategories.includes(category));
@@ -322,15 +311,7 @@ export default function ReviseJoinApplicationPage() {
             </>
           )}
 
-          {kind === "provider" ? <><ProviderDocuments files={providerFiles} onChange={setProviderFiles} existing={documents}/><ProviderPolicyConsent value={policyState}/></> : <fieldset className="form-section">
-            <legend><span>04</span> المستندات الرسمية</legend>
-            <div className="revision-current-documents">
-              {documents.length ? documents.map((document) => <a href={document.url} target="_blank" rel="noreferrer" key={document.id}>{document.name} — عرض المستند الحالي</a>) : <p className="portal-hint">لا توجد مستندات حالية.</p>}
-            </div>
-            <label className="portal-field"><span>إضافة مستندات مصححة — الحد الإجمالي خمسة ملفات</span><input type="file" accept=".pdf,image/jpeg,image/png,image/webp" multiple onChange={selectFiles} /></label>
-            <p className="portal-hint">تُضغط الصور تلقائيًا قبل التخزين. المستندات الجديدة تُضاف إلى الطلب الحالي.</p>
-            {files.map((file) => <p className="portal-hint" key={`${file.name}-${file.size}`}>{file.name} — {(file.size / 1024 / 1024).toFixed(2)} MB</p>)}
-          </fieldset>}
+          {kind === "provider" ? <><ProviderDocuments files={providerFiles} onChange={setProviderFiles} existing={documents}/><ProviderPolicyConsent value={policyState}/></> : null}
 
           {message ? <p className="portal-form-error" role="alert">{message}</p> : null}
           {kind === "provider" ? <p className="portal-hint" role="status" aria-live="polite" aria-atomic="true">{uploadStatus}</p> : null}

@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveAuthIdentity } from "@/lib/auth/resolve-identity";
 import { formatRecordField, stateLabels, type AdminRow } from "@/lib/admin/records";
 import { providerDocumentLabel } from "@/lib/join/provider-fields";
+import { contractorDocumentLabel } from "@/lib/join/contractor-fields";
 import type { UserDetailField, UserDetailSection, UserDetailSource } from "./user-details-types";
 
 export const userIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -98,12 +99,13 @@ export function documentQuery(access: UserDetailAccess, links: UserDetailLinks, 
   if (source === "provider") return admin.from("provider_documents").select(`id,file_name,document_type,status,expires_at,size_bytes,mime_type,created_at${full ? ",storage_path" : ""}`, { count: "exact" }).in("provider_id", links.providerIds);
   if (source === "provider_application") return admin.from("provider_application_documents").select(`id,application_id,document_type,status,created_at,files!inner(original_name,mime_type,size_bytes,scan_status,deleted_at${full ? ",bucket_id,object_path" : ""})`, { count: "exact" }).in("application_id", links.providerApplicationIds).eq("is_current", true).is("files.deleted_at", null);
   const filters = [...(links.contractorIds.length ? [`contractor_profile_id.in.(${links.contractorIds.join(",")})`] : []), ...(links.contractorApplicationIds.length ? [`application_id.in.(${links.contractorApplicationIds.join(",")})`] : [])];
-  return admin.from("contractor_documents").select(`id,file_name,document_type,status,expires_at,size_bytes,mime_type,created_at${full ? ",storage_path,application_id" : ""}`, { count: "exact" }).or(filters.join(","));
+  return admin.from("contractor_documents").select(`id,file_name,document_type,document_key,is_current,status,expires_at,size_bytes,mime_type,created_at${full ? ",storage_path,application_id" : ""}`, { count: "exact" }).eq("is_current", true).or(filters.join(","));
 }
 const maintenanceLabels: Record<string, string> = { maintenance_started: "بدء الدخول بالنيابة", maintenance_ended: "إنهاء الدخول بالنيابة", admin_impersonation_sessions: "جلسات الصيانة", storage_objects: "المستندات والملفات", storage_post: "إجراء على الملفات", storage_put: "رفع ملف", storage_delete: "حذف ملف", insert: "إضافة", update: "تعديل", delete: "حذف" };
 export function translated(value: unknown, fallback = "غير محدد") {
   const key = String(value);
   if (["commercial_registration", "municipal_license", "national_address", "vat_certificate"].includes(key)) return providerDocumentLabel(key);
+  if (["national_id", "company_profile", "portfolio"].includes(key)) return contractorDocumentLabel(key);
   return maintenanceLabels[key] ?? stateLabels[key] ?? roleNames[key] ?? fallback;
 }
 export async function overviewSections(access: UserDetailAccess, links: UserDetailLinks): Promise<UserDetailSection[]> {
@@ -121,13 +123,26 @@ export async function overviewSections(access: UserDetailAccess, links: UserDeta
       for (const application of applications) sections.push({ title: `طلب انضمام المزود · ${application.company_name}`, fields: fields(application, [["company_name", "اسم الشركة بالعربية"], ["company_name_en", "اسم الشركة بالإنجليزية"], ["contact_name", "اسم المسؤول (اختياري)"], ["service_cities", "المدن التي يخدمها المزود"], ["status", "حالة الطلب", "status"], ["created_at", "تاريخ التقديم", "date"], ["joining_policy_title", "سياسة الانضمام المقبولة"], ["joining_policy_version", "إصدار السياسة"], ["joining_policy_accepted_at", "وقت الموافقة على السياسة", "date"]]) });
     }
     if (links.contractorIds.length) {
-      const contractors = rows(await admin.from("contractor_profiles").select("display_name,commercial_name,city,badge,years_experience,summary,phone,email,subscription_active,approval_status,availability,google_maps_url,average_rating,projects_count,directory_visible,professional_links").in("id", links.contractorIds));
+      const contractors = rows(await admin.from("contractor_profiles").select("display_name,display_name_en,contractor_type,contact_name,username,commercial_name,city,badge,years_experience,summary,phone,email,subscription_active,approval_status,availability,google_maps_url,average_rating,projects_count,directory_visible,professional_links").in("id", links.contractorIds));
+      for (const contractor of contractors) sections.push({ title: "هوية المقاول", fields: [
+        { label: "نوع المقاول", value: contractor.contractor_type === "individual" ? "فرد" : "شركة / مؤسسة" },
+        ...fields(contractor, [["display_name", "الاسم بالعربية"], ["display_name_en", "الاسم بالإنجليزية"], ["contact_name", "مسؤول التواصل (اختياري)"], ["username", "اسم المستخدم"]]),
+      ] });
       for (const contractor of contractors) sections.push({ title: "الملف المهني للمقاول", fields: fields(contractor, [["display_name", "اسم العرض"], ["commercial_name", "الاسم التجاري"], ["city", "المدينة"], ["badge", "التصنيف المهني"], ["years_experience", "سنوات الخبرة"], ["summary", "النبذة"], ["phone", "جوال العمل"], ["email", "بريد العمل"], ["subscription_active", "الاشتراك نشط", "boolean"], ["approval_status", "حالة الاعتماد", "status"], ["availability", "التوفر", "status"], ["google_maps_url", "الموقع"], ["average_rating", "متوسط التقييم"], ["projects_count", "عدد المشاريع"], ["directory_visible", "ظاهر في الدليل", "boolean"], ["professional_links", "الروابط المهنية"]]) });
       const [specialties, regions] = await Promise.all([
         admin.from("contractor_profile_specialties").select("specialty_name").in("profile_id", links.contractorIds).order("sort_order"),
         admin.from("contractor_profile_regions").select("region_name").in("profile_id", links.contractorIds),
       ]);
       sections.push({ title: "التخصصات ومناطق العمل", fields: [{ label: "التخصصات", value: rows(specialties).map(row => row.specialty_name).join("، ") || "غير مسجل" }, { label: "مناطق العمل", value: rows(regions).map(row => row.region_name).join("، ") || "غير مسجل" }] });
+    }
+    if (links.contractorApplicationIds.length) {
+      const applications = rows(await admin.from("contractor_applications").select("id,contractor_type,contractor_name,contractor_name_en,contact_name,requested_username,username_is_custom,email,mobile,status,created_at,joining_policy_id,joining_policy_title,joining_policy_version,joining_policy_body,joining_policy_updated_at,joining_policy_accepted_at,contractor_work_regions(region_name),contractor_specialties(specialty_name)").in("id", links.contractorApplicationIds));
+      for (const application of applications) sections.push({ title: `طلب انضمام المقاول · ${application.contractor_name}`, fields: [
+        { label: "نوع المقاول", value: application.contractor_type === "individual" ? "فرد" : "شركة / مؤسسة" },
+        ...fields(application, [["contractor_name", "الاسم بالعربية"], ["contractor_name_en", "الاسم بالإنجليزية"], ["contact_name", "مسؤول التواصل (اختياري)"], ["requested_username", "اسم المستخدم"], ["username_is_custom", "اسم مستخدم اختاره مقدم الطلب", "boolean"], ["email", "البريد الإلكتروني"], ["mobile", "الجوال"], ["status", "حالة الطلب", "status"], ["created_at", "وقت التقديم", "date"], ["joining_policy_id", "مرجع السياسة"], ["joining_policy_title", "سياسة الانضمام المقبولة"], ["joining_policy_version", "إصدار السياسة"], ["joining_policy_body", "نص السياسة وقت الموافقة"], ["joining_policy_updated_at", "آخر تحديث للسياسة المقبولة", "date"], ["joining_policy_accepted_at", "وقت الموافقة", "date"]]),
+        { label: "المدن ومناطق العمل", value: ((application.contractor_work_regions ?? []) as AdminRow[]).map(row => row.region_name).join("، ") || "غير مسجل" },
+        { label: "التخصصات", value: ((application.contractor_specialties ?? []) as AdminRow[]).map(row => row.specialty_name).join("، ") || "غير مسجل" },
+      ] });
     }
   }
   if (access.permissions.has("roles.manage")) {

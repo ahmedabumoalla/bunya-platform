@@ -61,6 +61,7 @@ export function ContractorShell({ children }: { children: ReactNode }) {
       <div className="contractor-brand"><span>{companyName.slice(0, 1)}</span><div><strong>بُنية</strong><small>{companyName}</small></div></div>
       <button className="contractor-collapse" onClick={toggle} aria-label={collapsed ? "توسيع القائمة" : "تصغير القائمة"}>{collapsed ? "‹" : "›"}</button>
       <nav aria-label="تنقل لوحة المقاول">{nav.map(([name, href, icon]) => <Link key={href} href={href} title={collapsed ? name : undefined} className={(href === "/contractor" ? pathname === href : pathname.startsWith(href)) ? "active" : ""} onClick={() => setDrawer(false)}><span aria-hidden>{icon}</span><b>{name}</b>{name === "الإشعارات" && unread ? <em>{unread}</em> : null}</Link>)}</nav>
+      {identity.activeRoles.includes("customer") && identity.details.customer.exists ? <Link className="contractor-logout" href="/customer"><span>↔</span><b>حساب العميل والمشتريات</b></Link> : null}
       <LogoutButton className="contractor-logout"><span>↪</span><b>تسجيل الخروج</b></LogoutButton>
     </aside>
     <section className="contractor-workspace">

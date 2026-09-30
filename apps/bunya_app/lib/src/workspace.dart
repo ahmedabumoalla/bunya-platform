@@ -324,6 +324,9 @@ class WorkspaceRepository {
     if (module.filterField != null && module.filterValue != null) {
       query = query.eq(module.filterField!, module.filterValue!);
     }
+    if (module.table == 'contractor_documents') {
+      query = query.eq('is_current', true);
+    }
     final rows = await query.limit(80);
     final records = (rows as List)
         .map((row) => Map<String, dynamic>.from(row as Map))

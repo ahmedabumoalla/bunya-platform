@@ -2,3 +2,5 @@
 supabase/migrations/084_provider_join_details_and_policy.sql text eol=lf
 supabase/migrations/085_provider_optional_username.sql text eol=lf
 supabase/migrations/086_provider_resumable_documents.sql text eol=lf
+supabase/migrations/087_contractor_company_individual_onboarding.sql text eol=lf
+supabase/migrations/088_contractor_approval_document_boundary.sql text eol=lf

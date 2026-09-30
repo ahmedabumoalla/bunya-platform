@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireJoinReviewer } from "@/lib/join/admin";
-import { getSupabasePublicEnv } from "@/lib/supabase/env";
-import { providerDocumentDownload } from "@/lib/join/provider-document-download";
+import { providerDocumentDownload, contractorDocumentDownload } from "@/lib/join/provider-document-download";
 
 export const runtime = "nodejs";
 
@@ -23,8 +22,6 @@ export async function GET(
   }
 
   let objectPath: string | null = null;
-  let fileName = "document";
-  let mimeType = "application/octet-stream";
 
   if (kind === "provider") {
     const document = await auth.admin
@@ -46,8 +43,6 @@ export async function GET(
       scan_status?: string;
     } | null;
     objectPath = file?.object_path ?? null;
-    fileName = file?.original_name ?? fileName;
-    mimeType = file?.mime_type ?? mimeType;
     if (!objectPath) return NextResponse.json({ message: "المستند غير موجود." }, { status: 404 });
     if (file?.bucket_id !== "join-applications") return NextResponse.json({ message: "المستند غير متاح." }, { status: 403 });
     return providerDocumentDownload(auth.admin, objectPath, id, file.scan_status);
@@ -64,39 +59,11 @@ export async function GET(
     }
 
     objectPath = document.data?.storage_path ?? null;
-    fileName = document.data?.file_name ?? fileName;
-    mimeType = document.data?.mime_type ?? mimeType;
   }
 
   if (!objectPath) {
     return NextResponse.json({ message: "المستند غير موجود." }, { status: 404 });
   }
 
-  const { url } = getSupabasePublicEnv();
-  const storageKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!storageKey) {
-    return NextResponse.json({ message: "مفتاح تخزين Supabase غير مضبوط." }, { status: 500 });
-  }
-
-  const encodedPath = objectPath.split("/").map(encodeURIComponent).join("/");
-  const downloaded = await fetch(`${url}/storage/v1/object/authenticated/join-applications/${encodedPath}`, {
-    cache: "no-store",
-    headers: {
-      apikey: storageKey,
-      Authorization: `Bearer ${storageKey}`,
-    },
-  });
-
-  if (!downloaded.ok || !downloaded.body) {
-    return NextResponse.json({ message: "تعذر تنزيل المستند من التخزين." }, { status: 500 });
-  }
-
-  return new NextResponse(downloaded.body, {
-    headers: {
-      "Cache-Control": "private, no-store, max-age=0",
-      "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(fileName)}`,
-      "Content-Type": mimeType,
-      "X-Content-Type-Options": "nosniff",
-    },
-  });
+  return contractorDocumentDownload(auth.admin, objectPath, id);
 }

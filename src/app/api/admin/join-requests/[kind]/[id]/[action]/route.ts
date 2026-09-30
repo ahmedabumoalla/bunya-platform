@@ -221,14 +221,15 @@ export async function POST(
       { status: 409 },
     );
 
-  if (kind === "provider") {
-    const username = await resolveAvailableProviderUsername(
+  if (kind === "provider" || kind === "contractor") {
+    const username = await resolveAvailableJoinUsername(
       auth.admin,
-      String(application.data.requested_username || application.data.company_name_en || ""),
+      String(application.data.requested_username || (kind === "provider" ? application.data.company_name_en : application.data.contractor_name_en) || ""),
       id,
+      kind,
     );
     if (username.error) {
-      logDataError("provider_username_lookup", username.error, kind, id);
+      logDataError("join_username_lookup", username.error, kind, id);
       return NextResponse.json(
         { message: "تعذر التحقق من اسم المستخدم المطلوب." },
         { status: 500 },
@@ -245,7 +246,7 @@ export async function POST(
     }
     if (username.value !== application.data.requested_username) {
       const updatedUsername = await auth.admin
-        .from("provider_applications")
+        .from(table)
         .update({ requested_username: username.value })
         .eq("id", id)
         .in("status", ["pending", "needs_changes"])
@@ -254,7 +255,7 @@ export async function POST(
       if (updatedUsername.error || !updatedUsername.data) {
         if (updatedUsername.error)
           logDataError(
-            "provider_username_update",
+            "join_username_update",
             updatedUsername.error,
             kind,
             id,
@@ -265,7 +266,7 @@ export async function POST(
         );
       }
       applicationWithRelations.requested_username = username.value;
-      details = applicationDetails("provider", applicationWithRelations);
+      details = applicationDetails(kind, applicationWithRelations);
     }
   }
 
@@ -303,6 +304,9 @@ export async function POST(
   if (finalized.error) {
     logDataError("finalize_approval", finalized.error, kind, id);
     await auth.admin.auth.admin.deleteUser(userId);
+    if (/username/i.test(finalized.error.message ?? "")) {
+      return NextResponse.json({ message: "اسم المستخدم المطلوب غير متاح. اطلب تعديله ثم أعد الموافقة." }, { status: 409 });
+    }
     return NextResponse.json(
       { message: "تعذر إكمال تجهيز الحساب وتم التراجع عن إنشائه بأمان." },
       { status: 500 },
@@ -473,17 +477,18 @@ function logDataError(
   });
 }
 
-async function resolveAvailableProviderUsername(
+async function resolveAvailableJoinUsername(
   admin: ReturnType<typeof import("@/lib/supabase/admin").createAdminClient>,
   requestedUsername: string,
   applicationId: string,
+  kind: "provider" | "contractor",
 ) {
   const normalized = normalizeProviderText(requestedUsername);
   if (!isValidProviderUsername(normalized)) return { value: null, error: null };
 
   const candidates = [normalized];
   for (const candidate of candidates) {
-    const [profiles, providerProfiles, applications] = await Promise.all([
+    const [profiles, providerProfiles, applications, contractorApplications] = await Promise.all([
       admin.from("profiles").select("id").ilike("username", candidate.replace(/[\\%_]/g, "\\$&")).limit(1),
       admin
         .from("provider_profiles")
@@ -493,18 +498,23 @@ async function resolveAvailableProviderUsername(
       admin
         .from("provider_applications")
         .select("id")
-        .neq("id", applicationId)
+        .neq("id", kind === "provider" ? applicationId : "00000000-0000-0000-0000-000000000000")
         .in("status", ["pending", "needs_changes"])
         .ilike("requested_username", candidate.replace(/[\\%_]/g, "\\$&"))
         .limit(1),
+      admin.from("contractor_applications").select("id")
+        .neq("id", kind === "contractor" ? applicationId : "00000000-0000-0000-0000-000000000000")
+        .in("status", ["pending", "needs_changes"])
+        .ilike("requested_username", candidate.replace(/[\\%_]/g, "\\$&")).limit(1),
     ]);
     const error =
-      profiles.error || providerProfiles.error || applications.error;
+      profiles.error || providerProfiles.error || applications.error || contractorApplications.error;
     if (error) return { value: null, error };
     if (
       !profiles.data?.length &&
       !providerProfiles.data?.length &&
-      !applications.data?.length
+      !applications.data?.length &&
+      !contractorApplications.data?.length
     ) {
       return { value: candidate, error: null };
     }
@@ -570,6 +580,10 @@ function applicationDetails(
   ).map((item) => item.specialty_name);
   return [
     { label: "اسم المقاول", value: String(application.contractor_name || "—") },
+    { label: "نوع المقاول", value: application.contractor_type === "individual" ? "فرد" : "شركة / مؤسسة" },
+    { label: "اسم المقاول بالإنجليزية", value: String(application.contractor_name_en || "—") },
+    { label: "مسؤول التواصل (اختياري)", value: String(application.contact_name || "—") },
+    { label: "اسم المستخدم", value: String(application.requested_username || "—") },
     { label: "رقم الجوال", value: String(application.mobile || "—") },
     { label: "البريد الإلكتروني", value: String(application.email || "—") },
     { label: "مناطق العمل", value: regions.join("، ") || "—" },

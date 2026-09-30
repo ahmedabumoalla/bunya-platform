@@ -1,8 +1,7 @@
 import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getSupabasePublicEnv } from "@/lib/supabase/env";
-import { providerDocumentDownload } from "@/lib/join/provider-document-download";
+import { providerDocumentDownload, contractorDocumentDownload } from "@/lib/join/provider-document-download";
 
 export const runtime = "nodejs";
 
@@ -32,8 +31,6 @@ export async function GET(
   }
 
   let objectPath: string | null = null;
-  let fileName = "document";
-  let mimeType = "application/octet-stream";
 
   if (revision.data.application_kind === "provider") {
     const document = await admin
@@ -45,8 +42,6 @@ export async function GET(
     if (document.error) return NextResponse.json({ message: "تعذر تحميل بيانات المستند." }, { status: 500 });
     const file = document.data?.files as unknown as { object_path?: string; original_name?: string; mime_type?: string; bucket_id?: string; scan_status?: string } | null;
     objectPath = file?.object_path ?? null;
-    fileName = file?.original_name ?? fileName;
-    mimeType = file?.mime_type ?? mimeType;
     if (!objectPath) return NextResponse.json({ message: "المستند غير موجود." }, { status: 404 });
     if (file?.bucket_id !== "join-applications") return NextResponse.json({ message: "المستند غير متاح." }, { status: 403 });
     return providerDocumentDownload(admin, objectPath, revision.data.application_id, file.scan_status);
@@ -57,29 +52,11 @@ export async function GET(
       .eq("application_id", revision.data.application_id)
       .eq("id", documentId)
       .maybeSingle();
+    if (document.error) return NextResponse.json({ message: "تعذر تحميل بيانات المستند." }, { status: 500 });
     objectPath = document.data?.storage_path ?? null;
-    fileName = document.data?.file_name ?? fileName;
-    mimeType = document.data?.mime_type ?? mimeType;
   }
 
   if (!objectPath) return NextResponse.json({ message: "المستند غير موجود." }, { status: 404 });
 
-  const { url } = getSupabasePublicEnv();
-  const storageKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!storageKey) return NextResponse.json({ message: "تعذر عرض المستند." }, { status: 500 });
-  const encodedPath = objectPath.split("/").map(encodeURIComponent).join("/");
-  const downloaded = await fetch(`${url}/storage/v1/object/authenticated/join-applications/${encodedPath}`, {
-    cache: "no-store",
-    headers: { apikey: storageKey, Authorization: `Bearer ${storageKey}` },
-  });
-  if (!downloaded.ok || !downloaded.body) return NextResponse.json({ message: "تعذر عرض المستند." }, { status: 500 });
-
-  return new NextResponse(downloaded.body, {
-    headers: {
-      "Cache-Control": "private, no-store, max-age=0",
-      "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(fileName)}`,
-      "Content-Type": mimeType,
-      "X-Content-Type-Options": "nosniff",
-    },
-  });
+  return contractorDocumentDownload(admin, objectPath, revision.data.application_id);
 }

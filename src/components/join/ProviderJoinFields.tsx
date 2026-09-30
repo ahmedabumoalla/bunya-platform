@@ -25,7 +25,7 @@ export function appendProviderFiles(data: FormData, files: ProviderFiles) {
   }
 }
 
-export function ServiceCitiesInput({ values, onChange, error }: { values: string[]; onChange: (values: string[]) => void; error?: string }) {
+export function ServiceCitiesInput({ values, onChange, error, label = "المدن التي يخدمها المزود" }: { values: string[]; onChange: (values: string[]) => void; error?: string; label?: string }) {
   const id = useId();
   const [draft, setDraft] = useState("");
   const [localError, setLocalError] = useState("");
@@ -42,7 +42,7 @@ export function ServiceCitiesInput({ values, onChange, error }: { values: string
     setAnnouncement(next.length === values.length ? `المدينة ${city} مضافة مسبقًا.` : `تمت إضافة ${city}.`);
   };
   return <div className={`portal-field ${styles.cities}`}>
-    <label htmlFor={id}>المدن التي يخدمها المزود</label>
+    <label htmlFor={id}>{label}</label>
     <div className={styles.cityEntry}><input id={id} value={draft} placeholder="اكتب المدينة ثم اضغط Enter" autoComplete="off" aria-invalid={Boolean(error || localError)} aria-describedby={`${id}-hint${error || localError ? ` ${id}-error` : ""}`} onChange={(event) => { setDraft(event.target.value); setLocalError(""); }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); if (!event.nativeEvent.isComposing && event.keyCode !== 229) add(); } }} /><button type="button" onClick={add} disabled={!draft.trim()}>إضافة مدينة</button></div>
     <small id={`${id}-hint`} className="portal-hint">أضف كل مدينة على حدة. يمكنك كتابة أسماء تتضمن مسافات.</small>
     {values.length > 0 ? <ul className={styles.chips}>{values.map((city) => <li key={city}><span>{city}</span><button type="button" aria-label={`إزالة مدينة ${city}`} onClick={() => { onChange(values.filter((value) => value !== city)); setAnnouncement(`تمت إزالة ${city}.`); }}>×</button></li>)}</ul> : null}
@@ -75,7 +75,7 @@ export function ProviderDocuments({ files, onChange, existing = [], error }: { f
   </fieldset>;
 }
 
-export function useProviderPolicy(enabled = true) {
+export function useProviderPolicy(enabled = true, kind: "provider" | "contractor" = "provider") {
   const [policy, setPolicy] = useState<ProviderJoinPolicy | null>(null);
   const [accepted, setAccepted] = useState(false);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -83,7 +83,7 @@ export function useProviderPolicy(enabled = true) {
   useEffect(() => {
     if (!enabled) return;
     const controller = new AbortController();
-    fetch("/api/public/join/provider/policy", { cache: "no-store", signal: controller.signal })
+    fetch(`/api/public/join/${kind}/policy`, { cache: "no-store", signal: controller.signal })
       .then(async (response) => {
         const body = await response.json() as { policy?: ProviderJoinPolicy | null };
         if (!response.ok) throw new Error("policy-unavailable");
@@ -91,7 +91,7 @@ export function useProviderPolicy(enabled = true) {
       })
       .catch(() => { if (!controller.signal.aborted) setStatus("error"); });
     return () => controller.abort();
-  }, [enabled, attempt]);
+  }, [enabled, attempt, kind]);
   return { policy, accepted, setAccepted, status, reload: () => { setPolicy(null); setAccepted(false); setStatus("loading"); setAttempt((value) => value + 1); } };
 }
 
@@ -102,7 +102,7 @@ export function appendProviderConsent(data: FormData, policy: ProviderJoinPolicy
   data.set("policyUpdatedAt", policy.updatedAt);
 }
 
-export function ProviderPolicyConsent({ value }: { value: ReturnType<typeof useProviderPolicy> }) {
+export function ProviderPolicyConsent({ value, label = "سياسة التقديم كمزود خدمة في بنية" }: { value: ReturnType<typeof useProviderPolicy>; label?: string }) {
   const { policy, accepted, setAccepted, status, reload } = value;
   const [open, setOpen] = useState(false);
   const id = useId();
@@ -129,7 +129,7 @@ export function ProviderPolicyConsent({ value }: { value: ReturnType<typeof useP
     return () => { document.removeEventListener("keydown", keydown); document.removeEventListener("focusin", containFocus); unlock(); trigger?.focus(); };
   }, [open]);
   return <div className={styles.policyConsent}>
-    <div className={styles.consentRow}><input id={id} type="checkbox" checked={accepted} disabled={!policy || status !== "ready"} onChange={(event) => setAccepted(event.target.checked)} aria-describedby={`${id}-hint`} /><label htmlFor={id}>أوافق على</label><button className={styles.policyLink} ref={triggerRef} type="button" disabled={!policy} onClick={() => setOpen(true)}>سياسة التقديم كمزود خدمة في بنية</button></div>
+    <div className={styles.consentRow}><input id={id} type="checkbox" checked={accepted} disabled={!policy || status !== "ready"} onChange={(event) => setAccepted(event.target.checked)} aria-describedby={`${id}-hint`} /><label htmlFor={id}>أوافق على</label><button className={styles.policyLink} ref={triggerRef} type="button" disabled={!policy} onClick={() => setOpen(true)}>{label}</button></div>
     <p className="portal-hint" id={`${id}-hint`}>{status === "loading" ? "جارٍ تحميل سياسة الانضمام..." : !policy ? "سياسة الانضمام غير متاحة حاليًا. يلزم توفر السياسة والموافقة عليها لإرسال الطلب." : "الموافقة على سياسة الانضمام مطلوبة لإرسال الطلب."}</p>
     {status !== "loading" && !policy ? <button type="button" className={styles.retryPolicy} onClick={reload}>إعادة تحميل السياسة</button> : null}
     {open && policy ? createPortal(<div className={styles.policyOverlay} onClick={(event) => { if (event.target === event.currentTarget) setOpen(false); }}><div ref={dialogRef} className={styles.policyDialog} role="dialog" aria-modal="true" aria-labelledby={`${id}-title`} aria-describedby={`${id}-version`} tabIndex={-1} dir="rtl"><header><div><h2 id={`${id}-title`}>{policy.title}</h2><p id={`${id}-version`}>الإصدار {policy.version}</p></div><button type="button" onClick={() => setOpen(false)} aria-label="إغلاق سياسة الانضمام">×</button></header><div className={styles.policyBody}>{policy.body.map((paragraph, index) => <p key={index}>{paragraph}</p>)}</div><footer><button type="button" onClick={() => setOpen(false)}>العودة إلى الطلب</button></footer></div></div>, document.body) : null}

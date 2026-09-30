@@ -22,11 +22,15 @@ const objectPath = `join-applications/provider/${applicationId}/object`;
 
 function harness(options = {}) {
   const signed = [], queries = [], events = [];
-  const document = { id: documentId, application_id: options.documentApplicationId ?? applicationId, files: { object_path: options.path ?? objectPath, bucket_id: options.bucket ?? "join-applications", scan_status: options.scan ?? "pending", original_name: "document.pdf", mime_type: "application/pdf" } };
+  const kind = options.kind ?? "provider";
+  const scopedPath = `join-applications/${kind}/${applicationId}/object`;
+  const document = { id: documentId, is_current: true, storage_path: options.path ?? scopedPath, file_name: "document.pdf", mime_type: "application/pdf", application_id: options.documentApplicationId ?? applicationId, files: { object_path: options.path ?? scopedPath, bucket_id: options.bucket ?? "join-applications", scan_status: options.scan ?? "pending", original_name: "document.pdf", mime_type: "application/pdf" } };
   const tables = {
+    contractor_documents: options.missingDocument ? [] : [document],
+    contractor_applications: [{ id: applicationId, status: options.applicationStatus ?? "needs_changes" }],
     provider_application_documents: options.missingDocument ? [] : [document],
     provider_applications: [{ id: applicationId, status: options.applicationStatus ?? "needs_changes" }],
-    join_application_revision_tokens: [{ token_hash: crypto.createHash("sha256").update(revisionToken).digest("hex"), application_kind: "provider", application_id: applicationId, attempts: options.attempts ?? 0, max_attempts: 3, used_at: options.used ? new Date().toISOString() : null, expires_at: new Date(Date.now() + (options.expired ? -1 : 1) * 3600000).toISOString() }],
+    join_application_revision_tokens: [{ token_hash: crypto.createHash("sha256").update(revisionToken).digest("hex"), application_kind: kind, application_id: applicationId, attempts: options.attempts ?? 0, max_attempts: 3, used_at: options.used ? new Date().toISOString() : null, expires_at: new Date(Date.now() + (options.expired ? -1 : 1) * 3600000).toISOString() }],
   };
   const db = {
     from(table) {
@@ -53,11 +57,11 @@ function harness(options = {}) {
   const details = {
     UserDetailError, userIdPattern: /^[a-f0-9-]{36}$/,
     async requireUserDetailAccess(id) { events.push("authorize"); assert.equal(id, userId); if (options.denied) throw new UserDetailError(403, "denied"); return { admin: db }; },
-    async userDetailLinks() { events.push("links"); return { providerIds: [], contractorIds: [], providerApplicationIds: options.unlinked ? [] : [applicationId, otherApplicationId], contractorApplicationIds: [] }; },
+    async userDetailLinks() { events.push("links"); return { providerIds: [], contractorIds: [], providerApplicationIds: kind === "provider" && !options.unlinked ? [applicationId, otherApplicationId] : [], contractorApplicationIds: kind === "contractor" && !options.unlinked ? [applicationId, otherApplicationId] : [] }; },
     documentQuery(_access, links, id, source, full) {
-      events.push("document"); assert.equal(id, userId); assert.equal(source, "provider_application"); assert.equal(full, true);
+      events.push("document"); assert.equal(id, userId); assert.equal(source, kind === "provider" ? "provider_application" : "contractor"); assert.equal(full, true);
       let matchedId;
-      return { eq(field, value) { assert.equal(field, "id"); matchedId = value; return this; }, limit() { return { data: !options.missingDocument && document.id === matchedId && links.providerApplicationIds.includes(document.application_id) ? [document] : [], error: null }; } };
+      return { eq(field, value) { assert.equal(field, "id"); matchedId = value; return this; }, limit() { return { data: !options.missingDocument && document.id === matchedId && (kind === "provider" ? links.providerApplicationIds : links.contractorApplicationIds).includes(document.application_id) ? [kind === "provider" ? document : { ...document, files: undefined }] : [], error: null }; } };
     },
     rows: result => result.data,
     userDetailFailure: error => Response.json({ message: error.message }, { status: error.status ?? 500 }), userDetailHeaders: {},
@@ -84,9 +88,9 @@ function harness(options = {}) {
     return exports;
   }
   async function get(route, overrides = {}) {
-    const params = route === "admin" ? { kind: "provider", id: applicationId, documentId, ...overrides }
+    const params = route === "admin" ? { kind, id: applicationId, documentId, ...overrides }
       : route === "revision" ? { token: revisionToken, documentId, ...overrides } : { id: userId, documentId, ...overrides };
-    return load(route).GET(new Request("https://bunya.invalid/document?source=provider_application"), { params: Promise.resolve(params) });
+    return load(route).GET(new Request(`https://bunya.invalid/document?source=${kind === "provider" ? "provider_application" : "contractor"}`), { params: Promise.resolve(params) });
   }
   return { get, signed, queries, events };
 }
@@ -144,3 +148,28 @@ await check("signer failures do not expose temporary URLs", async () => {
 });
 
 console.log(`PASS: ${checks} provider document download authorization/security groups (real routes/helper; mocked authorization and Storage)`);
+
+await check("contractor routes sign exact private application namespace after authorization", async () => {
+  for (const route of ["admin", "revision", "dossier"]) {
+    const h = harness({ kind: "contractor" });
+    const response = await h.get(route);
+    assert.equal(response.status, 307, route);
+    assert.equal(h.signed[0].path, `join-applications/contractor/${applicationId}/object`);
+    assert.equal(h.signed[0].expiresIn, 300);
+    for (const path of [`join-applications/provider/${applicationId}/object`, `join-applications/contractor/${otherApplicationId}/object`, `join-applications/contractor/${applicationId}/../private`, `join-applications/contractor/${applicationId}/%2e%2e/private`]) {
+      const bad = harness({ kind: "contractor", path });
+      assert.equal((await bad.get(route)).status, 403, route);
+      assert.equal(bad.signed.length, 0);
+    }
+    const missing = harness({ kind: "contractor", documentApplicationId: otherApplicationId });
+    // The dossier may link multiple applications; reviewer/revision must match exactly.
+    if (route !== "dossier") { assert.equal((await missing.get(route)).status, 404); assert.equal(missing.signed.length, 0); }
+  }
+  for (const options of [{ expired: true }, { used: true }, { attempts: 3 }, { applicationStatus: "approved" }]) {
+    const h = harness({ kind: "contractor", ...options }); assert.equal((await h.get("revision")).status, 410); assert.equal(h.signed.length, 0);
+  }
+  for (const [route, denied] of [["admin", "forbidden"], ["dossier", true]]) {
+    const h = harness({ kind: "contractor", denied }); assert.equal((await h.get(route)).status, 403); assert.equal(h.signed.length, 0);
+  }
+});
+console.log(`PASS: ${checks} provider/contractor document download groups`);

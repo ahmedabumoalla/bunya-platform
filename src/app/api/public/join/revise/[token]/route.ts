@@ -1,18 +1,10 @@
 import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import {
-  assertSameOrigin,
-  normalizeEmail,
-  normalizeMobile,
-  PublicJoinError,
-  randomObjectName,
-  requiredText,
-  stringArray,
-  validateFiles,
-} from "@/lib/join/security";
+import { assertSameOrigin, PublicJoinError } from "@/lib/join/security";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { prepareUpload } from "@/lib/uploads/server";
+import { submitContractor } from "@/lib/join/submit-contractor";
 import { submitProvider } from "@/lib/join/submit-provider";
+import { readBoundedBytes } from "@/lib/join/provider-upload-batches";
 
 export const runtime = "nodejs";
 
@@ -41,15 +33,6 @@ async function resolveToken(token: string) {
   return { admin, record };
 }
 
-async function consumeAttempt(admin: ReturnType<typeof createAdminClient>, record: RevisionToken) {
-  await admin
-    .from("join_application_revision_tokens")
-    .update({ attempts: record.attempts + 1 })
-    .eq("id", record.id)
-    .eq("attempts", record.attempts)
-    .is("used_at", null);
-}
-
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const token = (await params).token;
   const found = await resolveToken(token);
@@ -63,7 +46,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         .maybeSingle()
     : await found.admin
         .from("contractor_applications")
-        .select("id,email,mobile,contractor_name,status,review_notes,contractor_work_regions(region_name),contractor_specialties(specialty_name),contractor_documents(id,file_name)")
+        .select("id,email,mobile,contractor_type,contractor_name,contractor_name_en,contact_name,requested_username,username_is_custom,status,review_notes,contractor_work_regions(region_name),contractor_specialties(specialty_name),contractor_documents(id,file_name,document_key,document_type,is_current)")
         .eq("id", found.record.application_id)
         .maybeSingle();
 
@@ -90,8 +73,10 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         name: String((item.files as { original_name?: string } | null)?.original_name || "مستند"),
         url: `/api/public/join/revise/${encodeURIComponent(token)}/documents/${item.id}`,
       }))
-    : ((row.contractor_documents as { id: string; file_name: string }[] | undefined) ?? []).map((item) => ({
+    : ((row.contractor_documents as { id: string; file_name: string; document_key: string; document_type: string; is_current: boolean }[] | undefined) ?? []).filter(item => item.is_current !== false).map((item) => ({
         id: item.id,
+        documentKey: item.document_key,
+        documentType: item.document_type,
         name: item.file_name,
         url: `/api/public/join/revise/${encodeURIComponent(token)}/documents/${item.id}`,
       }));
@@ -122,98 +107,19 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 }
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ token: string }> }) {
-  let found: Awaited<ReturnType<typeof resolveToken>> = null;
-  const uploaded: string[] = [];
-  const contractorDocumentIds: string[] = [];
   try {
     assertSameOrigin(request);
-    found = await resolveToken((await params).token);
+    const token = (await params).token;
+    const found = await resolveToken(token);
     if (!found) return NextResponse.json({ message: "الرابط غير صالح أو منتهي." }, { status: 410 });
-
-    const data = await request.formData();
-    if (found.record.application_kind === "provider") {
-      const receipt = await submitProvider(data, null, { applicationId: found.record.application_id, token: (await params).token });
-      return NextResponse.json(receipt);
-    }
-    const email = normalizeEmail(data.get("email"));
-    const mobile = normalizeMobile(data.get("mobile"));
-    const files = validateFiles(data);
-    const applicationId = found.record.application_id;
-    const kind = found.record.application_kind;
-    const table = "contractor_applications";
-    const current = await found.admin.from(table).select("id,status").eq("id", applicationId).maybeSingle();
-    if (current.error || !current.data) throw new PublicJoinError("الطلب غير موجود.", 404);
-    if (current.data.status !== "needs_changes") throw new PublicJoinError("لم يعد الطلب متاحًا للتعديل.", 409);
-
-    const documentTable = "contractor_documents";
-    const existingDocuments = await found.admin.from(documentTable).select("id", { count: "exact", head: true }).eq("application_id", applicationId);
-    if (existingDocuments.error) throw existingDocuments.error;
-    if ((existingDocuments.count ?? 0) + files.length > 5) {
-      throw new PublicJoinError("الحد الأقصى خمسة مستندات إجمالًا. ارفع الملفات المصححة المطلوبة فقط.", 400);
-    }
-
-    const regions = stringArray(data, "regions");
-    const specialties = stringArray(data, "specialties");
-    const update = { contractor_name: requiredText(data, "contractorName", 3, 160), email, mobile };
-
-    for (const file of files) {
-      const prepared = await prepareUpload(file);
-      const objectPath = `join-applications/${kind}/${applicationId}/${randomObjectName()}`;
-      const storage = await found.admin.storage.from("join-applications").upload(objectPath, prepared.bytes, {
-        contentType: prepared.mimeType,
-        upsert: false,
-      });
-      if (storage.error) throw storage.error;
-      uploaded.push(objectPath);
-
-        const linked = await found.admin.from("contractor_documents").insert({
-          application_id: applicationId,
-          document_type: "supporting_document",
-          storage_path: objectPath,
-          file_name: prepared.fileName,
-          mime_type: prepared.mimeType,
-          size_bytes: prepared.size,
-        }).select("id").single();
-        if (linked.error) throw linked.error;
-        contractorDocumentIds.push(linked.data.id);
-    }
-
-      const removedRegions = await found.admin.from("contractor_work_regions").delete().eq("application_id", applicationId);
-      if (removedRegions.error) throw removedRegions.error;
-      const savedRegions = await found.admin.from("contractor_work_regions").insert(regions.map((name) => ({ application_id: applicationId, region_name: name })));
-      if (savedRegions.error) throw savedRegions.error;
-
-      const removedSpecialties = await found.admin.from("contractor_specialties").delete().eq("application_id", applicationId);
-      if (removedSpecialties.error) throw removedSpecialties.error;
-      const savedSpecialties = await found.admin.from("contractor_specialties").insert(specialties.map((name) => ({ application_id: applicationId, specialty_name: name })));
-      if (savedSpecialties.error) throw savedSpecialties.error;
-
-    const result = await found.admin.from(table).update({
-      ...update,
-      status: "pending",
-      reviewed_by: null,
-      reviewed_at: null,
-      review_notes: null,
-    }).eq("id", applicationId).eq("status", "needs_changes").select("id").maybeSingle();
-
-    if (result.error) throw result.error;
-    if (!result.data) throw new PublicJoinError("لم يعد الطلب بانتظار التعديلات.", 409);
-
-    await found.admin.from("join_application_revision_tokens").update({
-      used_at: new Date().toISOString(),
-      attempts: found.record.attempts + 1,
-    }).eq("id", found.record.id).is("used_at", null);
-
-    return NextResponse.json({ status: "pending" });
+    const data = found.record.application_kind === "contractor"
+      ? await new Response(await readBoundedBytes(request.body, 128 * 1024), { headers: { "Content-Type": request.headers.get("content-type") || "" } }).formData()
+      : await request.formData();
+    const revision = { applicationId: found.record.application_id, token };
+    const receipt = found.record.application_kind === "provider"
+      ? await submitProvider(data, null, revision) : await submitContractor(data, null, revision);
+    return NextResponse.json(receipt);
   } catch (error) {
-    if (found) {
-      if (uploaded.length) await found.admin.storage.from("join-applications").remove(uploaded).catch(() => undefined);
-
-      if (contractorDocumentIds.length) {
-        await found.admin.from("contractor_documents").delete().in("id", contractorDocumentIds);
-      }
-      await consumeAttempt(found.admin, found.record);
-    }
     if (error instanceof PublicJoinError) return NextResponse.json({ message: error.message }, { status: error.status });
     return NextResponse.json({ message: "تعذر حفظ التعديلات." }, { status: 500 });
   }

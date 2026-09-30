@@ -8,10 +8,11 @@ export async function providerDocumentDownload(
   path: string,
   applicationId: string,
   scanStatus?: unknown,
+  kind: "provider" | "contractor" = "provider",
 ) {
   const segments = path.split("/");
   const safe = segments.length >= 4 && segments.every(segment => segment && segment !== "." && segment !== ".." && !/[\\%\u0000-\u001f\u007f]/u.test(segment));
-  if (!safe || !applicationId || segments[0] !== "join-applications" || segments[1] !== "provider" || segments[2] !== applicationId
+  if (!safe || !applicationId || segments[0] !== "join-applications" || segments[1] !== kind || segments[2] !== applicationId
     || ["quarantined", "rejected"].includes(String(scanStatus))) {
     return NextResponse.json({ message: "المستند غير متاح أو لا يطابق الطلب المرتبط به." }, { status: 403 });
   }
@@ -22,4 +23,9 @@ export async function providerDocumentDownload(
     "Cache-Control": "private, no-store, max-age=0",
     "Referrer-Policy": "no-referrer",
   } });
+}
+
+/** The caller must first authorize this exact contractor application and document. */
+export function contractorDocumentDownload(admin: ReturnType<typeof createAdminClient>, path: string, applicationId: string, scanStatus?: unknown) {
+  return providerDocumentDownload(admin, path, applicationId, scanStatus, "contractor");
 }

@@ -10,6 +10,8 @@ import ts from "typescript";
 const FileClass = globalThis.File ?? BufferFile;
 const sources = {
   fields: "../src/lib/join/provider-fields.ts",
+  contractorFields: "../src/lib/join/contractor-fields.ts",
+  contractorValidation: "../src/lib/join/contractor-validation.ts",
   security: "../src/lib/join/security.ts",
   registry: "../src/lib/policies/registry.ts",
   username: "../src/lib/join/username.ts",
@@ -58,7 +60,7 @@ function harness(options = {}) {
     },
   };
   const cache = {};
-  const aliases = { "./provider-upload-batches": "batches", "./provider-fields": "fields", "./security": "security", "@/lib/policies/registry": "registry", "./username": "username", "./provider-validation": "validation" };
+  const aliases = { "./provider-upload-batches": "batches", "./provider-fields": "fields", "./contractor-fields": "contractorFields", "./contractor-validation": "contractorValidation", "./security": "security", "@/lib/policies/registry": "registry", "./username": "username", "./provider-validation": "validation" };
   function load(name) {
     if (cache[name]) return cache[name];
     const exports = {};

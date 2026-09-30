@@ -3,7 +3,6 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:http_parser/http_parser.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'product_image_urls.dart';
@@ -11,6 +10,7 @@ import 'localization.dart';
 import 'apple_auth.dart';
 import 'join_document.dart';
 import 'provider_document_upload.dart';
+import 'contractor_join_fields.dart';
 
 export 'join_document.dart';
 
@@ -1060,11 +1060,17 @@ class BunyaRepository {
     notifyDataChanged();
   }
 
-  Future<ProviderJoinPolicy?> loadProviderJoinPolicy() async {
+  Future<ProviderJoinPolicy?> loadProviderJoinPolicy() =>
+      _loadJoinPolicy('provider');
+
+  Future<ProviderJoinPolicy?> loadContractorJoinPolicy() =>
+      _loadJoinPolicy('contractor');
+
+  Future<ProviderJoinPolicy?> _loadJoinPolicy(String kind) async {
     final response = await http
         .get(
           Uri.parse(
-            '${_appUrl.replaceFirst(RegExp(r'/$'), '')}/api/public/join/provider/policy',
+            '${_appUrl.replaceFirst(RegExp(r'/$'), '')}/api/public/join/$kind/policy',
           ),
         )
         .timeout(const Duration(seconds: 20));
@@ -1101,7 +1107,14 @@ class BunyaRepository {
       ..['categories'] = jsonEncode(categories)
       ..['specialties'] = jsonEncode(specialties)
       ..['website'] = '';
-    if (kind == 'provider') {
+    if (kind == 'provider' || kind == 'contractor') {
+      if (kind == 'contractor') {
+        final error = validateContractorDocuments(
+          fields['contractorType'] ?? '',
+          documents,
+        );
+        if (error != null) throw JoinSubmissionException(400, error);
+      }
       if (documents.values.any((document) => document.size <= 0)) {
         throw const JoinSubmissionException(400, 'اختر مستندًا غير فارغ');
       }
@@ -1115,7 +1128,10 @@ class BunyaRepository {
           documents.entries
               .map(
                 (entry) => {
-                  'documentType': entry.key,
+                  'documentType': kind == 'contractor'
+                      ? contractorDocumentType(entry.key)
+                      : entry.key,
+                  if (kind == 'contractor') 'documentKey': entry.key,
                   'name': entry.value.name,
                   'mimeType': entry.value.mimeType,
                   'size': entry.value.size,
@@ -1141,7 +1157,9 @@ class BunyaRepository {
         final grants = (upload['files'] as List).cast<Map<String, dynamic>>();
         for (final entry in documents.entries) {
           final grant = grants.singleWhere(
-            (grant) => grant['documentType'] == entry.key,
+            (grant) =>
+                grant[kind == 'contractor' ? 'documentKey' : 'documentType'] ==
+                entry.key,
           );
           await uploadProviderDocument(
             client: connection,
@@ -1159,20 +1177,6 @@ class BunyaRepository {
       } finally {
         connection.close();
       }
-    }
-    for (final entry
-        in kind == 'provider'
-            ? <MapEntry<String, JoinDocument>>[]
-            : documents.entries) {
-      request.files.add(
-        http.MultipartFile(
-          'document:${entry.key}',
-          entry.value.openRead(),
-          entry.value.size,
-          filename: entry.value.name,
-          contentType: MediaType.parse(entry.value.mimeType),
-        ),
-      );
     }
     final streamed = await request.send();
     final response = await http.Response.fromStream(streamed);

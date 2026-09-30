@@ -49,7 +49,7 @@ function harness(options = {}) {
     if (name === "./submissions") return { maskEmail: () => "masked", async recordProviderSubmission(value) { if (options.recordError) throw new Error("fake write failure"); records.push(value); submissions.set(value.idempotencyKey, value.result); } };
     throw new Error(`Unexpected dependency ${name}`);
   } });
-  return { sends, records, inapp, notify: () => exports.notifyJoinReviewers({ kind: "provider", applicationId: "test-application", applicantEmail: "applicant@invalid.example", applicantName: "Test", submittedAt: "2026-09-30", details: [] }) };
+  return { sends, records, inapp, notify: () => exports.notifyJoinReviewers({ kind: options.kind ?? "provider", submissionKey: options.submissionKey, applicationId: "test-application", applicantEmail: "applicant@invalid.example", applicantName: "Test", submittedAt: "2026-09-30", details: [] }) };
 }
 
 const normal = harness();
@@ -87,3 +87,19 @@ const recording = harness({ recordError: true });
 await assert.rejects(recording.notify(), /submission_tracking_failed/);
 assert.ok(recording.sends.some(item => item.to === "applicant@invalid.example"), "tracking failure does not suppress other recipients");
 console.log("Join reviewer notification regression checks passed (mocked database and messaging only).");
+
+const contractor = harness({ kind: "contractor", submissionKey: "contractor-revision-2" });
+await contractor.notify();
+assert.equal(normalize(contractor.sends[0].to), "966508424401@c.us");
+assert.ok(contractor.inapp.every(item => item.entity_type === "contractor_application" && item.action_url === "/admin/join-requests/contractors"));
+assert.ok(contractor.sends.every(item => item.idempotencyKey.includes("contractor-revision-2")));
+const contractorCount = contractor.sends.length;
+await contractor.notify();
+assert.equal(contractor.sends.length, contractorCount);
+const contractorFailure = harness({ kind: "contractor", throwDestination: "0500000001", inappError: true });
+await assert.rejects(contractorFailure.notify(), /contractor_join_notification_failures/);
+assert.ok(contractorFailure.sends.some(item => item.to === "applicant@invalid.example"));
+const contractorUnauthorized = harness({ kind: "contractor", reviewers: [reviewer("target", "0508424401", "none")] });
+await assert.rejects(contractorUnauthorized.notify(), /designated_reviewer_unavailable/);
+assert.ok(!contractorUnauthorized.sends.some(item => item.channel === "whatsapp"));
+console.log("Contractor reviewer priority, permissions, revision deduplication and independent channel checks passed.");

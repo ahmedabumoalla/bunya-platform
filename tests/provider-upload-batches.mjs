@@ -9,6 +9,9 @@ const paths = {
   batches: "../src/lib/join/provider-upload-batches.ts",
   security: "../src/lib/join/security.ts",
   fields: "../src/lib/join/provider-fields.ts",
+  contractorFields: "../src/lib/join/contractor-fields.ts",
+  contractorValidation: "../src/lib/join/contractor-validation.ts",
+  contractorRoute: "../src/app/api/public/join/contractor/uploads/route.ts",
   route: "../src/app/api/public/join/provider/uploads/route.ts",
 };
 const compiled = Object.fromEntries(await Promise.all(Object.entries(paths).map(async ([name, path]) => [name,
@@ -27,7 +30,7 @@ function form(documents = descriptors(), fields = {}) {
 const status = expected => error => error?.status === expected;
 
 function harness(options = {}) {
-  const rows = { provider_upload_batches: [], provider_applications: [], provider_application_documents: [], join_application_revision_tokens: [], files: [], ...options.rows };
+  const rows = { provider_upload_batches: [], provider_applications: [], provider_application_documents: [], contractor_applications: [], contractor_documents: [], join_application_revision_tokens: [], files: [], ...options.rows };
   const queries = [], signedUploads = [], signedReads = [], removals = [], requests = [], bodies = [];
   const db = {
     from(table) {
@@ -100,6 +103,8 @@ function harness(options = {}) {
         if (dependency === "@/lib/join/provider-validation") return { providerFields() {}, async providerPolicyAcceptance() {} };
         if (dependency.endsWith("provider-upload-batches")) return load("batches");
         if (dependency.endsWith("provider-fields")) return load("fields");
+        if (dependency.endsWith("contractor-fields")) return load("contractorFields");
+        if (dependency.endsWith("contractor-validation")) return load("contractorValidation");
         if (dependency === "./security") return load("security");
         if (dependency === "@/lib/join/security") return { ...load("security"), verifyTurnstile: async () => {} };
         throw new Error(`Unexpected dependency ${dependency}`);
@@ -107,7 +112,7 @@ function harness(options = {}) {
     }, { filename: paths[name] });
     return exports;
   }
-  return { ...load("batches"), route: load("route"), db, rows, queries, signedUploads, signedReads, removals, requests, bodies };
+  return { ...load("batches"), route: load("route"), contractorRoute: load("contractorRoute"), db, rows, queries, signedUploads, signedReads, removals, requests, bodies };
 }
 
 let checks = 0;
@@ -319,4 +324,83 @@ await check("cleanup preserves metadata if Storage removal or reference lookup f
   }
 });
 
-console.log(`PASS: ${checks} provider upload batch security and lifecycle groups (real modules, mocked DB/Storage only)`);
+const uuid = n => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+const companyDescriptors = () => descriptors().map(d => ({ ...d, documentKey: d.documentType }));
+const portfolio = n => ({ documentType: "portfolio", documentKey: `portfolio_${uuid(n)}`, name: "work.mp4", mimeType: "video/mp4", size: 3 * 1024 ** 3 });
+const individualDescriptors = () => [{ documentType: "national_id", documentKey: "national_id", name: "id.pdf", mimeType: "application/pdf", size: 100 }, portfolio(1), portfolio(2)];
+const contractorForm = (type = "company", documents = companyDescriptors(), fields = {}) => form(documents, { contractorType: type, contractorName: "شركة المقاولات", contractorNameEn: "Building Construction", serviceCities: '["Riyadh"]', specialties: '["Building"]', ...fields });
+await check("contractor batches use kind-isolated server paths and preserve distinct portfolio keys", async () => {
+  const h = harness(), data = contractorForm("individual", individualDescriptors());
+  const batch = await h.beginProviderUpload(data, key, h.db, "contractor"); data.set("uploadToken", batch.uploadToken);
+  const stored = h.rows.provider_upload_batches[0]; assert.equal(stored.application_kind, "contractor");
+  assert.equal(batch.files.length, 3); assert.equal(new Set(batch.files.map(f => f.documentKey)).size, 3);
+  assert.ok(batch.files.every(f => f.path.includes("join-applications/contractor/")));
+  assert.equal((await h.resolveProviderUpload(data, key, undefined, h.db, "contractor")).id, stored.id);
+  await assert.rejects(h.resolveProviderUpload(data, key, undefined, h.db, "provider"), status(403));
+});
+await check("contractor init enforces type, official files, media types and portfolio cardinality", async () => {
+  const cases = [
+    contractorForm("unknown"), contractorForm("company", companyDescriptors().slice(1)),
+    contractorForm("individual", individualDescriptors().slice(0, 1)),
+    contractorForm("individual", [...individualDescriptors().slice(0, 1), { ...portfolio(1), mimeType: "application/pdf" }]),
+    contractorForm("individual", [...individualDescriptors().slice(0, 1), ...Array.from({ length: 21 }, (_, n) => portfolio(n))]),
+    contractorForm("individual", [...individualDescriptors(), portfolio(1)]),
+    contractorForm("company", individualDescriptors()),
+  ];
+  for (const data of cases) {
+    const h = harness(); await assert.rejects(h.beginProviderUpload(data, key, h.db, "contractor"), status(400));
+    assert.equal(h.signedUploads.length, 0); assert.equal(h.rows.provider_upload_batches.length, 0);
+  }
+});
+await check("contractor initialization route validates metadata before signing", async () => {
+  for (const mode of ["valid", "missing-name", "binary", "oversize", "foreign-origin"]) {
+    const h = harness(), data = contractorForm();
+    if (mode === "missing-name") data.delete("contractorNameEn");
+    if (mode === "binary") data.set("document:commercial_registration", new File(["%PDF-"], "file.pdf", { type: "application/pdf" }));
+    if (mode === "oversize") data.set("large", "x".repeat(128 * 1024));
+    const request = new Request("https://bunya.invalid/api/public/join/contractor/uploads", { method: "POST", body: data, headers: { "Idempotency-Key": key, ...(mode === "foreign-origin" ? { Origin: "https://evil.invalid" } : {}) } });
+    request.nextUrl = new URL(request.url);
+    const response = await h.contractorRoute.POST(request);
+    assert.equal(response.status, mode === "valid" ? 200 : mode === "oversize" ? 413 : mode === "foreign-origin" ? 403 : 400);
+    assert.equal(h.signedUploads.length, mode === "valid" ? 4 : 0);
+  }
+});
+function revisionHarness(type = "individual") {
+  const h = harness();
+  h.rows.join_application_revision_tokens.push({ token_hash: h.uploadHash(revisionToken), application_kind: "contractor", application_id: "existing-application", attempts: 0, max_attempts: 3, used_at: null, expires_at: hoursAgo(-1) });
+  h.rows.contractor_applications.push({ id: "existing-application", status: "needs_changes" });
+  h.rows.contractor_documents.push(...(type === "individual" ? individualDescriptors() : companyDescriptors()).map((d, i) => ({ id: uuid(100 + i), application_id: "existing-application", is_current: true, document_type: d.documentType, document_key: d.documentKey })));
+  return h;
+}
+await check("contractor revision validates removals and excludes legacy or switched-type retained files", async () => {
+  for (const mode of ["retain", "remove-last-portfolios", "unknown-id", "invalid-id", "too-many", "switch-type", "legacy"]) {
+    const h = revisionHarness(), data = contractorForm(mode === "switch-type" ? "company" : "individual", [], { revisionToken });
+    if (mode === "remove-last-portfolios") data.set("removedDocumentIds", JSON.stringify([uuid(101), uuid(102)]));
+    if (mode === "unknown-id") data.set("removedDocumentIds", JSON.stringify([uuid(999)]));
+    if (mode === "invalid-id") data.set("removedDocumentIds", JSON.stringify(["-".repeat(36)]));
+    if (mode === "too-many") data.set("removedDocumentIds", JSON.stringify(Array.from({ length: 25 }, (_, i) => uuid(i))));
+    if (mode === "legacy") h.rows.contractor_documents[0].document_key = `legacy_${uuid(100)}`;
+    if (mode === "retain") assert.equal((await h.beginProviderUpload(data, null, h.db, "contractor")).files.length, 0);
+    else await assert.rejects(h.beginProviderUpload(data, null, h.db, "contractor"), status(400));
+  }
+  const h = revisionHarness(), data = contractorForm("individual", [portfolio(3)], { revisionToken, removedDocumentIds: JSON.stringify([uuid(101), uuid(102)]) });
+  assert.equal((await h.beginProviderUpload(data, null, h.db, "contractor")).files.length, 1);
+});
+await check("portfolio UUID case canonicalizes before database metadata commitment", async () => {
+  const h = harness(), input = individualDescriptors(); input[1].documentKey = "portfolio_ABCDEF12-ABCD-4000-8000-ABCDEF123456";
+  await h.beginProviderUpload(contractorForm("individual", input), key, h.db, "contractor");
+  assert.equal(h.rows.provider_upload_batches[0].documents[1].document_key, input[1].documentKey.toLowerCase());
+});
+await check("video magic signatures reject unrelated content and match MP4 MOV WebM", async () => {
+  const h = harness();
+  for (const [mime, bytes] of [["video/mp4", [0, 0, 0, 24, 102, 116, 121, 112]], ["video/mp4", [0, 0, 0xc2, 0xa0, 102, 116, 121, 112]], ["video/quicktime", [0, 0, 0, 24, 109, 111, 111, 118]], ["video/webm", [0x1a, 0x45, 0xdf, 0xa3]]]) {
+    assert.equal(h.validDocumentHeader(new Uint8Array(bytes), mime), true);
+    assert.equal(h.validDocumentHeader(new TextEncoder().encode("%PDF-1.7"), mime), false);
+  }
+});
+await check("cleanup retains referenced contractor documents including retired history", async () => {
+  const h = harness({ rows: { provider_upload_batches: [{ id: "contractor-expired", application_kind: "contractor", expires_at: hoursAgo(26), committed_at: null, documents: [{ object_path: "contractor-history" }] }], contractor_documents: [{ id: uuid(1), storage_path: "contractor-history", is_current: false }] } });
+  assert.equal(await h.cleanupProviderUploads(h.db), 0); assert.equal(h.removals.length, 0);
+  assert.equal(h.rows.provider_upload_batches.length, 1);
+});
+console.log(`PASS: ${checks} provider/contractor upload batch security and lifecycle groups (real modules, mocked DB/Storage only)`);

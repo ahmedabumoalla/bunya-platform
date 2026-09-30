@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { documentQuery, requireUserDetailAccess, rows, UserDetailError, userDetailFailure, userDetailHeaders, userDetailLinks, userIdPattern } from "@/lib/admin/user-details";
 import type { AdminRow } from "@/lib/admin/records";
-import { providerDocumentDownload } from "@/lib/join/provider-document-download";
+import { providerDocumentDownload, contractorDocumentDownload } from "@/lib/join/provider-document-download";
 
 export const runtime = "nodejs";
 export async function GET(request: Request, context: { params: Promise<{ id: string; documentId: string }> }) {
@@ -33,6 +33,11 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       const applicationId = source === "provider_application" ? String(document.application_id || "") : links.providerApplicationIds.find(value => path.startsWith(`join-applications/provider/${value}/`)) || "";
       if (!links.providerApplicationIds.includes(applicationId)) throw new UserDetailError(403, "مسار المستند لا يطابق الحساب المرتبط به.");
       return providerDocumentDownload(access.admin, path, applicationId, metadata.scan_status);
+    }
+    if (bucket === "join-applications" && (source === "contractor" || path.startsWith("join-applications/contractor/"))) {
+      const applicationId = source === "contractor" ? String(document.application_id || "") : links.contractorApplicationIds.find(value => path.startsWith(`join-applications/contractor/${value}/`)) || "";
+      if (!links.contractorApplicationIds.includes(applicationId)) throw new UserDetailError(403, "Document application does not match account");
+      return contractorDocumentDownload(access.admin, path, applicationId, metadata.scan_status);
     }
     const downloaded = await access.admin.storage.from(bucket).download(path);
     if (downloaded.error || !downloaded.data) throw new UserDetailError(404, "تعذر تنزيل المستند.");

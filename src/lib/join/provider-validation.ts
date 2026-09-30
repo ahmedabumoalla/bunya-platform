@@ -33,11 +33,11 @@ export function providerDocuments(data: FormData, existingTypes: string[] = []) 
   return documents;
 }
 
-export async function providerPolicyAcceptance(data: FormData, admin = createAdminClient()) {
-  if (data.get("policyAccepted") !== "true") throw new PublicJoinError("يجب الموافقة على سياسة التقديم كمزود خدمة في بُنية قبل إرسال الطلب.", 400);
-  const { data: policy, error } = await admin.from("platform_policies").select("id,title,version,body,updated_at").eq("policy_key", "provider-join").eq("is_published", true).maybeSingle();
+export async function providerPolicyAcceptance(data: FormData, admin = createAdminClient(), kind: "provider" | "contractor" = "provider") {
+  if (data.get("policyAccepted") !== "true") throw new PublicJoinError("يجب الموافقة على سياسة الانضمام في بُنية قبل إرسال الطلب.", 400);
+  const { data: policy, error } = await admin.from("platform_policies").select("id,title,version,body,updated_at").eq("policy_key", `${kind}-join`).eq("is_published", true).maybeSingle();
   if (error) throw error;
-  if (!policy || !policyParagraphs(policy.body).some(paragraph => paragraph.trim())) throw new PublicJoinError("سياسة انضمام المزود غير منشورة حاليًا. يرجى المحاولة بعد نشرها.", 503);
+  if (!policy || !policyParagraphs(policy.body).some(paragraph => paragraph.trim())) throw new PublicJoinError("سياسة الانضمام غير منشورة حاليًا. يرجى المحاولة بعد نشرها.", 503);
   if (data.get("policyId") !== policy.id || Number(data.get("policyVersion")) !== policy.version || data.get("policyUpdatedAt") !== policy.updated_at) throw new PublicJoinError("تم تحديث سياسة الانضمام. أعد تحميل السياسة واقرأها ثم وافق عليها مجددًا.", 409);
   return { joining_policy_id: policy.id, joining_policy_version: policy.version, joining_policy_title: policy.title, joining_policy_body: policy.body, joining_policy_updated_at: policy.updated_at, joining_policy_accepted_at: new Date().toISOString() };
 }

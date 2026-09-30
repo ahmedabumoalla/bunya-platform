@@ -7,6 +7,7 @@ export const policyDestinations = [
   { key: "provider", label: "سياسة المزودين", location: "حساب المزود وصفحة الانضمام", href: "/merchant/policies", audiences: ["provider"] },
   { key: "provider-join", label: "سياسة انضمام مزود الخدمات أو المورد", location: "نافذة سياسة التقديم في طلب انضمام المزود", href: "/providers/join", audiences: ["provider"] },
   { key: "contractor", label: "سياسة المقاولين", location: "حساب المقاول وصفحة الانضمام", href: "/contractor/policies", audiences: ["contractor"] },
+  { key: "contractor-join", label: "سياسة انضمام المقاولين", location: "نافذة سياسة التقديم في طلب انضمام المقاول", href: "/contractors/join", audiences: ["contractor"] },
   { key: "delivery", label: "سياسة التوصيل والاستلام", location: "مركز السياسات وحسابات العميل والمزود والسائق", href: "/policies#delivery", audiences: ["customer", "provider", "driver"] },
   { key: "payments", label: "سياسة الدفع", location: "صفحة الدفع ومركز السياسات", href: "/policies#payments", audiences: ["customer", "provider", "contractor"] },
   { key: "returns", label: "سياسة الإلغاء والاسترجاع", location: "صفحة الدفع ومركز السياسات", href: "/policies#returns", audiences: ["customer", "provider", "contractor"] },

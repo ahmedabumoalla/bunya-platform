@@ -1,0 +1,50 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { dirname, resolve } from "node:path";
+import { File } from "node:buffer";
+import ts from "typescript";
+
+const require = createRequire(import.meta.url);
+const cache = new Map();
+function load(file) {
+  const path = resolve(file);
+  if (cache.has(path)) return cache.get(path).exports;
+  const loaded = { exports: {} }; cache.set(path, loaded);
+  const source = ts.transpileModule(readFileSync(path, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
+  const localRequire = (name) => {
+    if (name.endsWith(".css")) return {};
+    if (name.startsWith("@/")) return load(`src/${name.slice(2)}.ts`);
+    if (name.startsWith(".")) return load(resolve(dirname(path), `${name}.ts`));
+    return require(name);
+  };
+  new Function("require", "module", "exports", source)(localRequire, loaded, loaded.exports);
+  return loaded.exports;
+}
+const fields = load("src/lib/join/contractor-fields.ts");
+const { validateContractorFiles, appendContractorFiles } = load("src/components/join/ContractorJoinFields.tsx");
+const document = { size: 3 * 1024 ** 3, type: "application/pdf" };
+const company = Object.fromEntries(fields.contractorRequiredDocuments("company").map((key) => [key, document]));
+assert.equal(validateContractorFiles("company", company), "");
+assert.notEqual(validateContractorFiles("company", { ...company, vat_certificate: undefined }), "");
+assert.equal(validateContractorFiles("company", { ...company, company_profile: document }), "");
+const portfolioKey = (i) => `portfolio_00000000-0000-4000-8000-${String(i).padStart(12, "0")}`;
+const video = { size: 5 * 1024 ** 3, type: "video/quicktime" };
+assert.notEqual(validateContractorFiles("individual", { national_id: document }), "");
+assert.equal(validateContractorFiles("individual", { national_id: document, [portfolioKey(1)]: video }), "");
+assert.notEqual(validateContractorFiles("individual", { national_id: video, [portfolioKey(1)]: video }), "");
+assert.notEqual(validateContractorFiles("individual", { national_id: document, [portfolioKey(1)]: document }), "");
+assert.notEqual(validateContractorFiles("individual", { national_id: document, commercial_registration: document, [portfolioKey(1)]: video }), "");
+const twenty = Object.fromEntries(Array.from({ length: 20 }, (_, i) => [portfolioKey(i), video]));
+assert.equal(validateContractorFiles("individual", { national_id: document, ...twenty }), "");
+assert.notEqual(validateContractorFiles("individual", { national_id: document, ...twenty }, [{ id: "existing", documentType: "portfolio" }]), "");
+assert.equal(validateContractorFiles("individual", {}, [{ id: "id", documentType: "national_id" }, { id: "work", documentType: "portfolio" }]), "");
+assert.notEqual(validateContractorFiles("individual", {}, [{ id: "id", documentType: "national_id" }]), "");
+assert.equal(fields.contractorDocumentType("portfolio_arbitrary"), undefined);
+assert.equal(fields.contractorDocumentType(portfolioKey(1)), "portfolio");
+assert.equal(fields.resolveContractorUsername(" ", "  Example   Contracting Company  "), "Example Contracting Company");
+assert.deepEqual(fields.normalizeServiceCities(["  Al   Khobar ", "al khobar", " New City "]), ["Al Khobar", "New City"]);
+const data = new FormData(); const file = new File(["pdf"], "id.pdf", { type: "application/pdf" });
+appendContractorFiles(data, { national_id: file });
+assert.equal(data.get("document:national_id").name, "id.pdf");
+console.log("Contractor web rules: 8 groups passed (required/optional, individual, MIME/type isolation, portfolio limit, revision retention/removal, key validation, names/cities, multipart fields).");

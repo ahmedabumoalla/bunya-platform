@@ -1,4 +1,4 @@
-// Run with server credentials: node --env-file=.env.local scripts/configure-provider-upload-storage.mjs [--apply] [--max-project-size]
+// Run with server credentials: node --env-file=.env.local scripts/configure-provider-upload-storage.mjs [--apply] [--max-project-size] [--contractor-videos]
 // The optional project setting additionally requires SUPABASE_ACCESS_TOKEN (management API).
 import { createClient } from '@supabase/supabase-js';
 import WebSocket from 'ws';
@@ -21,7 +21,10 @@ const before = await client.storage.getBucket(bucketId);
 if (before.error) throw new Error('Cannot inspect provider document bucket');
 if (before.data.public) throw new Error('Provider documents must remain private');
 if (process.argv.includes('--apply')) {
-  const result = await client.storage.updateBucket(bucketId, { public: false, fileSizeLimit: null, allowedMimeTypes: before.data.allowed_mime_types });
+  const allowedMimeTypes = process.argv.includes('--contractor-videos')
+    ? [...new Set([...(before.data.allowed_mime_types || ['application/pdf', 'image/jpeg', 'image/png', 'image/webp']), 'video/mp4', 'video/webm', 'video/quicktime'])]
+    : before.data.allowed_mime_types;
+  const result = await client.storage.updateBucket(bucketId, { public: false, fileSizeLimit: null, allowedMimeTypes });
   if (result.error) throw new Error('Cannot update provider document bucket');
 }
 const after = await client.storage.getBucket(bucketId);

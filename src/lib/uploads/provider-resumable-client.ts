@@ -1,8 +1,10 @@
 "use client";
 
 import { optimizeProviderDocument } from "./provider-client";
+import { contractorDocumentType } from "@/lib/join/contractor-fields";
 
 type UploadOptions = {
+  kind?: "provider" | "contractor";
   idempotencyKey?: string;
   revisionToken?: string;
   onProgress?: (percent: number) => void;
@@ -12,7 +14,7 @@ type UploadBatch = {
   uploadToken: string;
   endpoint: string;
   bucket: "join-applications";
-  files: { documentType: string; path: string; token: string }[];
+  files: { documentType: string; documentKey?: string; path: string; token: string }[];
 };
 
 export class ProviderUploadError extends Error {
@@ -24,24 +26,28 @@ export class ProviderUploadError extends Error {
 
 /** Upload file bytes directly to private Storage; retain only the batch token for submission. */
 export async function uploadProviderDocuments(data: FormData, options: UploadOptions = {}): Promise<void> {
-  const documents: { documentType: string; file: File }[] = [];
+  const kind = options.kind ?? "provider";
+  const documents: { documentType: string; documentKey: string; file: File }[] = [];
   for (const [key, value] of Array.from(data.entries())) {
     if (!key.startsWith("document:") || !(value instanceof File)) continue;
     // Optimize sequentially so large documents do not compete for decoding memory.
     const file = await optimizeProviderDocument(value);
     data.set(key, file);
-    documents.push({ documentType: key.slice("document:".length), file });
+    const documentKey = key.slice("document:".length);
+    const documentType = kind === "contractor" ? contractorDocumentType(documentKey) : documentKey;
+    if (!documentType) throw new Error("نوع المستند غير صالح.");
+    documents.push({ documentType, documentKey, file });
   }
 
   const metadata = new FormData();
   for (const [key, value] of data.entries()) {
     if (typeof value === "string" && !key.startsWith("document:")) metadata.append(key, value);
   }
-  metadata.set("documents", JSON.stringify(documents.map(({ documentType, file }) => ({
-    documentType, name: file.name, mimeType: file.type, size: file.size,
+  metadata.set("documents", JSON.stringify(documents.map(({ documentType, documentKey, file }) => ({
+    documentType, ...(kind === "contractor" ? { documentKey } : {}), name: file.name, mimeType: file.type, size: file.size,
   }))));
   if (options.revisionToken) metadata.set("revisionToken", options.revisionToken);
-  const response = await fetch("/api/public/join/provider/uploads", {
+  const response = await fetch(`/api/public/join/${kind}/uploads`, {
     method: "POST",
     body: metadata,
     headers: options.idempotencyKey ? { "Idempotency-Key": options.idempotencyKey } : undefined,
@@ -61,8 +67,8 @@ export async function uploadProviderDocuments(data: FormData, options: UploadOpt
   report(0);
   // Lazy-load TUS only on submission. Signed object credentials never enter localStorage.
   const { Upload } = documents.length ? await import("tus-js-client") : { Upload: null };
-  for (const { documentType, file } of documents) {
-    const target = body.files.find((entry) => entry.documentType === documentType);
+  for (const { documentType, documentKey, file } of documents) {
+    const target = body.files.find((entry) => kind === "contractor" ? entry.documentKey === documentKey : entry.documentType === documentType);
     if (!target?.path || !target.token || !Upload) throw new Error("تعذر تجهيز رفع المستندات. حاول مرة أخرى.");
     await new Promise<void>((resolve, reject) => {
       const upload = new Upload(file, {
@@ -88,6 +94,6 @@ export async function uploadProviderDocuments(data: FormData, options: UploadOpt
     completedBytes += file.size;
     report(completedBytes);
   }
-  for (const { documentType } of documents) data.delete(`document:${documentType}`);
+  for (const { documentKey } of documents) data.delete(`document:${documentKey}`);
   data.set("uploadToken", body.uploadToken);
 }
