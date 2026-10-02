@@ -1754,12 +1754,6 @@ export function HomeStorefront({
                   <span>
                     طريقة العرض <b>{selectedProduct.offerType}</b>
                   </span>
-                  <span>
-                    الضريبة{" "}
-                    <b>
-                      {selectedProduct.vatInclusive ? "شاملة" : "تضاف لاحقًا"}
-                    </b>
-                  </span>
                 </div>
               </header>
 

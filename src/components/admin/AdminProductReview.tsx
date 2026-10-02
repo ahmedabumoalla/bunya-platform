@@ -38,7 +38,6 @@ type Product = {
   name: string;
   sku: string | null;
   base_unit: string;
-  unit_price: number | null;
   stock_quantity: number | null;
   review_status: string;
   is_published: boolean;
@@ -56,7 +55,6 @@ type Product = {
   delivery_notes: string;
   offer_type: string;
   minimum_order: number | null;
-  vat_inclusive: boolean;
   rental_duration_value: number | null;
   rental_duration_unit: string | null;
   providers: { company_name: string } | null;
@@ -69,7 +67,7 @@ type Product = {
   product_review_decisions: Decision[];
 };
 
-const productSelection = "id,category_id,name,sku,base_unit,unit_price,stock_quantity,review_status,is_published,updated_at,created_at,custom_category,short_description,description,full_description,availability_summary,availability_status,lead_time_label,delivery_label,delivery_window,delivery_notes,offer_type,minimum_order,vat_inclusive,rental_duration_value,rental_duration_unit,providers(company_name),product_categories(id,name),product_images(id,label,alt_text,image_url,storage_path,is_primary,sort_order),product_measurements(label,is_default,sort_order),product_variants(name,sku,attributes,is_active,sort_order),product_specifications(value,sort_order),product_warranties(label,duration,details),product_review_decisions(outcome,reason,reviewed_at)";
+const productSelection = "id,category_id,name,sku,base_unit,stock_quantity,review_status,is_published,updated_at,created_at,custom_category,short_description,description,full_description,availability_summary,availability_status,lead_time_label,delivery_label,delivery_window,delivery_notes,offer_type,minimum_order,rental_duration_value,rental_duration_unit,providers(company_name),product_categories(id,name),product_images(id,label,alt_text,image_url,storage_path,is_primary,sort_order),product_measurements(label,is_default,sort_order),product_variants(name,sku,attributes,is_active,sort_order),product_specifications(value,sort_order),product_warranties(label,duration,details),product_review_decisions(outcome,reason,reviewed_at)";
 const labels: Record<string, string> = {
   draft: "مسودة",
   pending_review: "بانتظار المراجعة",
@@ -396,7 +394,7 @@ export function AdminProductReview({ initialProductId }: { initialProductId?: st
                     <span className={`${styles.badge} ${badgeTone(product.review_status)}`}>{label(product.review_status)}</span>
                   </header>
                   <dl className={styles.facts}>
-                    <Fact name="السعر" value={product.unit_price === null ? "غير محدد" : `${number(product.unit_price)} ر.س`} />
+                    <Fact name="السعر" value="يُحدد عند طلب عرض السعر" />
                     <Fact name="المخزون" value={product.stock_quantity === null ? "غير محدد" : `${number(product.stock_quantity, 3)} ${product.base_unit}`} />
                     <Fact name="نوع العرض" value={label(product.offer_type)} />
                     <Fact name="رمز المنتج" value={product.sku || "—"} />
@@ -537,10 +535,9 @@ function ProductDialog({ product, categories, categoryDraft, categorySaving, act
           </div>
           <div className={styles.sections}>
             <section className={styles.panel}>
-              <h3>البيع والمخزون</h3>
+              <h3>نوع العرض والكمية</h3>
               <dl className={styles.detailFacts}>
-                <Fact name="السعر" value={product.unit_price === null ? "غير محدد" : `${number(product.unit_price)} ر.س / ${product.base_unit}`} />
-                <Fact name="الضريبة" value={product.vat_inclusive ? "شامل الضريبة" : "غير شامل الضريبة"} />
+                <Fact name="السعر" value="يُحدد عند طلب عرض السعر" />
                 <Fact name="الحد الأدنى" value={product.minimum_order === null ? "غير محدد" : `${number(product.minimum_order, 3)} ${product.base_unit}`} />
                 <Fact name="المخزون" value={product.stock_quantity === null ? "غير محدد" : `${number(product.stock_quantity, 3)} ${product.base_unit}`} />
                 <Fact name="نوع العرض" value={label(product.offer_type)} />

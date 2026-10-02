@@ -415,14 +415,12 @@ class WorkspaceRepository {
     required String baseUnit,
     required String description,
     required String? sku,
-    required double unitPrice,
     required double? minimumOrder,
     required double? stockQuantity,
     required String availabilityStatus,
     required String leadTime,
     required String deliveryWindow,
     required String deliveryNotes,
-    required bool vatInclusive,
     required String offerType,
     required double? rentalDuration,
     required String? rentalDurationUnit,
@@ -465,14 +463,12 @@ class WorkspaceRepository {
       'base_unit': baseUnit,
       'description': description,
       'sku': sku ?? '',
-      'unit_price': encodeNumber(unitPrice),
       'minimum_order': encodeNumber(minimumOrder),
       'stock_quantity': encodeNumber(stockQuantity),
       'availability_status': availabilityStatus,
       'lead_time_label': leadTime,
       'delivery_window': deliveryWindow,
       'delivery_notes': deliveryNotes,
-      'vat_inclusive': '$vatInclusive',
       'offer_type': offerType,
       'rental_duration_value': encodeNumber(rentalDuration),
       'rental_duration_unit': rentalDurationUnit ?? '',
@@ -596,14 +592,12 @@ class WorkspaceRepository {
     required String baseUnit,
     required String description,
     required String? sku,
-    required double unitPrice,
     required double? minimumOrder,
     required double? stockQuantity,
     required String availabilityStatus,
     required String leadTime,
     required String deliveryWindow,
     required String deliveryNotes,
-    required bool vatInclusive,
     required String offerType,
     required double? rentalDuration,
     required String? rentalDurationUnit,
@@ -648,10 +642,8 @@ class WorkspaceRepository {
             'delivery_window': deliveryWindow,
             'delivery_notes': deliveryNotes,
             'offer_type': offerType,
-            'unit_price': unitPrice,
             'minimum_order': minimumOrder,
             'stock_quantity': stockQuantity,
-            'vat_inclusive': vatInclusive,
             'rental_duration_value': offerType == 'rental'
                 ? rentalDuration
                 : null,
@@ -6819,7 +6811,6 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
   final name = TextEditingController();
   final description = TextEditingController();
   final customCategory = TextEditingController();
-  final price = TextEditingController();
   final minimum = TextEditingController();
   final stock = TextEditingController();
   final leadTime = TextEditingController();
@@ -6858,7 +6849,7 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
   String availability = 'available';
   String offerType = 'sale', rentalUnit = 'day', weightUnit = 'كجم';
   String variantType = 'المقاس';
-  bool vatInclusive = true, hasWarranty = false, busy = false;
+  bool hasWarranty = false, busy = false;
   bool deliveryAvailable = false;
   String formError = '';
   final List<String> measurements = [];
@@ -6897,7 +6888,6 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
     description.text = value('full_description').isNotEmpty
         ? value('full_description')
         : value('description');
-    price.text = value('unit_price');
     minimum.text = value('minimum_order');
     stock.text = value('stock_quantity');
     leadTime.text = value('lead_time_label');
@@ -6920,7 +6910,6 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
     rentalUnit = value('rental_duration_unit').isEmpty
         ? rentalUnit
         : value('rental_duration_unit');
-    vatInclusive = product['vat_inclusive'] != false;
     rentalDuration.text = value('rental_duration_value');
     gtin.text = specification('GTIN / الباركود');
     manufacturer.text = specification('المصنّع / العلامة');
@@ -6997,7 +6986,6 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
       name,
       description,
       customCategory,
-      price,
       minimum,
       stock,
       leadTime,
@@ -7089,7 +7077,6 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
 
   Future<void> submit() async {
     final editing = widget.existingProduct != null;
-    final unitPrice = number(price.text);
     final minimumOrder = number(minimum.text);
     final stockQuantity = number(stock.text);
     final rentalValue = number(rentalDuration.text);
@@ -7099,11 +7086,8 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
         (categoryId == 'other' && customCategory.text.trim().length < 2)) {
       return fail('اختر صورة واحدة على الأقل وتصنيف المنتج');
     }
-    if (name.text.trim().length < 2 ||
-        description.text.trim().length < 10 ||
-        unitPrice == null ||
-        unitPrice < 0) {
-      return fail('أكمل اسم المنتج ووصفه وسعره بصورة صحيحة');
+    if (name.text.trim().length < 2 || description.text.trim().length < 10) {
+      return fail('أكمل اسم المنتج ووصفه بصورة صحيحة');
     }
     if (leadTime.text.trim().isEmpty ||
         deliveryWindow.text.trim().isEmpty ||
@@ -7191,14 +7175,12 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
           baseUnit: unit,
           description: description.text.trim(),
           sku: sku.text.trim().isEmpty ? null : sku.text.trim(),
-          unitPrice: unitPrice,
           minimumOrder: minimumOrder,
           stockQuantity: stockQuantity,
           availabilityStatus: availability,
           leadTime: leadTime.text.trim(),
           deliveryWindow: deliveryWindow.text.trim(),
           deliveryNotes: deliveryNotes.text.trim(),
-          vatInclusive: vatInclusive,
           offerType: offerType,
           rentalDuration: rentalValue,
           rentalDurationUnit: offerType == 'rental' ? rentalUnit : null,
@@ -7236,14 +7218,12 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
           baseUnit: unit,
           description: description.text.trim(),
           sku: sku.text.trim().isEmpty ? null : sku.text.trim(),
-          unitPrice: unitPrice,
           minimumOrder: minimumOrder,
           stockQuantity: stockQuantity,
           availabilityStatus: availability,
           leadTime: leadTime.text.trim(),
           deliveryWindow: deliveryWindow.text.trim(),
           deliveryNotes: deliveryNotes.text.trim(),
-          vatInclusive: vatInclusive,
           offerType: offerType,
           rentalDuration: rentalValue,
           rentalDurationUnit: offerType == 'rental' ? rentalUnit : null,
@@ -7839,18 +7819,6 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
             children: [
               Expanded(
                 child: TextField(
-                  controller: price,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: const InputDecoration(
-                    labelText: 'سعر الوحدة (ر.س)',
-                  ),
-                ),
-              ),
-              const SizedBox(width: 9),
-              Expanded(
-                child: TextField(
                   controller: minimum,
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
@@ -8159,14 +8127,9 @@ class _CreateProductSheetState extends State<_CreateProductSheet> {
             ),
           ],
           const SizedBox(height: 8),
-          SwitchListTile.adaptive(
-            value: vatInclusive,
-            onChanged: (value) => setState(() => vatInclusive = value),
-            title: const Text(
-              'السعر شامل ضريبة القيمة المضافة',
-              style: TextStyle(fontWeight: FontWeight.w800),
-            ),
-            contentPadding: EdgeInsets.zero,
+          const Text(
+            'يُحدَّد السعر والضريبة عند تقديم عرض السعر على طلب العميل.',
+            style: TextStyle(color: BunyaColors.muted, height: 1.8),
           ),
           if (widget.existingProduct != null) ...[
             const SizedBox(height: 10),
@@ -8293,7 +8256,7 @@ class _ProductChangeReviewSheetState extends State<_ProductChangeReviewSheet> {
   bool busy = false;
 
   static const sectionLabels = <String, String>{
-    'core': 'البيانات الأساسية والسعر والتوفر',
+    'core': 'البيانات الأساسية والتوفر',
     'images': 'صور المنتج',
     'measurements': 'القياسات',
     'variants': 'الخيارات والفئات',
@@ -9074,10 +9037,8 @@ class _ProductRecordDetailsState extends State<_ProductRecordDetails> {
                         Expanded(
                           child: _ProductFact(
                             icon: Icons.payments_outlined,
-                            label: row['offer_type'] == 'rental'
-                                ? 'سعر مدة التأجير'
-                                : 'سعر الوحدة',
-                            value: '${row['unit_price'] ?? '—'} ر.س',
+                            label: 'التسعير',
+                            value: 'يُحدَّد عند تقديم عرض السعر',
                           ),
                         ),
                         const SizedBox(width: 9),
@@ -9109,9 +9070,7 @@ class _ProductRecordDetailsState extends State<_ProductRecordDetails> {
                           child: _ProductFact(
                             icon: Icons.receipt_long_outlined,
                             label: 'الضريبة',
-                            value: row['vat_inclusive'] == true
-                                ? 'السعر شامل الضريبة'
-                                : 'تُضاف على السعر',
+                            value: 'تُحدَّد ضمن عرض السعر',
                           ),
                         ),
                       ],

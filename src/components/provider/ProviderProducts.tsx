@@ -19,7 +19,6 @@ type ProviderProduct = {
   name: string;
   sku: string | null;
   base_unit: string;
-  unit_price: number | null;
   stock_quantity: number | null;
   review_status: string;
   is_published: boolean;
@@ -71,7 +70,6 @@ type ProviderProductDetails = ProviderProduct & {
   delivery_notes: string;
   offer_type: string;
   minimum_order: number | null;
-  vat_inclusive: boolean;
   rental_duration_value: number | null;
   rental_duration_unit: string | null;
   created_at: string;
@@ -123,7 +121,7 @@ export function ProviderProductsList() {
         }
         return;
       }
-      const { data, error: loadError } = await createClient().from("products").select("id,name,sku,base_unit,unit_price,stock_quantity,review_status,is_published,updated_at,custom_category,product_categories(name)").eq("provider_id", providerId).order("updated_at", { ascending: false });
+      const { data, error: loadError } = await createClient().from("products").select("id,name,sku,base_unit,stock_quantity,review_status,is_published,updated_at,custom_category,product_categories(name)").eq("provider_id", providerId).order("updated_at", { ascending: false });
       if (!active) return;
       if (loadError) setError("تعذر تحميل منتجات المنشأة. تحقق من الاتصال ثم أعد المحاولة.");
       else setProducts((data ?? []) as unknown as ProviderProduct[]);
@@ -178,7 +176,7 @@ export function ProviderProductsList() {
     }
 
     const db = createClient();
-    const result = await db.from("products").select("id,name,sku,base_unit,unit_price,stock_quantity,review_status,is_published,updated_at,created_at,short_description,description,full_description,availability_summary,availability_status,lead_time_label,delivery_label,delivery_window,delivery_notes,offer_type,minimum_order,vat_inclusive,rental_duration_value,rental_duration_unit,custom_category,product_categories(name),product_images(id,label,alt_text,image_url,storage_path,is_primary,sort_order),product_measurements(label,is_default,sort_order),product_variants(name,sku,attributes,is_active,sort_order),product_specifications(value,sort_order),product_warranties(label,duration,details)").eq("id", productId).eq("provider_id", providerId).maybeSingle();
+    const result = await db.from("products").select("id,name,sku,base_unit,stock_quantity,review_status,is_published,updated_at,created_at,short_description,description,full_description,availability_summary,availability_status,lead_time_label,delivery_label,delivery_window,delivery_notes,offer_type,minimum_order,rental_duration_value,rental_duration_unit,custom_category,product_categories(name),product_images(id,label,alt_text,image_url,storage_path,is_primary,sort_order),product_measurements(label,is_default,sort_order),product_variants(name,sku,attributes,is_active,sort_order),product_specifications(value,sort_order),product_warranties(label,duration,details)").eq("id", productId).eq("provider_id", providerId).maybeSingle();
 
     if (detailRequest.current !== requestId) return;
     if (result.error || !result.data) {
@@ -283,7 +281,7 @@ export function ProviderProductsList() {
                 <dl>
                   <div>
                     <dt>السعر</dt>
-                    <dd>{product.unit_price === null ? "—" : `${Number(product.unit_price).toLocaleString("ar-SA")} ر.س`}</dd>
+                    <dd>يُحدد عند طلب عرض السعر</dd>
                   </div>
                   <div>
                     <dt>المخزون</dt>
@@ -382,11 +380,10 @@ function ProviderProductDetailsDialog({ product, loading, error, activeImage, on
             </div>
 
             <section className={styles.detailSection}>
-              <h4>السعر والمخزون</h4>
+              <h4>نوع العرض والكمية</h4>
               <dl className={styles.detailGrid}>
                 <DetailValue label="نوع العرض" value={product.offer_type === "rental" ? "تأجير" : "بيع"} />
-                <DetailValue label="السعر" value={product.unit_price === null ? "غير محدد" : `${formatProductNumber(product.unit_price, 2)} ر.س / ${product.base_unit}`} />
-                <DetailValue label="الضريبة" value={product.vat_inclusive ? "السعر شامل الضريبة" : "السعر غير شامل الضريبة"} />
+                <DetailValue label="السعر" value="يُحدد عند طلب عرض السعر" />
                 <DetailValue label="الحد الأدنى" value={product.minimum_order === null ? "غير محدد" : `${formatProductNumber(product.minimum_order)} ${product.base_unit}`} />
                 <DetailValue label="المخزون" value={product.stock_quantity === null ? "غير محدد" : `${formatProductNumber(product.stock_quantity)} ${product.base_unit}`} />
                 <DetailValue label="حالة النشر" value={product.is_published ? "منشور" : "غير منشور"} />
@@ -854,9 +851,10 @@ export function ProviderProductCreate() {
 
         <fieldset className="provider-form-section">
           <legend>
-            <span>4</span> السعر والمخزون
+            <span>4</span> نوع العرض والكمية
           </legend>
-          <div className="provider-form-grid compact">
+          <p>يُحدد السعر عند طلب عرض السعر، ولا يلزم إدخاله لإضافة المنتج.</p>
+          <div className="provider-form-grid">
             <label className="provider-field">
               <span>نوع العرض *</span>
               <select name="offer_type" value={offerType} onChange={(event) => setOfferType(event.target.value)}>
@@ -865,15 +863,8 @@ export function ProviderProductCreate() {
               </select>
             </label>
             <label className="provider-field">
-              <span>سعر الوحدة (ر.س) *</span>
-              <input name="unit_price" type="number" min="0" step="0.01" required />
-            </label>
-            <label className="provider-field">
               <span>الحد الأدنى للطلب</span>
               <input name="minimum_order" type="number" min="0.001" step="0.001" />
-            </label>
-            <label className="provider-check">
-              <input name="vat_inclusive" type="checkbox" defaultChecked /> السعر شامل ضريبة القيمة المضافة
             </label>
             {offerType === "rental" ? (
               <>

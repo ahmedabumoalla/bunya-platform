@@ -81,7 +81,6 @@ export type Product = {
   offerType: "بيع" | "تأجير";
   minimumOrder: number | null;
   stockQuantity: number | null;
-  vatInclusive: boolean;
   rentalDuration: string | null;
   isNew?: boolean;
 };

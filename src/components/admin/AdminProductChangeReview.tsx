@@ -23,7 +23,7 @@ type ChangeRequest = {
 
 const selection = "id,status,before_snapshot,proposed_snapshot,changes,request_note,review_reason,created_at,reviewed_at,products(id,name,sku),providers(company_name)";
 const sectionLabels: Record<string, string> = {
-  core: "البيانات الأساسية والسعر والتوفر",
+  core: "البيانات الأساسية ونوع العرض والتوفر",
   images: "صور المنتج",
   measurements: "القياسات",
   variants: "الخيارات والفئات",
@@ -47,10 +47,8 @@ const fieldLabels: Record<string, string> = {
   delivery_window: "مدة التوصيل",
   delivery_notes: "تعليمات التوصيل",
   offer_type: "نوع العرض",
-  unit_price: "سعر الوحدة",
   minimum_order: "الحد الأدنى للطلب",
   stock_quantity: "كمية المخزون",
-  vat_inclusive: "السعر شامل الضريبة",
   rental_duration_value: "مدة التأجير",
   rental_duration_unit: "وحدة مدة التأجير",
   is_available: "خدمة التوصيل متاحة",
@@ -89,7 +87,7 @@ function coreChanges(before: unknown, after: unknown) {
   const previous = (before || {}) as JsonObject;
   const proposed = (after || {}) as JsonObject;
   return [...new Set([...Object.keys(previous), ...Object.keys(proposed)])]
-    .filter((key) => JSON.stringify(previous[key]) !== JSON.stringify(proposed[key]))
+    .filter((key) => !["unit_price", "vat_inclusive"].includes(key) && JSON.stringify(previous[key]) !== JSON.stringify(proposed[key]))
     .map((key) => ({ field: key, before: previous[key], after: proposed[key] }));
 }
 
@@ -175,9 +173,11 @@ export function AdminProductChangeReview({ initialRequestId }: { initialRequestI
             <Link href={`/admin/products/review/${selected.products?.id || ""}`}>فتح بطاقة المنتج الأصلية</Link>
           </header>
           {selected.request_note ? <aside className={styles.note}><b>ملاحظة المزود</b><p>{selected.request_note}</p></aside> : null}
+          <aside className={styles.note}><p>سعر المنتج يُحدد عند طلب عرض السعر. لا تشمل مراجعة بيانات الكتالوج السعر أو ضريبته.</p></aside>
           <div className={styles.changes}>
             {(selected.changes || []).map((change) => {
               const rows = change.field === "core" ? coreChanges(change.before, change.after) : [{ field: change.field, before: change.before, after: change.after }];
+              if (!rows.length || ["unit_price", "vat_inclusive"].includes(change.field)) return null;
               return <article key={change.field}>
                 <h3>{sectionLabels[change.field] || change.field}</h3>
                 {rows.map((row) => <div className={styles.diff} key={row.field}>

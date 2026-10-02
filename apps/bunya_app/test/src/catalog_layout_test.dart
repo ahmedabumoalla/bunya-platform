@@ -1,5 +1,6 @@
 import 'package:bunya_app/src/app.dart';
 import 'package:bunya_app/src/data.dart';
+import 'package:bunya_app/src/product_details.dart';
 import 'package:bunya_app/src/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -28,7 +29,6 @@ Product product({
   offerType: 'بيع',
   minimumOrder: 1,
   stockQuantity: 50,
-  vatInclusive: true,
   rentalDuration: '',
   images: const [],
   units: const ['طن'],
@@ -65,6 +65,38 @@ Widget catalogHarness(List<Product> products) => MaterialApp(
 );
 
 void main() {
+  testWidgets(
+    'product detail explains quote-stage pricing without catalog tax claims',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: bunyaTheme(),
+          home: Scaffold(
+            body: ProductSheet(
+              product: product(
+                id: 'test',
+                name: 'منتج تجريبي',
+                category: 'أسمنت',
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.text('السعر والضريبة يُحدَّدان في عرض السعر'),
+        findsOneWidget,
+      );
+      expect(find.text('السعر شامل الضريبة'), findsNothing);
+      expect(find.text('الضريبة تضاف لاحقًا'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   final products = [
     product(id: 'cement', name: 'أسمنت مقاوم', category: 'أسمنت', isNew: true),
     product(

@@ -108,7 +108,6 @@ class Product {
     required this.offerType,
     required this.minimumOrder,
     required this.stockQuantity,
-    required this.vatInclusive,
     required this.rentalDuration,
     required this.images,
     required this.units,
@@ -137,7 +136,6 @@ class Product {
       offerType,
       rentalDuration;
   final double? minimumOrder, stockQuantity;
-  final bool vatInclusive;
   final List<CatalogProductImage> images;
   final List<String> units, specifications;
   final List<ProductMeasurementOption> measurements;
@@ -546,7 +544,7 @@ class BunyaRepository {
       client
           .from('products')
           .select(
-            'id,sku,name,base_unit,short_description,description,full_description,availability_summary,availability_status,lead_time_label,delivery_label,delivery_window,delivery_notes,is_new,offer_type,minimum_order,stock_quantity,vat_inclusive,rental_duration_value,rental_duration_unit,custom_category,product_translations(locale,name,short_description,description,full_description,availability_summary,lead_time_label,delivery_label,delivery_window,delivery_notes,reviewed_at),product_categories(id,name,product_category_translations(locale,name,reviewed_at)),product_images(id,label,alt_text,image_url,storage_path,is_primary,sort_order),product_units(id,name,is_base,sort_order,product_unit_translations(locale,name,reviewed_at)),product_measurements(id,label,is_default,sort_order,product_measurement_translations(locale,label,reviewed_at),product_units(id,name,product_unit_translations(locale,name,reviewed_at))),product_variants(id,name,attributes,is_active,sort_order),product_specifications(value,sort_order),product_warranties(label,duration,details,is_available),product_availability_regions(city,scope)',
+            'id,sku,name,base_unit,short_description,description,full_description,availability_summary,availability_status,lead_time_label,delivery_label,delivery_window,delivery_notes,is_new,offer_type,minimum_order,stock_quantity,rental_duration_value,rental_duration_unit,custom_category,product_translations(locale,name,short_description,description,full_description,availability_summary,lead_time_label,delivery_label,delivery_window,delivery_notes,reviewed_at),product_categories(id,name,product_category_translations(locale,name,reviewed_at)),product_images(id,label,alt_text,image_url,storage_path,is_primary,sort_order),product_units(id,name,is_base,sort_order,product_unit_translations(locale,name,reviewed_at)),product_measurements(id,label,is_default,sort_order,product_measurement_translations(locale,label,reviewed_at),product_units(id,name,product_unit_translations(locale,name,reviewed_at))),product_variants(id,name,attributes,is_active,sort_order),product_specifications(value,sort_order),product_warranties(label,duration,details,is_available),product_availability_regions(city,scope)',
           )
           .eq('is_published', true)
           .eq('review_status', 'approved')
@@ -737,7 +735,6 @@ class BunyaRepository {
         offerType: row['offer_type'] == 'rental' ? 'تأجير' : 'بيع',
         minimumOrder: (row['minimum_order'] as num?)?.toDouble(),
         stockQuantity: (row['stock_quantity'] as num?)?.toDouble(),
-        vatInclusive: row['vat_inclusive'] != false,
         rentalDuration: rentalDuration,
         images: images,
         units: units

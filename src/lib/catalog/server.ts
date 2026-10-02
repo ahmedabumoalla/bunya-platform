@@ -26,7 +26,6 @@ type CatalogProductRow = {
   offer_type: "sale" | "rental";
   minimum_order: number | null;
   stock_quantity: number | null;
-  vat_inclusive: boolean;
   rental_duration_value: number | null;
   rental_duration_unit: string | null;
   is_new: boolean;
@@ -77,7 +76,7 @@ export async function loadPublicCatalog(): Promise<{ categories: string[]; produ
   const supabase = await createClient();
   const [categoriesResult, productsResult] = await Promise.all([
     supabase.from("product_categories").select("id,name,sort_order").eq("is_active", true).order("sort_order"),
-    supabase.from("products").select("id,category_id,custom_category,sku,name,base_unit,short_description,description,full_description,availability_summary,availability_status,lead_time_label,delivery_label,delivery_window,delivery_notes,offer_type,minimum_order,stock_quantity,vat_inclusive,rental_duration_value,rental_duration_unit,is_new").eq("is_published", true).order("created_at", { ascending: false }),
+    supabase.from("products").select("id,category_id,custom_category,sku,name,base_unit,short_description,description,full_description,availability_summary,availability_status,lead_time_label,delivery_label,delivery_window,delivery_notes,offer_type,minimum_order,stock_quantity,rental_duration_value,rental_duration_unit,is_new").eq("is_published", true).order("created_at", { ascending: false }),
   ]);
 
   if (categoriesResult.error) throw new Error(`تعذر تحميل تصنيفات المنتجات: ${categoriesResult.error.message}`);
@@ -179,7 +178,6 @@ export async function loadPublicCatalog(): Promise<{ categories: string[]; produ
     offerType: row.offer_type === "rental" ? "تأجير" : "بيع",
     minimumOrder: row.minimum_order,
     stockQuantity: row.stock_quantity,
-    vatInclusive: row.vat_inclusive,
     rentalDuration: row.offer_type === "rental" ? formatDuration(row.rental_duration_value, row.rental_duration_unit) : null,
     isNew: row.is_new,
     });

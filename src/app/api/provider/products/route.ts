@@ -30,10 +30,9 @@ type ProductInsert = {
   delivery_window: string;
   delivery_notes: string;
   offer_type: string;
-  unit_price: number;
+  unit_price: null;
   minimum_order: number | null;
   stock_quantity: number | null;
-  vat_inclusive: boolean;
   rental_duration_value: number | null;
   rental_duration_unit: string | null;
   review_status: "draft" | "pending_review";
@@ -104,7 +103,6 @@ export async function POST(request: Request) {
   const baseUnit = text(form, "base_unit");
   const description = text(form, "description");
   const offerType = text(form, "offer_type") === "rental" ? "rental" : "sale";
-  const unitPrice = optionalNumber(form, "unit_price");
   const minimumOrder = optionalNumber(form, "minimum_order");
   const stockQuantity = optionalNumber(form, "stock_quantity");
   const availabilityStatus = text(form, "availability_status") || "available";
@@ -153,8 +151,8 @@ export async function POST(request: Request) {
   const warrantyDetails = text(form, "warranty_details");
 
   const usesCustomCategory = categoryId === "other";
-  if (name.length < 2 || !categoryId || (usesCustomCategory && (customCategory.length < 2 || customCategory.length > 80)) || !baseUnit || description.length < 10 || unitPrice === null || !Number.isFinite(unitPrice) || unitPrice < 0) {
-    return Response.json({ error: "أكمل اسم المنتج والتصنيف والوحدة والوصف والسعر بصورة صحيحة." }, { status: 400 });
+  if (name.length < 2 || !categoryId || (usesCustomCategory && (customCategory.length < 2 || customCategory.length > 80)) || !baseUnit || description.length < 10) {
+    return Response.json({ error: "أكمل اسم المنتج والتصنيف والوحدة والوصف بصورة صحيحة." }, { status: 400 });
   }
   if ([minimumOrder, stockQuantity, rentalDuration].some((value) => value !== null && !Number.isFinite(value))) {
     return Response.json({ error: "تحقق من القيم الرقمية المدخلة." }, { status: 400 });
@@ -211,10 +209,10 @@ export async function POST(request: Request) {
     delivery_window: text(form, "delivery_window"),
     delivery_notes: text(form, "delivery_notes"),
     offer_type: offerType,
-    unit_price: unitPrice,
+    // Catalog submissions describe the product; pricing belongs to each RFQ response.
+    unit_price: null,
     minimum_order: minimumOrder,
     stock_quantity: stockQuantity,
-    vat_inclusive: text(form, "vat_inclusive") === "on",
     rental_duration_value: offerType === "rental" ? rentalDuration : null,
     rental_duration_unit: offerType === "rental" ? rentalDurationUnit : null,
     review_status: intent,

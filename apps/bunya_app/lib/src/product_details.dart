@@ -126,10 +126,8 @@ class _ProductSheetState extends State<ProductSheet> {
                             if (product.sku.isNotEmpty)
                               _MetaTag(label: 'رمز المنتج: ${product.sku}'),
                             _MetaTag(label: 'العرض: ${product.offerType}'),
-                            _MetaTag(
-                              label: product.vatInclusive
-                                  ? 'السعر شامل الضريبة'
-                                  : 'الضريبة تضاف لاحقًا',
+                            const _MetaTag(
+                              label: 'السعر والضريبة يُحدَّدان في عرض السعر',
                             ),
                           ],
                         ),

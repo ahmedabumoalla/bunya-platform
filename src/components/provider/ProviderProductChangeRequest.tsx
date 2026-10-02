@@ -18,8 +18,8 @@ type Product = Record<string, unknown> & {
   id: string; provider_id: string; category_id: string | null; custom_category: string | null;
   name: string; sku: string | null; base_unit: string; description: string; full_description: string;
   availability_status: string; lead_time_label: string; delivery_window: string; delivery_notes: string;
-  offer_type: string; unit_price: number | null; minimum_order: number | null; stock_quantity: number | null;
-  vat_inclusive: boolean; rental_duration_value: number | null; rental_duration_unit: string | null;
+  offer_type: string; minimum_order: number | null; stock_quantity: number | null;
+  rental_duration_value: number | null; rental_duration_unit: string | null;
   review_status: string; product_images: ExistingImage[];
   product_measurements: Array<{ label: string; sort_order: number }>;
   product_variants: Array<{ name: string; attributes: Record<string, unknown>; sort_order: number }>;
@@ -63,7 +63,6 @@ export function ProviderProductChangeRequest({ productId }: { productId: string 
   const [categoryId, setCategoryId] = useState("");
   const [offerType, setOfferType] = useState("sale");
   const [availability, setAvailability] = useState("available");
-  const [vatInclusive, setVatInclusive] = useState(true);
   const [deliveryAvailable, setDeliveryAvailable] = useState(false);
   const [measurements, setMeasurements] = useState<string[]>([]);
   const [measurementDraft, setMeasurementDraft] = useState("");
@@ -84,7 +83,7 @@ export function ProviderProductChangeRequest({ productId }: { productId: string 
     const db = createClient();
     void Promise.all([
       db.from("product_categories").select("id,name").eq("is_active", true).order("sort_order"),
-      db.from("products").select("id,provider_id,category_id,custom_category,name,sku,base_unit,description,full_description,availability_status,lead_time_label,delivery_window,delivery_notes,offer_type,unit_price,minimum_order,stock_quantity,vat_inclusive,rental_duration_value,rental_duration_unit,review_status,product_images(id,storage_path,image_url,alt_text,is_primary,sort_order),product_measurements(label,sort_order),product_variants(name,attributes,sort_order),product_specifications(value,sort_order),product_warranties(duration,details),product_availability_regions(city,scope),product_delivery_configs(is_available,maximum_duration,duration_unit,price_per_km,maximum_distance_km,notes),product_delivery_regions(region_name)").eq("id", productId).maybeSingle(),
+      db.from("products").select("id,provider_id,category_id,custom_category,name,sku,base_unit,description,full_description,availability_status,lead_time_label,delivery_window,delivery_notes,offer_type,minimum_order,stock_quantity,rental_duration_value,rental_duration_unit,review_status,product_images(id,storage_path,image_url,alt_text,is_primary,sort_order),product_measurements(label,sort_order),product_variants(name,attributes,sort_order),product_specifications(value,sort_order),product_warranties(duration,details),product_availability_regions(city,scope),product_delivery_configs(is_available,maximum_duration,duration_unit,price_per_km,maximum_distance_km,notes),product_delivery_regions(region_name)").eq("id", productId).maybeSingle(),
       db.from("product_change_requests").select("id").eq("product_id", productId).eq("status", "pending").maybeSingle(),
     ]).then(async ([categoryResult, productResult, pendingResult]) => {
       if (!active) return;
@@ -103,7 +102,6 @@ export function ProviderProductChangeRequest({ productId }: { productId: string 
       setCategoryId(value.category_id || "other");
       setOfferType(value.offer_type || "sale");
       setAvailability(value.availability_status || "available");
-      setVatInclusive(value.vat_inclusive);
       setDeliveryAvailable(Boolean(value.product_delivery_configs?.is_available));
       setMeasurements([...value.product_measurements].sort((a, b) => a.sort_order - b.sort_order).map((item) => item.label));
       setVariants(variantInput(value));
@@ -139,7 +137,6 @@ export function ProviderProductChangeRequest({ productId }: { productId: string 
       form.set("category_id", categoryId);
       form.set("offer_type", offerType);
       form.set("availability_status", availability);
-      form.set("vat_inclusive", String(vatInclusive));
       form.set("delivery_available", String(deliveryAvailable));
       form.set("measurements", JSON.stringify([...new Set([...measurements, measurementDraft.trim()].filter(Boolean))]));
       form.set("variants", JSON.stringify(variantValue.trim() ? [...variants, { type: variantType, value: variantValue.trim() }] : variants));
@@ -186,11 +183,9 @@ export function ProviderProductChangeRequest({ productId }: { productId: string 
         <div className="provider-form-grid">{specificationFields.map(([label,name])=><label className="provider-field" key={name}><span>{label}</span><input name={name} defaultValue={specificationValue(product,label)}/></label>)}<label className="provider-field"><span>مدة الضمان</span><input name="warranty_duration" defaultValue={product.product_warranties?.duration || ""}/></label><label className="provider-field"><span>تفاصيل الضمان</span><input name="warranty_details" defaultValue={product.product_warranties?.details || ""}/></label></div>
       </fieldset>
 
-      <fieldset className="provider-form-section"><legend><span>4</span> السعر والمخزون</legend><div className="provider-form-grid compact">
+      <fieldset className="provider-form-section"><legend><span>4</span> نوع العرض والكمية</legend><p>يُحدد السعر عند طلب عرض السعر، ولا يلزم إدخاله لتعديل المنتج.</p><div className="provider-form-grid">
         <label className="provider-field"><span>نوع العرض *</span><select value={offerType} onChange={(event)=>setOfferType(event.target.value)}><option value="sale">بيع</option><option value="rental">تأجير</option></select></label>
-        <label className="provider-field"><span>سعر الوحدة *</span><input name="unit_price" type="number" min="0" step="0.01" required defaultValue={product.unit_price ?? ""}/></label>
         <label className="provider-field"><span>الحد الأدنى</span><input name="minimum_order" type="number" min="0.001" step="0.001" defaultValue={product.minimum_order ?? ""}/></label>
-        <label className="provider-check"><input type="checkbox" checked={vatInclusive} onChange={(event)=>setVatInclusive(event.target.checked)}/> السعر شامل الضريبة</label>
         {offerType==="rental"?<><label className="provider-field"><span>مدة التأجير *</span><input name="rental_duration_value" type="number" min="0.01" step="0.01" required defaultValue={product.rental_duration_value ?? ""}/></label><label className="provider-field"><span>وحدة المدة *</span><input name="rental_duration_unit" required defaultValue={product.rental_duration_unit || ""}/></label></>:null}
       </div></fieldset>
 

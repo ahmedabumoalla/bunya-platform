@@ -96,15 +96,14 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     const description = text(form, "description");
     const offerType = text(form, "offer_type") === "rental" ? "rental" : "sale";
     const availabilityStatus = text(form, "availability_status") || "available";
-    const unitPrice = number(form, "unit_price");
     const minimumOrder = number(form, "minimum_order");
     const stockQuantity = number(form, "stock_quantity");
     const rentalDuration = number(form, "rental_duration_value");
     const rentalDurationUnit = text(form, "rental_duration_unit") || null;
     const usesCustomCategory = categoryValue === "other";
     const categoryId = usesCustomCategory ? null : categoryValue;
-    if (name.length < 2 || name.length > 160 || !categoryValue || (usesCustomCategory && (customCategory.length < 2 || customCategory.length > 80)) || !baseUnit || description.length < 10 || unitPrice === null || unitPrice < 0) {
-      throw new PublicJoinError("أكمل اسم المنتج والتصنيف والوحدة والوصف والسعر بصورة صحيحة.", 400);
+    if (name.length < 2 || name.length > 160 || !categoryValue || (usesCustomCategory && (customCategory.length < 2 || customCategory.length > 80)) || !baseUnit || description.length < 10) {
+      throw new PublicJoinError("أكمل اسم المنتج والتصنيف والوحدة والوصف بصورة صحيحة.", 400);
     }
     if (minimumOrder !== null && minimumOrder <= 0) throw new PublicJoinError("الحد الأدنى للطلب يجب أن يكون أكبر من صفر.", 400);
     if (stockQuantity !== null && stockQuantity < 0) throw new PublicJoinError("المخزون لا يمكن أن يكون سالبًا.", 400);
@@ -218,10 +217,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         delivery_window: text(form, "delivery_window"),
         delivery_notes: text(form, "delivery_notes"),
         offer_type: offerType,
-        unit_price: unitPrice,
         minimum_order: minimumOrder,
         stock_quantity: stockQuantity,
-        vat_inclusive: text(form, "vat_inclusive") === "true" || text(form, "vat_inclusive") === "on",
         rental_duration_value: offerType === "rental" ? rentalDuration : null,
         rental_duration_unit: offerType === "rental" ? rentalDurationUnit : null,
       },
