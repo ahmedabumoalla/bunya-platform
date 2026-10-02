@@ -94,7 +94,7 @@ export function ContractorShell({ children }: { children: ReactNode }) {
     <a className="contractor-skip-link" href="#contractor-content" inert={mobile && drawerOpen}>انتقل إلى المحتوى</a>
     <button className="contractor-drawer-backdrop" aria-label="إغلاق القائمة" tabIndex={-1} type="button" data-open={drawerOpen} onClick={() => setDrawerOpen(false)} />
     <aside ref={sidebar} id="contractor-navigation" className="contractor-sidebar" data-open={drawerOpen} inert={mobile && !drawerOpen} aria-label="مساحة المقاول">
-      <div className="contractor-sidebar-brand"><Link href="/contractor" aria-label="بُنية — الرئيسية"><BunyaLogo variant="white" sizes="120px" /></Link><span>مساحة المقاول</span></div>
+      <div className="contractor-sidebar-brand"><Link href="/" aria-label="بُنية — الصفحة الرئيسية للموقع"><BunyaLogo variant="white" sizes="120px" /></Link><span>مساحة المقاول</span></div>
       <button className="contractor-collapse" type="button" onClick={toggleCollapsed} aria-label={collapsed ? "توسيع القائمة" : "تصغير القائمة"} aria-expanded={!collapsed}><Icon name="arrow" size={17} /></button>
       <button className="contractor-drawer-close" type="button" onClick={() => setDrawerOpen(false)} aria-label="إغلاق القائمة"><Icon name="close" /></button>
       <Link className="contractor-company-card" href="/contractor/profile" onClick={() => setDrawerOpen(false)} aria-label={`الملف المهني: ${companyName}`}>
