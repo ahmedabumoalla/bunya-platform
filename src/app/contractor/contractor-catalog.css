@@ -1,0 +1,188 @@
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-page {
+  --catalog-forest: #173f32;
+  --catalog-canvas: #f3f6f3;
+  --catalog-white: #fff;
+  --catalog-ink: #203e32;
+  --catalog-muted: #5d7167;
+  --catalog-border: #dce5df;
+  --catalog-copper: #985535;
+  display: grid;
+  gap: 28px;
+  min-width: 0;
+  color: var(--catalog-ink);
+}
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-page .database-page-header {
+  align-items: start;
+  gap: 20px;
+}
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-page .database-page-header h1 {
+  margin-block: 8px 10px;
+  color: var(--catalog-forest);
+  font-size: clamp(25px, 2.5vw, 34px);
+  line-height: 1.5;
+}
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-page .database-page-header p,
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-eyebrow {
+  color: var(--catalog-copper);
+  font-size: 12px;
+  font-weight: 700;
+}
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-page .database-page-header span {
+  display: block;
+  max-width: 720px;
+  color: var(--catalog-muted);
+  font-size: 14px;
+  line-height: 1.9;
+}
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 17px 21px;
+  border-inline-start: 3px solid var(--catalog-copper);
+  border-radius: 0 10px 10px 0;
+  background: #eaf0ea;
+  color: var(--catalog-forest);
+  font-size: 13px;
+}
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-summary p { margin: 0; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-summary span { font-weight: 700; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-page :is(.database-panel, .database-state) {
+  border: 1px solid var(--catalog-border) !important;
+  border-radius: 16px;
+  background: var(--catalog-white) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-page :is(h2, h3) { color: var(--catalog-ink); }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-editor { padding: clamp(20px, 3vw, 32px); }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-editor > h2 { margin: 0 0 26px; font-size: 20px; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-editor > .database-form-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-section {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-section + .contractor-catalog-section { padding-top: 25px; border-top: 1px solid var(--catalog-border); }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-section legend { float: inline-start; width: 100%; margin-bottom: 6px; color: var(--catalog-forest); font-size: 15px; font-weight: 800; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-section > p { clear: both; margin: 0 0 20px; color: var(--catalog-muted); font-size: 13px; line-height: 1.9; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-fields .wide,
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-facts .wide { grid-column: 1 / -1; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-fields label { display: grid; min-width: 0; align-content: start; gap: 9px; color: var(--catalog-ink); font-size: 13px; font-weight: 600; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-fields :is(input:not([type="checkbox"]), select, textarea) {
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--catalog-border) !important;
+  border-radius: 9px;
+  background: var(--catalog-white) !important;
+  color: var(--catalog-ink) !important;
+  box-shadow: none !important;
+  font: inherit;
+}
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-fields textarea { resize: vertical; min-height: 112px; line-height: 1.8; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-fields input:is([type="date"], [type="datetime-local"], [type="number"]) { color-scheme: light; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-fields small { color: var(--catalog-muted); font-size: 12px; font-weight: 400; line-height: 1.8; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-page .contractor-catalog-check { display: flex; align-items: center; gap: 11px; min-height: 48px; color: var(--catalog-ink); font-size: 13px; line-height: 1.8; cursor: pointer; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-check input[type="checkbox"] { flex: 0 0 19px; width: 19px; height: 19px; min-height: 19px; margin: 0; accent-color: var(--catalog-forest); }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-page :is(button, .contractor-proposal-back, .contractor-proposal-state-actions a) {
+  min-height: 44px;
+  padding: 10px 17px;
+  border: 1px solid var(--catalog-border);
+  border-radius: 9px;
+  background: var(--catalog-white);
+  color: var(--catalog-forest);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1.7;
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease;
+}
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-page button:hover:not(:disabled),
+.contractor-app[data-contractor-design="refined"] .contractor-proposal-back:hover { border-color: var(--catalog-forest); background: var(--catalog-canvas); }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-page :is(button, a, input, textarea, select):focus-visible { outline: 3px solid var(--catalog-copper); outline-offset: 3px; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-page button:disabled { opacity: .55; cursor: not-allowed; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-page .contractor-catalog-primary { background: var(--catalog-forest) !important; color: var(--catalog-white) !important; border-color: var(--catalog-forest) !important; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-page .contractor-catalog-primary:hover:not(:disabled) { background: #24533f !important; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-page .contractor-catalog-danger { color: #a13730; margin-inline-start: auto; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-page .contractor-catalog-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding-top: 24px; border-top: 1px solid var(--catalog-border); }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-actions > p { margin: 0; max-width: 410px; color: var(--catalog-muted); font-size: 12px; line-height: 1.9; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-actions > div { display: flex; flex-wrap: wrap; gap: 9px; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-collection > header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 19px; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-collection > header h2 { margin: 0 0 6px; font-size: 21px; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-collection > header p { margin: 0; color: var(--catalog-muted); font-size: 13px; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-collection > header > span { display: grid; place-items: center; min-width: 36px; min-height: 36px; border-radius: 9px; background: #eaf0ea; color: var(--catalog-forest); font-weight: 700; }
+.contractor-app[data-contractor-design="refined"] .contractor-service-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.contractor-app[data-contractor-design="refined"] .contractor-portfolio-grid { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-page .database-record-grid > article { min-width: 0; gap: 20px; padding: 24px; align-content: start; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-page article > header { align-items: start; flex-wrap: wrap; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-page article h3 { margin: 5px 0 0; font-size: 19px; line-height: 1.7; overflow-wrap: anywhere; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-page article header small { color: var(--catalog-copper); font-size: 12px; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-description { margin: 0; color: var(--catalog-muted); font-size: 14px; line-height: 1.9; white-space: pre-line; overflow-wrap: anywhere; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 17px; margin: 0; padding-block: 18px; border-block: 1px solid var(--catalog-border); }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-facts dt { margin-bottom: 5px; color: var(--catalog-muted); font-size: 12px; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-facts dd { margin: 0; color: var(--catalog-ink); font-size: 13px; font-weight: 600; line-height: 1.8; overflow-wrap: anywhere; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-page .database-status { background: #edf1ee; color: var(--catalog-muted); font-size: 11px; line-height: 1.7; white-space: normal; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-page [data-review-status="approved"] { background: #e6f2e8; color: #28523c; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-page :is([data-review-status="pending_review"], [data-review-status="needs_changes"]) { background: #faf0e5; color: #855028; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-page [data-review-status="rejected"] { background: #faeeee; color: #963c37; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-review { padding: 15px 17px; border-inline-start: 3px solid var(--catalog-copper); border-radius: 8px; background: #faf3ec; color: #78442c; font-size: 13px; line-height: 1.9; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-review p { margin: 5px 0 0; white-space: pre-line; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-page .contractor-card-actions { margin-top: auto; gap: 9px; padding-top: 0; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-page .contractor-catalog-upload { padding: 22px; border: 1px dashed #8dA497; border-radius: 12px; background: var(--catalog-canvas); }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-upload input[type="file"] { padding: 7px; background: transparent !important; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-upload input::file-selector-button { min-height: 38px; margin-inline-end: 12px; padding: 7px 12px; border: 0; border-radius: 6px; background: var(--catalog-forest); color: var(--catalog-white); font: inherit; cursor: pointer; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-file-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-file-list li { display: flex; justify-content: space-between; gap: 15px; padding: 10px 13px; border: 1px solid var(--catalog-border); border-radius: 7px; font-size: 12px; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-file-list li > span { overflow-wrap: anywhere; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-file-list small { white-space: nowrap; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-hint { margin: 0; color: var(--catalog-muted); font-size: 12px; line-height: 1.9; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 16px; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-gallery figure { min-width: 0; margin: 0; overflow: hidden; border: 1px solid var(--catalog-border); border-radius: 12px; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-gallery figure[data-primary="true"] { border-color: var(--catalog-forest); }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-media { display: grid; place-items: center; aspect-ratio: 16 / 10; background: var(--catalog-canvas); overflow: hidden; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-media :is(img, video) { display: block; width: 100%; height: 100%; max-height: 360px; object-fit: contain; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-media > span { padding: 20px; color: var(--catalog-muted); font-size: 13px; text-align: center; overflow-wrap: anywhere; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-gallery figcaption { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-gallery figcaption > span { min-width: 0; flex: 1 1 95px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--catalog-muted); font-size: 11px; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-gallery button[aria-pressed="true"] { background: #eaf0ea; border-color: transparent; }
+.contractor-app[data-contractor-design="refined"] .contractor-proposal-layout { display: grid; grid-template-columns: minmax(230px, .7fr) minmax(0, 1.6fr); align-items: start; gap: 24px; }
+.contractor-app[data-contractor-design="refined"] .contractor-proposal-brief { padding: 24px; }
+.contractor-app[data-contractor-design="refined"] .contractor-proposal-brief h2 { margin: 12px 0; font-size: 21px; line-height: 1.7; overflow-wrap: anywhere; }
+.contractor-app[data-contractor-design="refined"] .contractor-proposal-brief > p { margin: 0 0 22px; color: var(--catalog-muted); font-size: 13px; line-height: 1.9; white-space: pre-line; }
+.contractor-app[data-contractor-design="refined"] .contractor-proposal-brief .contractor-catalog-facts { grid-template-columns: minmax(0, 1fr); }
+.contractor-app[data-contractor-design="refined"] .contractor-proposal-scope { margin-top: 20px; }
+.contractor-app[data-contractor-design="refined"] .contractor-proposal-scope h3 { margin: 0 0 8px; font-size: 14px; }
+.contractor-app[data-contractor-design="refined"] .contractor-proposal-scope :is(p, ul) { margin: 0; color: var(--catalog-muted); font-size: 13px; line-height: 1.9; overflow-wrap: anywhere; }
+.contractor-app[data-contractor-design="refined"] .contractor-proposal-scope ul { padding-inline-start: 18px; }
+.contractor-app[data-contractor-design="refined"] .contractor-proposal-form { display: grid; gap: 28px; padding: clamp(20px, 3vw, 32px); }
+.contractor-app[data-contractor-design="refined"] .contractor-proposal-confirmation { padding: 15px 18px; border-radius: 10px; background: var(--catalog-canvas); }
+.contractor-app[data-contractor-design="refined"] .contractor-proposal-confirmation p { margin: 0; padding-inline-start: 30px; color: var(--catalog-muted); font-size: 12px; line-height: 1.9; }
+.contractor-app[data-contractor-design="refined"] .contractor-catalog-form-error { margin: 0; padding: 14px 18px; border: 1px solid #e9c7c4; border-radius: 9px; background: #faeeee; color: #963c37; font-size: 13px; line-height: 1.9; }
+.contractor-app[data-contractor-design="refined"] .contractor-proposal-state-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; margin-top: 20px; }
+@media (max-width: 1100px) {
+  .contractor-app[data-contractor-design="refined"] .contractor-proposal-layout { grid-template-columns: minmax(0, 1fr); }
+  .contractor-app[data-contractor-design="refined"] .contractor-proposal-brief .contractor-catalog-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 700px) {
+  .contractor-app[data-contractor-design="refined"] .contractor-catalog-fields,
+  .contractor-app[data-contractor-design="refined"] .contractor-service-grid { grid-template-columns: minmax(0, 1fr); }
+  .contractor-app[data-contractor-design="refined"] .contractor-catalog-page { gap: 22px; }
+  .contractor-app[data-contractor-design="refined"] .contractor-catalog-page .database-page-header { flex-direction: column; }
+  .contractor-app[data-contractor-design="refined"] .contractor-catalog-page .database-record-grid > article { padding: 19px; }
+  .contractor-app[data-contractor-design="refined"] .contractor-catalog-actions > div { width: 100%; }
+  .contractor-app[data-contractor-design="refined"] .contractor-catalog-actions button { flex: 1 1 130px; }
+  .contractor-app[data-contractor-design="refined"] .contractor-catalog-page .contractor-catalog-danger { margin-inline-start: 0; }
+  .contractor-app[data-contractor-design="refined"] .contractor-card-actions button { flex: 1 1 auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .contractor-app[data-contractor-design="refined"] .contractor-catalog-page :is(button, a) { transition: none; }
+}

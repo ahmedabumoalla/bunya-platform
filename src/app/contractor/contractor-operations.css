@@ -1,0 +1,57 @@
+/* Shared finance, notifications and support retain their data contracts. */
+.contractor-app[data-contractor-design="refined"] .ops-panel {
+  display: grid; align-content: start; gap: 20px; min-width: 0; padding: 26px;
+  border: 1px solid #dce5df !important; border-radius: 16px; background: #fff !important;
+}
+.contractor-app[data-contractor-design="refined"] .ops-panel > h2 { margin: 0; padding-bottom: 16px; border-bottom: 1px solid #dce5df; font-size: 19px; line-height: 1.6; }
+.contractor-app[data-contractor-design="refined"] .ops-columns { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); align-items: start; gap: 24px; }
+.contractor-app[data-contractor-design="refined"] .ops-form { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px; align-items: start; }
+.contractor-app[data-contractor-design="refined"] .ops-form > .wide { grid-column: 1/-1; }
+.contractor-app[data-contractor-design="refined"] .ops-form label { display: grid; gap: 8px; min-width: 0; font-size: 14px; font-weight: 500; }
+.contractor-app[data-contractor-design="refined"] .ops-form label:has(> input[type="checkbox"]) { display: flex; align-items: center; gap: 10px; min-height: 46px; align-self: end; }
+.contractor-app[data-contractor-design="refined"] .ops-panel :is(input:not([type="checkbox"]),select,textarea) { width: 100%; }
+.contractor-app[data-contractor-design="refined"] .ops-panel input[type="file"] { border-style: dashed !important; background: #f8faf7 !important; padding: 13px; }
+.contractor-app[data-contractor-design="refined"] .ops-form > button { grid-column: 1/-1; justify-self: start; }
+.contractor-app[data-contractor-design="refined"] :is(.ops-form > button,.ops-actions button,.ops-list > div > button) { min-height: 44px; padding: 10px 18px; border: 1px solid #173f32 !important; border-radius: 9px; background: #173f32 !important; color: #fff !important; font: inherit; font-size: 14px; font-weight: 600; box-shadow: none !important; cursor: pointer; }
+.contractor-app[data-contractor-design="refined"] :is(.ops-form > button,.ops-actions button):hover:not(:disabled) { background: #285746 !important; }
+.contractor-app[data-contractor-design="refined"] :is(.ops-actions button,.ops-list > div > button):not(:first-child) { background: #fff !important; border-color: #cbd9ce !important; color: #173f32 !important; }
+.contractor-app[data-contractor-design="refined"] button:disabled { opacity: .55; cursor: not-allowed; }
+.contractor-app[data-contractor-design="refined"] .ops-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.contractor-app[data-contractor-design="refined"] .ops-actions a { display: inline-flex; align-items: center; min-height: 44px; padding: 8px 14px; border: 1px solid #cbd9ce; border-radius: 9px; color: #173f32 !important; font-weight: 600; }
+.contractor-app[data-contractor-design="refined"] .ops-list { display: grid; gap: 12px; }
+.contractor-app[data-contractor-design="refined"] .ops-list > :is(button,div) { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; min-width: 0; padding: 16px; border: 1px solid #dce5df !important; border-radius: 12px; background: #f8faf7 !important; color: #203e32 !important; text-align: start; font: inherit; box-shadow: none !important; }
+.contractor-app[data-contractor-design="refined"] .ops-list > button { display: grid; cursor: pointer; }
+.contractor-app[data-contractor-design="refined"] .ops-list > button:hover { border-color: #729682 !important; }
+.contractor-app[data-contractor-design="refined"] .ops-list > button.active { border-inline-start: 4px solid #173f32 !important; background: #edf4ee !important; }
+.contractor-app[data-contractor-design="refined"] .ops-list :is(b,span) { flex: 1 1 100%; overflow-wrap: anywhere; }
+.contractor-app[data-contractor-design="refined"] .ops-list span { color: #5d7167 !important; font-size: 13px; }
+.contractor-app[data-contractor-design="refined"] .ops-list > div > button { padding: 7px 12px; font-size: 13px; }
+.contractor-app[data-contractor-design="refined"] .ops-thread { display: grid; gap: 14px; max-height: 520px; overflow-y: auto; padding: 2px; }
+.contractor-app[data-contractor-design="refined"] .ops-thread article { padding: 18px; border: 1px solid #dce5df; border-radius: 12px; background: #f3f6f3; }
+.contractor-app[data-contractor-design="refined"] .ops-thread article p { white-space: pre-wrap; line-height: 1.9; }
+.contractor-app[data-contractor-design="refined"] .ops-thread small { font-size: 12px; }
+.contractor-app[data-contractor-design="refined"] .ops-files { display: flex; flex-wrap: wrap; gap: 10px; }
+.contractor-app[data-contractor-design="refined"] .ops-files a { max-width: 100%; min-height: 44px; padding: 10px 14px; border: 1px solid #dce5df; border-radius: 8px; color: #285c46; overflow-wrap: anywhere; }
+.contractor-app[data-contractor-design="refined"] .database-state { display: grid; justify-items: center; align-content: center; min-height: 220px; padding: 32px; text-align: center; }
+.contractor-app[data-contractor-design="refined"] .database-state h2 { margin: 0; font-size: 20px; }
+.contractor-app[data-contractor-design="refined"] .database-state p { max-width: 560px; line-height: 1.9; }
+.contractor-app[data-contractor-design="refined"] .database-state.database-error { min-height: 0; padding: 16px 20px; border-color: #e6c3bc !important; background: #fff2ef !important; color: #973e32 !important; text-align: start; justify-items: start; }
+.contractor-app[data-contractor-design="refined"] .database-record-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 20px; }
+.contractor-app[data-contractor-design="refined"] .contractor-notice-unread { border-inline-start: 4px solid #477e62 !important; }
+.contractor-app[data-contractor-design="refined"] .contractor-notice-summary { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding-bottom: 16px; border-bottom: 1px solid #dce5df; color: #5d7167; }
+.contractor-app[data-contractor-design="refined"] .contractor-notice-state { display: inline-flex; padding: 3px 10px; border-radius: 6px; background: #edf4ee; font-size: 12px; color: #26553a !important; }
+.contractor-app[data-contractor-design="refined"] .contractor-finance-summary article:first-child { border-top: 3px solid #477e62; }
+.contractor-app[data-contractor-design="refined"] .contractor-finance-summary strong { font-size: clamp(23px,2.5vw,30px); }
+.contractor-app[data-contractor-design="refined"] .contractor-finance-help { margin: 0; padding: 15px 18px; border-inline-start: 3px solid #a97951; background: #faf8f2; border-radius: 6px; font-size: 14px; line-height: 1.9; }
+.contractor-app[data-contractor-design="refined"] .database-metrics article { min-width: 0; }
+.contractor-app[data-contractor-design="refined"] .ops-panel table { width: 100%; border-collapse: collapse; }
+.contractor-app[data-contractor-design="refined"] .ops-panel table td { white-space: nowrap; }
+@media(max-width:1100px) {
+  .contractor-app[data-contractor-design="refined"] .ops-columns { grid-template-columns: minmax(0,1fr); }
+}
+@media(max-width:640px) {
+  .contractor-app[data-contractor-design="refined"] :is(.ops-form,.database-record-grid,.database-metrics) { grid-template-columns: minmax(0,1fr); }
+  .contractor-app[data-contractor-design="refined"] .ops-panel { padding: 20px; }
+  .contractor-app[data-contractor-design="refined"] .ops-form > button { width: 100%; }
+  .contractor-app[data-contractor-design="refined"] .ops-actions > :is(button,a) { flex: 1 1 auto; justify-content: center; }
+}

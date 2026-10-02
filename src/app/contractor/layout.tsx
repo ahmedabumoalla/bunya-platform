@@ -4,4 +4,7 @@ import {AuthIdentityProvider} from "@/components/auth/AuthIdentityProvider";
 import {RoleDatabasePortal} from "@/components/database/RoleDatabasePortal";
 import {requirePortalRole} from "@/lib/auth/server";
 import "./contractor.css";
+import "./contractor-refined.css";
+import "./contractor-operations.css";
+import "./contractor-catalog.css";
 export default async function ContractorLayout({children}:{children:ReactNode}){void children;const identity=await requirePortalRole("contractor");return <AuthIdentityProvider identity={identity}><ContractorShell><RoleDatabasePortal role="contractor"/></ContractorShell></AuthIdentityProvider>}

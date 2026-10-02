@@ -1,0 +1,265 @@
+/* Contractor workspace only. Specificity intentionally wins over the legacy glass theme. */
+.contractor-app[data-contractor-design="refined"] {
+  --c: #173f32;
+  --deep: #173f32;
+  --ink: #203e32;
+  --muted: #5d7167;
+  --line: #dce5df;
+  --glass: #fff;
+  --bunya-ink: #203e32;
+  --bunya-bg: #f3f6f3;
+  --bunya-glass: #fff;
+  --bunya-glass-soft: #f8faf7;
+  --bunya-line: #dce5df;
+  --bunya-text-primary: #203e32;
+  --bunya-text-secondary: #5d7167;
+  --bunya-text-muted: #5d7167;
+  --bunya-icon-primary: #365b49;
+  --bunya-icon-secondary: #805038;
+  --bunya-surface: #fff;
+  --bunya-surface-strong: #fff;
+  --bunya-surface-muted: #edf2ee;
+  --bunya-inset: #f5f8f5;
+  --bunya-border: #dce5df;
+  --bunya-border-strong: #a9bdb0;
+  --bunya-border-active: #9db6a7;
+  --bunya-accent: #173f32;
+  --bunya-accent-hover: #245746;
+  --bunya-focus: #477e62;
+  --focus-ring: 0 0 0 3px rgb(71 126 98 / 12%);
+  --bunya-text-on-accent: #fff;
+  --bunya-link: #285c46;
+  --bunya-link-hover: #173f32;
+  --bunya-brand-copper-strong: #8c563a;
+  --bunya-shadow-sm: 0 2px 8px rgb(24 56 40 / 3%);
+  --bunya-shadow-md: 0 5px 22px rgb(24 56 40 / 4%);
+  --glass-highlight: linear-gradient(transparent, transparent);
+  --glass-blur: 0px;
+  min-height: 100dvh;
+  background: #f3f6f3 !important;
+  color: #203e32 !important;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.contractor-app[data-contractor-design="refined"] :where(button,a,input,select,textarea):focus-visible {
+  outline: 2px solid #477e62 !important;
+  outline-offset: 3px;
+}
+.contractor-app[data-contractor-design="refined"] :where(button,a) { touch-action: manipulation; }
+.contractor-app[data-contractor-design="refined"] :where(button:disabled) { cursor: not-allowed; }
+.contractor-app[data-contractor-design="refined"] :where(input:not([type="checkbox"]):not([type="radio"]),select,textarea) {
+  background: #fff !important;
+  color: #203e32 !important;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.contractor-app[data-contractor-design="refined"] :where(input,select,textarea):focus {
+  border-color: #477e62 !important;
+  box-shadow: 0 0 0 3px rgb(71 126 98 / 12%) !important;
+}
+.contractor-app[data-contractor-design="refined"] input::file-selector-button {
+  min-height: 34px;
+  margin-inline-end: 12px;
+  padding: 5px 12px;
+  border: 1px solid #dce5df;
+  border-radius: 7px;
+  background: #edf3ee;
+  color: #214a38;
+  font: inherit;
+  cursor: pointer;
+}
+.contractor-app[data-contractor-design="refined"] .contractor-sidebar {
+  --bunya-text-primary: #f6faf5;
+  --bunya-text-secondary: #c0d3c7;
+  --bunya-text-muted: #b2c9ba;
+  --bunya-icon-primary: #c0d3c7;
+  --bunya-icon-secondary: #e3efdd;
+  position: fixed;
+  inset: 0 0 0 auto;
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  width: 264px !important;
+  height: 100dvh;
+  padding: 20px 14px 14px !important;
+  border: 0 !important;
+  background: #173f32 !important;
+  box-shadow: none !important;
+  backdrop-filter: none;
+  transition: width 180ms ease, transform 180ms ease;
+}
+.contractor-app[data-contractor-design="refined"] .contractor-sidebar-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  min-height: 83px;
+  padding: 0 16px 14px;
+  border: 0;
+}
+.contractor-app[data-contractor-design="refined"] .contractor-sidebar-brand .bunya-logo { width: 112px; height: 48px; }
+.contractor-app[data-contractor-design="refined"] .contractor-sidebar-brand .bunya-logo-image { height: 100%; object-fit: contain; }
+.contractor-app[data-contractor-design="refined"] .contractor-sidebar-brand > span { color: #c0d3c7; font-size: 11px; }
+.contractor-app[data-contractor-design="refined"] .contractor-collapse {
+  position: absolute;
+  top: 34px;
+  left: auto;
+  inset-inline-end: 10px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0 !important;
+  border-radius: 8px;
+  background: transparent !important;
+  color: #d4e4d7 !important;
+  box-shadow: none;
+}
+.contractor-app[data-contractor-design="refined"] .contractor-collapse:hover { background: #285345 !important; }
+.contractor-app[data-contractor-design="refined"] .contractor-company-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 70px;
+  margin: 0 2px 13px;
+  padding: 12px;
+  border: 1px solid #3b5d50;
+  border-radius: 12px;
+  background: #20483c;
+}
+.contractor-app[data-contractor-design="refined"] .contractor-company-initial { display: grid; flex: 0 0 36px; height: 36px; place-items: center; border-radius: 10px; background: #e4ecda; color: #234e39; font-size: 18px; font-weight: 800; }
+.contractor-app[data-contractor-design="refined"] .contractor-company-card div { min-width: 0; }
+.contractor-app[data-contractor-design="refined"] .contractor-company-card strong { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 13px; }
+.contractor-app[data-contractor-design="refined"] .contractor-company-card small { font-size: 10px; }
+.contractor-app[data-contractor-design="refined"] .contractor-sidebar nav { flex: 1; min-height: 0; display: block; overflow-y: auto; margin: 0; padding: 0 2px 12px; scrollbar-width: thin; scrollbar-color: #547664 transparent; }
+.contractor-app[data-contractor-design="refined"] .contractor-nav-label { margin: 17px 12px 8px; font-size: 10px; font-weight: 500; }
+.contractor-app[data-contractor-design="refined"] .contractor-nav-item:first-child .contractor-nav-label { margin-top: 2px; }
+.contractor-app[data-contractor-design="refined"] .contractor-sidebar nav a {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  min-height: 46px !important;
+  margin-block: 3px;
+  padding: 10px 12px;
+  border: 1px solid transparent !important;
+  border-radius: 9px !important;
+  background: transparent !important;
+  color: #d3e0d7 !important;
+  font-size: 13px !important;
+  transform: none;
+  box-shadow: none;
+}
+.contractor-app[data-contractor-design="refined"] .contractor-sidebar nav a b { color: inherit !important; font-weight: 600; line-height: 1.6; }
+.contractor-app[data-contractor-design="refined"] .contractor-sidebar nav a > span { display: grid; place-items: center; width: 22px; flex-shrink: 0; background: none; }
+.contractor-app[data-contractor-design="refined"] .contractor-sidebar nav a:hover { background: #285345 !important; color: #fff !important; transform: none; }
+.contractor-app[data-contractor-design="refined"] .contractor-sidebar nav a.active { background: #e4ecda !important; color: #203e32 !important; border-color: #e4ecda !important; }
+.contractor-app[data-contractor-design="refined"] .contractor-sidebar nav a.active > span { color: #31523d !important; }
+.contractor-app[data-contractor-design="refined"] .contractor-sidebar nav em { position: static; margin-inline-start: auto; min-width: 20px; border-radius: 6px; padding: 0 4px; background: #d9e6cf; color: #203e32; font-size: 10px; font-style: normal; text-align: center; }
+.contractor-app[data-contractor-design="refined"] .contractor-sidebar-footer { padding-top: 12px; border-top: 1px solid #395e4e; }
+.contractor-app[data-contractor-design="refined"] .contractor-logout { display: flex; align-items: center; justify-content: flex-start; gap: 12px; width: 100%; min-height: 44px !important; padding: 10px 14px; border: 0 !important; background: transparent !important; color: #d3e0d7 !important; box-shadow: none; }
+.contractor-app[data-contractor-design="refined"] .contractor-logout b { color: inherit !important; font-size: 12px; font-weight: 500; }
+.contractor-app[data-contractor-design="refined"] .contractor-logout:hover { background: #285345 !important; }
+.contractor-app[data-contractor-design="refined"] .contractor-sidebar-footer > small { display: block; padding: 8px 14px 0; font-size: 10px; }
+.contractor-app[data-contractor-design="refined"] .contractor-workspace { min-height: 100dvh; margin-right: 264px !important; background: #f3f6f3 !important; }
+.contractor-app[data-contractor-design="refined"] .contractor-topbar { position: relative; display: flex; justify-content: space-between; align-items: center; gap: 16px; min-height: 82px !important; padding: 14px 32px !important; border: 0; border-bottom: 1px solid #dce5df; background: #fff !important; box-shadow: none !important; backdrop-filter: none; }
+.contractor-app[data-contractor-design="refined"] .contractor-topbar-context { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.contractor-app[data-contractor-design="refined"] .contractor-topbar-context > div { min-width: 0; }
+.contractor-app[data-contractor-design="refined"] .contractor-topbar-context p { margin: 0 0 2px; font-size: 11px; font-weight: 500; }
+.contractor-app[data-contractor-design="refined"] .contractor-topbar-context strong { display: block; max-width: 35vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 15px; font-weight: 700; }
+.contractor-app[data-contractor-design="refined"] .contractor-top-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.contractor-app[data-contractor-design="refined"] .contractor-top-actions time { padding-inline-end: 12px; color: #5d7167; font-size: 12px; }
+.contractor-app[data-contractor-design="refined"] .contractor-top-actions > a { position: relative; display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid #dce5df !important; border-radius: 12px; background: #fff !important; color: #365b49 !important; }
+.contractor-app[data-contractor-design="refined"] .contractor-top-actions > a.contractor-account { background: #edf3e7 !important; color: #31523d !important; font-size: 17px; font-weight: 800; }
+.contractor-app[data-contractor-design="refined"] .contractor-top-actions em { position: absolute; top: -5px; inset-inline-end: -5px; display: grid; min-width: 18px; height: 18px; padding-inline: 3px; place-items: center; border: 2px solid #fff; border-radius: 9px; background: #9a5937; color: #fff; font-size: 9px; font-style: normal; }
+.contractor-app[data-contractor-design="refined"] .contractor-breadcrumb { display: flex; gap: 10px; align-items: center; min-height: 54px !important; max-width: 1480px; margin-inline: auto; padding: 12px 32px !important; border: 0; background: transparent !important; box-shadow: none !important; backdrop-filter: none; font-size: 11px; }
+.contractor-app[data-contractor-design="refined"] .contractor-breadcrumb a { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; color: #5d7167 !important; text-decoration: none; font-weight: 500; }
+.contractor-app[data-contractor-design="refined"] .contractor-content { width: 100%; max-width: 1480px; min-width: 0; margin-inline: auto; padding: 8px 32px 48px; background: transparent !important; }
+.contractor-app[data-contractor-design="refined"] .contractor-content > * { min-width: 0; }
+.contractor-app[data-contractor-design="refined"] .contractor-drawer-close { display: none; }
+.contractor-app[data-contractor-design="refined"] .contractor-mobile-menu { display: none; }
+.contractor-app[data-contractor-design="refined"] .contractor-skip-link { position: fixed; top: -80px; inset-inline-start: 16px; z-index: 140; border-radius: 8px; padding: 12px 20px; background: #fff; color: #173f32; box-shadow: 0 4px 20px #0002; }
+.contractor-app[data-contractor-design="refined"] .contractor-skip-link:focus { top: 12px; }
+
+/* Shared legacy forms and operational cards keep their behavior and gain the same surface language. */
+.contractor-app[data-contractor-design="refined"] .database-page { width: 100%; max-width: none; padding: 0; gap: 24px; }
+.contractor-app[data-contractor-design="refined"] .database-page-header { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 18px 0 8px; border: 0; background: transparent; box-shadow: none; }
+.contractor-app[data-contractor-design="refined"] .database-page-header p { margin-bottom: 8px; font-size: 12px; }
+.contractor-app[data-contractor-design="refined"] .database-page-header h1 { margin: 0 0 10px; font-size: clamp(26px, 2.5vw, 34px); line-height: 1.5; font-weight: 800; }
+.contractor-app[data-contractor-design="refined"] .database-page-header span { display: block; max-width: 640px; font-size: 13px; line-height: 1.9; }
+.contractor-app[data-contractor-design="refined"] .database-metrics { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; }
+.contractor-app[data-contractor-design="refined"] .contractor-home-action { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; padding: 10px 20px; border: 1px solid #173f32; border-radius: 10px; background: #173f32; color: #fff; font-size: 13px; font-weight: 700; }
+.contractor-app[data-contractor-design="refined"] .database-metrics article { display: grid; gap: 5px; padding: 22px; border: 1px solid #dce5df; border-radius: 14px; background: #fff; box-shadow: none; }
+.contractor-app[data-contractor-design="refined"] .database-metrics article span { font-size: 12px; color: #5d7167; }
+.contractor-app[data-contractor-design="refined"] .database-metrics strong { font-size: 30px; font-weight: 750; font-variant-numeric: tabular-nums; }
+.contractor-app[data-contractor-design="refined"] .database-metrics article small { font-size: 10px; }
+.contractor-app[data-contractor-design="refined"] .database-panel-heading { padding: 22px 24px; }
+.contractor-app[data-contractor-design="refined"] .database-table-wrap { overflow-x: auto; }
+.contractor-app[data-contractor-design="refined"] table { background: #fff !important; }
+.contractor-app[data-contractor-design="refined"] table :where(th,td) { padding: 16px; font-size: 13px; }
+.contractor-app[data-contractor-design="refined"] table tbody tr:nth-child(even) { background: #fafcf9 !important; }
+.contractor-app[data-contractor-design="refined"] table th { background: #f0f5ef !important; color: #496354 !important; font-weight: 650; }
+.contractor-app[data-contractor-design="refined"] table tbody tr:hover { background: #f7faf5 !important; }
+.contractor-app[data-contractor-design="refined"] .database-detail { padding: 26px; }
+.contractor-app[data-contractor-design="refined"] :where(.database-panel,.database-state,.database-detail) { border: 1px solid #dce5df !important; border-radius: 16px; background: #fff !important; box-shadow: none !important; backdrop-filter: none; }
+.contractor-app[data-contractor-design="refined"] :is(input:not([type="checkbox"]):not([type="radio"]),select,textarea) { min-width: 0; max-width: 100%; border: 1px solid #cbd9ce !important; border-radius: 9px; min-height: 46px; padding: 10px 13px; font: inherit; }
+.contractor-app[data-contractor-design="refined"] :is(input[type="checkbox"],input[type="radio"]) { width: 18px; height: 18px; accent-color: #173f32; flex-shrink: 0; }
+.contractor-app[data-contractor-design="refined"] textarea { resize: vertical; }
+.contractor-app[data-contractor-design="refined"] :is(h1,h2,h3,p,a,button) { overflow-wrap: anywhere; }
+.contractor-app[data-contractor-design="refined"] .contractor-status { border: 1px solid #eadbc0; background: #fff6e5; color: #78541b !important; font-size: 12px; padding: 4px 10px; }
+.contractor-app[data-contractor-design="refined"] .contractor-status[data-status="approved"] { border-color: #cee1d1; background: #edf5ee; color: #26553a !important; }
+.contractor-app[data-contractor-design="refined"] .contractor-status:is([data-status="rejected"],[data-status="suspended"]) { background: #fff1ee; color: #973e32 !important; border-color: #eccfc7; }
+.contractor-app[data-contractor-design="refined"] .contractor-drawer-backdrop { z-index: 60; border: 0; }
+.contractor-app[data-contractor-design="refined"] .contractor-sidebar-footer { flex-shrink: 0; }
+.contractor-app[data-contractor-design="refined"] .contractor-sidebar :is(a,button) { text-decoration: none; }
+.contractor-app[data-contractor-design="refined"] .contractor-sidebar :is(a,button):focus-visible { outline-color: #e4ecda !important; }
+.contractor-app[data-contractor-design="refined"] .contractor-content :is(button,a) { scroll-margin-top: 24px; }
+
+@media (min-width: 861px) {
+  .contractor-app[data-contractor-design="refined"].contractor-app-collapsed .contractor-sidebar { width: 84px !important; padding-inline: 12px !important; }
+  .contractor-app[data-contractor-design="refined"].contractor-app-collapsed .contractor-workspace { margin-right: 84px !important; }
+  .contractor-app[data-contractor-design="refined"].contractor-app-collapsed .contractor-sidebar-brand { padding: 0; min-height: 56px; }
+  .contractor-app[data-contractor-design="refined"].contractor-app-collapsed .contractor-sidebar-brand a { display: none; }
+  .contractor-app[data-contractor-design="refined"].contractor-app-collapsed .contractor-collapse { top: 18px; inset-inline-end: 20px; width: 44px; transform: rotate(180deg); }
+  .contractor-app[data-contractor-design="refined"].contractor-app-collapsed :where(.contractor-company-card div,.contractor-sidebar-brand > span,.contractor-nav-label,.contractor-sidebar nav b,.contractor-sidebar-footer > small,.contractor-logout b) { display: none; }
+  .contractor-app[data-contractor-design="refined"].contractor-app-collapsed .contractor-company-card { justify-content: center; padding: 8px 0; border: 0; background: none; }
+  .contractor-app[data-contractor-design="refined"].contractor-app-collapsed :where(.contractor-sidebar nav a,.contractor-logout) { justify-content: center; padding-inline: 8px; }
+  .contractor-app[data-contractor-design="refined"].contractor-app-collapsed .contractor-sidebar nav em { position: absolute; top: 1px; inset-inline-end: -1px; font-size: 9px; }
+}
+@media (max-width: 1100px) {
+  .contractor-app[data-contractor-design="refined"] .database-metrics { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  .contractor-app[data-contractor-design="refined"] .contractor-content { padding-inline: 24px; }
+}
+@media (max-width: 860px) {
+  .contractor-app[data-contractor-design="refined"] .contractor-sidebar { width: min(86vw,290px) !important; transform: translateX(105%); visibility: hidden; }
+  .contractor-app[data-contractor-design="refined"] .contractor-sidebar[data-open="true"] { transform: translateX(0); visibility: visible; }
+  .contractor-app[data-contractor-design="refined"] .contractor-workspace { margin-right: 0 !important; }
+  .contractor-app[data-contractor-design="refined"] .contractor-collapse { display: none; }
+  .contractor-app[data-contractor-design="refined"] .contractor-drawer-close { position: absolute; top: 23px; inset-inline-end: 12px; display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 10px; background: #285345; color: #fff; }
+  .contractor-app[data-contractor-design="refined"] .contractor-mobile-menu { display: grid; flex: 0 0 44px; place-items: center; width: 44px; height: 44px; border: 1px solid #dce5df !important; border-radius: 10px; background: #fff !important; color: #365b49 !important; }
+  .contractor-app[data-contractor-design="refined"] .contractor-topbar { min-height: 76px !important; padding: 12px 20px !important; }
+  .contractor-app[data-contractor-design="refined"] .contractor-top-actions time { display: none; }
+  .contractor-app[data-contractor-design="refined"] .contractor-breadcrumb { padding-inline: 20px !important; }
+  .contractor-app[data-contractor-design="refined"] .contractor-content { padding: 4px 20px 32px; }
+  .contractor-app[data-contractor-design="refined"] .contractor-drawer-backdrop[data-open="true"] { display: block; background: rgb(11 30 22 / 55%); }
+}
+@media (max-width: 560px) {
+  .contractor-app[data-contractor-design="refined"] .contractor-topbar-context > .contractor-status { display: none; }
+  .contractor-app[data-contractor-design="refined"] :is(input:not([type="checkbox"]):not([type="radio"]),select,textarea) { font-size: 16px; }
+  .contractor-app[data-contractor-design="refined"] .contractor-topbar { gap: 8px; padding: 10px 14px !important; }
+  .contractor-app[data-contractor-design="refined"] .contractor-topbar-context { gap: 8px; }
+  .contractor-app[data-contractor-design="refined"] .contractor-topbar-context p { display: block; font-size: 10px; }
+  .contractor-app[data-contractor-design="refined"] .contractor-topbar-context strong { max-width: 32vw; font-size: 13px; }
+  .contractor-app[data-contractor-design="refined"] .contractor-top-actions { gap: 6px; }
+  .contractor-app[data-contractor-design="refined"] .contractor-breadcrumb { padding-inline: 16px !important; }
+  .contractor-app[data-contractor-design="refined"] .contractor-content { padding: 0 14px 28px; }
+  .contractor-app[data-contractor-design="refined"] .database-page { gap: 18px; }
+  .contractor-app[data-contractor-design="refined"] .database-page-header { align-items: stretch; flex-direction: column; gap: 16px; }
+  .contractor-app[data-contractor-design="refined"] .database-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+  .contractor-app[data-contractor-design="refined"] .database-metrics article { padding: 16px; }
+  .contractor-app[data-contractor-design="refined"] .database-metrics strong { font-size: 26px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .contractor-app[data-contractor-design="refined"] *, .contractor-app[data-contractor-design="refined"] *::before, .contractor-app[data-contractor-design="refined"] *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
