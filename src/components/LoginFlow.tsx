@@ -6,6 +6,7 @@ import Link from "next/link";
 import { quoteReturnToQuery, resolveSafeReturnTo } from "@/lib/auth/return-to";
 import { normalizeSaudiPhone } from "@/lib/auth/phone-verification";
 import { isAppRole } from "@/lib/auth/types";
+import { loginErrorMessage } from "@/lib/auth/login-errors";
 import { createClient } from "@/lib/supabase/client";
 import { AuthCard, PasswordFieldWithVisibilityCheckbox, PortalShell } from "./PortalUI";
 
@@ -28,15 +29,6 @@ function normalizeLoginIdentifier(value: string) {
     .replace(/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/gu, "")
     .trim()
     .toLowerCase();
-}
-
-function loginErrorMessage(error: { code?: string; status?: number }) {
-  if (error.code === "invalid_credentials") return "لم تقبل خدمة تسجيل الدخول البريد أو كلمة المرور. أعد كتابتهما يدويًا أو استخدم استعادة كلمة المرور.";
-  if (error.code === "email_not_confirmed") return "البريد الإلكتروني غير مؤكد بعد. افتح رسالة التأكيد ثم حاول مجددًا.";
-  if (error.code === "user_banned") return "الحساب موقوف حاليًا. تواصل مع إدارة المنصة.";
-  if (error.code === "over_request_rate_limit" || error.status === 429) return "تمت محاولات كثيرة خلال وقت قصير. انتظر دقيقة ثم حاول مرة واحدة.";
-  if (error.code === "request_timeout") return "انتهت مهلة الاتصال بخدمة تسجيل الدخول. تحقق من الشبكة ثم حاول مجددًا.";
-  return "تعذر الاتصال بخدمة تسجيل الدخول حاليًا. بياناتك لم تُرفض؛ حاول مرة أخرى بعد قليل.";
 }
 
 export function LoginFlow({ initialError, returnTo }: { initialError?: string; returnTo?: string }) {
