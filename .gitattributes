@@ -5,3 +5,5 @@ supabase/migrations/086_provider_resumable_documents.sql text eol=lf
 supabase/migrations/087_contractor_company_individual_onboarding.sql text eol=lf
 supabase/migrations/088_contractor_approval_document_boundary.sql text eol=lf
 supabase/migrations/089_onboarding_temporary_password_24_hours.sql text eol=lf
+supabase/migrations/090_provider_catalog_without_prices.sql text eol=lf
+supabase/migrations/091_provider_product_correction_resubmission.sql text eol=lf

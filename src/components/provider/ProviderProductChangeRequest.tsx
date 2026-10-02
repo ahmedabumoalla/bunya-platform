@@ -5,13 +5,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { useAuthIdentity } from "@/components/auth/AuthIdentityProvider";
-import { signProductImageMap } from "@/lib/products/image-urls";
+import { isProductVideo, signProductImageMap } from "@/lib/products/image-urls";
 import { createClient } from "@/lib/supabase/client";
-import { optimizeUploadFile } from "@/lib/uploads/client";
+import { discardProductMedia, uploadProductMedia } from "@/lib/uploads/product-media-client";
 import styles from "./ProviderProducts.module.css";
+import { invalidProductMediaFile, isVideoFile, ProductReviewNotice, type ProductReviewDecision } from "./ProviderProducts";
 
 type Category = { id: string; name: string };
-type ExistingImage = { id: string; storage_path: string | null; image_url: string | null; alt_text: string; is_primary: boolean; sort_order: number; signed_url?: string | null };
+type ExistingImage = { id: string; storage_path: string | null; image_url: string | null; mime_type: string | null; alt_text: string; is_primary: boolean; sort_order: number; signed_url?: string | null };
 type NewImage = { file: File; preview: string };
 type RepeatOption = { type: string; value: string };
 type Product = Record<string, unknown> & {
@@ -21,6 +22,7 @@ type Product = Record<string, unknown> & {
   offer_type: string; minimum_order: number | null; stock_quantity: number | null;
   rental_duration_value: number | null; rental_duration_unit: string | null;
   review_status: string; product_images: ExistingImage[];
+  product_review_decisions: ProductReviewDecision[];
   product_measurements: Array<{ label: string; sort_order: number }>;
   product_variants: Array<{ name: string; attributes: Record<string, unknown>; sort_order: number }>;
   product_specifications: Array<{ value: string; sort_order: number }>;
@@ -59,6 +61,7 @@ export function ProviderProductChangeRequest({ productId }: { productId: string 
   const [pendingRequest, setPendingRequest] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [offerType, setOfferType] = useState("sale");
@@ -75,6 +78,8 @@ export function ProviderProductChangeRequest({ productId }: { productId: string 
   const [deliveryRegion, setDeliveryRegion] = useState("");
   const [existingImages, setExistingImages] = useState<ExistingImage[]>([]);
   const [newImages, setNewImages] = useState<NewImage[]>([]);
+  const [primaryImage, setPrimaryImage] = useState<string | null>(null);
+  const selectedPrimary = existingImages.some((image) => image.id === primaryImage && !isProductVideo(image)) || newImages.some((image) => image.preview === primaryImage && !isVideoFile(image.file)) ? primaryImage : existingImages.find((image) => !isProductVideo(image))?.id || newImages.find((image) => !isVideoFile(image.file))?.preview;
   const previews = useRef<string[]>([]);
 
   useEffect(() => {
@@ -83,7 +88,7 @@ export function ProviderProductChangeRequest({ productId }: { productId: string 
     const db = createClient();
     void Promise.all([
       db.from("product_categories").select("id,name").eq("is_active", true).order("sort_order"),
-      db.from("products").select("id,provider_id,category_id,custom_category,name,sku,base_unit,description,full_description,availability_status,lead_time_label,delivery_window,delivery_notes,offer_type,minimum_order,stock_quantity,rental_duration_value,rental_duration_unit,review_status,product_images(id,storage_path,image_url,alt_text,is_primary,sort_order),product_measurements(label,sort_order),product_variants(name,attributes,sort_order),product_specifications(value,sort_order),product_warranties(duration,details),product_availability_regions(city,scope),product_delivery_configs(is_available,maximum_duration,duration_unit,price_per_km,maximum_distance_km,notes),product_delivery_regions(region_name)").eq("id", productId).maybeSingle(),
+      db.from("products").select("id,provider_id,category_id,custom_category,name,sku,base_unit,description,full_description,availability_status,lead_time_label,delivery_window,delivery_notes,offer_type,minimum_order,stock_quantity,rental_duration_value,rental_duration_unit,review_status,product_images(id,storage_path,image_url,mime_type,alt_text,is_primary,sort_order),product_measurements(label,sort_order),product_variants(name,attributes,sort_order),product_specifications(value,sort_order),product_warranties(duration,details),product_availability_regions(city,scope),product_delivery_configs(is_available,maximum_duration,duration_unit,price_per_km,maximum_distance_km,notes),product_delivery_regions(region_name),product_review_decisions(outcome,reason,reviewed_at)").eq("id", productId).maybeSingle(),
       db.from("product_change_requests").select("id").eq("product_id", productId).eq("status", "pending").maybeSingle(),
     ]).then(async ([categoryResult, productResult, pendingResult]) => {
       if (!active) return;
@@ -95,7 +100,7 @@ export function ProviderProductChangeRequest({ productId }: { productId: string 
         setError("المنتج غير مرتبط بمنشأتك."); setLoading(false); return;
       }
       const images = [...(value.product_images || [])].sort((a, b) => Number(b.is_primary) - Number(a.is_primary) || a.sort_order - b.sort_order);
-      const urls = await signProductImageMap(db, images.map((item) => item.storage_path || ""), { width: 720, height: 520, quality: 74 });
+      const urls = await signProductImageMap(db, images, { width: 720, height: 520, quality: 74 });
       if (!active) return;
       setCategories((categoryResult.data || []) as Category[]);
       setProduct(value);
@@ -117,9 +122,9 @@ export function ProviderProductChangeRequest({ productId }: { productId: string 
   const allImageCount = existingImages.length + newImages.length;
   const selectImages = (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
-    const invalid = files.find((file) => !["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 5 * 1024 * 1024);
+    const invalid = invalidProductMediaFile(files);
     if (invalid || allImageCount + files.length > 6) {
-      setError(invalid ? `الصورة ${invalid.name} غير مدعومة أو أكبر من 5MB.` : "يمكن أن يحتوي المنتج على 6 صور كحد أقصى.");
+      setError(invalid ? `الملف ${invalid.name} غير مدعوم أو فارغ أو يتجاوز الحد: 5MB للصورة و100MB للفيديو.` : "يمكن أن يحتوي المنتج على 6 صور وفيديوهات إجمالًا.");
       event.target.value = ""; return;
     }
     const additions = files.map((file) => ({ file, preview: URL.createObjectURL(file) }));
@@ -130,7 +135,7 @@ export function ProviderProductChangeRequest({ productId }: { productId: string 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!product || busy || pendingRequest) return;
-    if (!allImageCount) { setError("أبقِ صورة واحدة على الأقل للمنتج."); return; }
+    if (!selectedPrimary) { setError("أبقِ صورة واحدة على الأقل للمنتج لتكون الصورة الرئيسية."); return; }
     setBusy(true); setError("");
     try {
       const form = new FormData(event.currentTarget);
@@ -143,24 +148,30 @@ export function ProviderProductChangeRequest({ productId }: { productId: string 
       form.set("availability_regions", JSON.stringify(availabilityRegions));
       form.set("delivery_regions", JSON.stringify(deliveryRegions.map((region_name) => ({ region_name }))));
       form.set("retained_image_ids", JSON.stringify(existingImages.map((image) => image.id)));
-      const optimized = await Promise.all(newImages.map((item) => optimizeUploadFile(item.file)));
-      optimized.forEach((file) => form.append("images", file, file.name));
+      form.set("primary_image", existingImages.some((image) => image.id === selectedPrimary) ? selectedPrimary! : `new:${newImages.findIndex((image) => image.preview === selectedPrimary)}`);
+      newImages.forEach((item) => form.append("images", item.file, item.file.name));
+      setUploadProgress(0);
+      await uploadProductMedia(form, { productId, onProgress: setUploadProgress });
+      setUploadProgress(null);
       const response = await fetch(`/api/provider/products/${productId}/change-requests`, { method: "POST", headers: { "Idempotency-Key": `web-product-change-${crypto.randomUUID()}` }, body: form });
-      const payload = await response.json() as { error?: string };
+      if (!response.ok) await discardProductMedia(form);
+      const payload = await response.json() as { error?: string; reviewStatus?: string };
       if (!response.ok) throw new Error(payload.error || "تعذر إرسال طلب التعديل.");
-      router.push("/merchant/products?change_requested=1"); router.refresh();
+      router.push(payload.reviewStatus === "pending_review" ? "/merchant/products?resubmitted=1" : "/merchant/products?change_requested=1"); router.refresh();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "تعذر إرسال طلب التعديل.");
-    } finally { setBusy(false); }
+    } finally { setBusy(false); setUploadProgress(null); }
   };
 
   if (loading) return <div className="provider-skeleton"><i/><i/><i/></div>;
   if (error && !product) return <section className="provider-empty"><h2>تعذر فتح طلب التعديل</h2><p>{error}</p><Link className="provider-secondary" href="/merchant/products">العودة للمنتجات</Link></section>;
   if (!product) return null;
   const delivery = product.product_delivery_configs;
+  const correction = product.review_status === "needs_changes";
 
   return <section className={`provider-page-stack ${styles.formPage}`}>
-    <header className="provider-page-header"><div><p>مراجعة بيانات المنتج</p><h1>طلب تعديل «{product.name}»</h1><span>لن تتغير النسخة المنشورة حتى تعتمد الإدارة الطلب. ستظهر لها كل قيمة قبل التعديل وبعده.</span></div><Link className="provider-secondary" href="/merchant/products">العودة للمنتجات</Link></header>
+    <header className="provider-page-header"><div><p>مراجعة بيانات المنتج</p><h1>{correction ? "تعديل وإعادة إرسال" : "طلب تعديل"} «{product.name}»</h1><span>{correction ? "نفّذ التعديل المطلوب من الإدارة ثم أعد إرسال المنتج للمراجعة." : "لن تتغير النسخة المنشورة حتى تعتمد الإدارة الطلب. ستظهر لها كل قيمة قبل التعديل وبعده."}</span></div><Link className="provider-secondary" href="/merchant/products">العودة للمنتجات</Link></header>
+    <ProductReviewNotice product={product} showAction={false}/>
     {pendingRequest ? <div className="provider-toast" role="status">يوجد طلب تعديل لهذا المنتج بانتظار قرار الإدارة. لا يمكن إرسال طلب ثانٍ الآن.</div> : null}
     <form className="provider-product-form" onSubmit={submit}>
       <fieldset className="provider-form-section"><legend><span>1</span> البيانات الأساسية</legend><div className="provider-form-grid">
@@ -172,10 +183,10 @@ export function ProviderProductChangeRequest({ productId }: { productId: string 
         <label className="provider-field wide"><span>وصف المنتج *</span><textarea name="description" required minLength={10} rows={4} defaultValue={product.full_description || product.description}/></label>
       </div></fieldset>
 
-      <fieldset className="provider-form-section"><legend><span>2</span> صور المنتج</legend><div className={styles.changeImageGrid}>
-        {existingImages.map((image)=><article key={image.id}>{image.signed_url?<Image src={image.signed_url} alt={image.alt_text || product.name} width={320} height={220} unoptimized/>:<div>صورة محفوظة</div>}<button type="button" onClick={()=>setExistingImages((items)=>items.filter((item)=>item.id!==image.id))}>إزالة من الطلب</button></article>)}
-        {newImages.map((image,index)=><article key={image.preview}><Image src={image.preview} alt={image.file.name} width={320} height={220} unoptimized/><button type="button" onClick={()=>{URL.revokeObjectURL(image.preview);setNewImages((items)=>items.filter((_,itemIndex)=>itemIndex!==index));}}>إزالة</button></article>)}
-      </div><label className="provider-image-drop"><strong>إضافة صور جديدة</strong><small>يمكنك الإبقاء على الصور الحالية أو حذفها وإضافة بدائل. الحد الأقصى 6 صور.</small><input className="provider-image-input" type="file" multiple accept="image/jpeg,image/png,image/webp" onChange={selectImages}/></label></fieldset>
+      <fieldset className="provider-form-section"><legend><span>2</span> صور وفيديوهات المنتج</legend><div className={styles.changeImageGrid}>
+        {existingImages.map((image)=><article key={image.id}>{image.signed_url ? isProductVideo(image) ? <video className={styles.mediaPreview} src={image.signed_url} controls playsInline preload="metadata" aria-label={image.alt_text || product.name}/> : <Image src={image.signed_url} alt={image.alt_text || product.name} width={320} height={220} unoptimized/> : <div>ملف محفوظ</div>}{isProductVideo(image) ? <span className={styles.mediaTypeLabel}>فيديو</span> : <button className={styles.primaryImageButton} type="button" aria-pressed={image.id === selectedPrimary} onClick={()=>setPrimaryImage(image.id)} disabled={busy}>{image.id === selectedPrimary ? "الصورة الرئيسية" : "تعيين كرئيسية"}</button>}<button type="button" disabled={busy} onClick={()=>setExistingImages((items)=>items.filter((item)=>item.id!==image.id))}>إزالة من الطلب</button></article>)}
+        {newImages.map((image,index)=><article key={image.preview}>{isVideoFile(image.file) ? <video className={styles.mediaPreview} src={image.preview} controls playsInline preload="metadata" aria-label={image.file.name}/> : <Image src={image.preview} alt={image.file.name} width={320} height={220} unoptimized/>}{isVideoFile(image.file) ? <span className={styles.mediaTypeLabel}>فيديو جديد</span> : <button className={styles.primaryImageButton} type="button" aria-pressed={image.preview === selectedPrimary} onClick={()=>setPrimaryImage(image.preview)} disabled={busy}>{image.preview === selectedPrimary ? "الصورة الرئيسية" : "تعيين كرئيسية"}</button>}<button type="button" disabled={busy} onClick={()=>{URL.revokeObjectURL(image.preview);setNewImages((items)=>items.filter((_,itemIndex)=>itemIndex!==index));}}>إزالة</button></article>)}
+      </div><label className="provider-image-drop"><strong>إضافة صور أو فيديوهات</strong><small>حتى 6 ملفات إجمالًا، مع صورة واحدة على الأقل. الصور JPG وPNG وWebP حتى 5MB، والفيديو MP4 وWebM وMOV حتى 100MB. اختر صورة لتكون الرئيسية.</small><input className="provider-image-input" type="file" multiple accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov" onChange={selectImages} disabled={busy}/></label></fieldset>
 
       <fieldset className="provider-form-section"><legend><span>3</span> المقاسات والخيارات والمواصفات</legend>
         <RepeatEditor label="قياس أو أبعاد" value={measurementDraft} onValue={setMeasurementDraft} onAdd={()=>{const value=measurementDraft.trim();if(value&&!measurements.includes(value)){setMeasurements((items)=>[...items,value]);setMeasurementDraft("");}}} items={measurements.map((value)=>({label:value,onRemove:()=>setMeasurements((items)=>items.filter((item)=>item!==value))}))}/>
@@ -203,8 +214,9 @@ export function ProviderProductChangeRequest({ productId }: { productId: string 
       </fieldset>
 
       <fieldset className="provider-form-section"><legend><span>6</span> سبب التعديل</legend><label className="provider-field"><span>ملاحظة للإدارة</span><textarea name="request_note" rows={3} maxLength={1000} placeholder="اشرح سبب التعديل أو أي معلومة تساعد الإدارة في المراجعة"/></label></fieldset>
+      {busy ? <p className={styles.uploadProgress} role="status" aria-live="polite">{uploadProgress === null ? "جارٍ حفظ التعديلات…" : `جارٍ رفع ملفات المنتج: ${Math.round(uploadProgress)}٪`}</p> : null}
       {error?<p className="provider-toast provider-toast-error" role="alert">{error}</p>:null}
-      <footer className="provider-form-actions"><Link className="provider-secondary" href="/merchant/products">إلغاء</Link><button className="provider-primary" type="submit" disabled={busy||pendingRequest}>{busy?"جارٍ إرسال الطلب…":"إرسال طلب التعديل للإدارة"}</button></footer>
+      <footer className="provider-form-actions"><Link className="provider-secondary" href="/merchant/products">إلغاء</Link><button className="provider-primary" type="submit" disabled={busy||pendingRequest}>{busy?"جارٍ إرسال الطلب…":correction?"حفظ التعديلات وإعادة الإرسال للمراجعة":"إرسال طلب التعديل للإدارة"}</button></footer>
     </form>
   </section>;
 }

@@ -31,6 +31,22 @@
 .catalog :global(.provider-product-body) dd { margin: 5px 0 0; color: #203e32; font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
 .catalog :global(.provider-product-body) p { margin: 0; color: #5d7167; font-size: 12px; }
 .formPage { min-width: 0; }
+.dismissibleToast { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.dismissibleToast button { flex: 0 0 44px; min-height: 44px; border: 0; border-radius: 8px; background: transparent; color: inherit; font: inherit; font-size: 24px; cursor: pointer; }
+.dismissibleToast button:focus-visible, .primaryImageButton:focus-visible { outline: 3px solid #6d9783; outline-offset: 3px; }
+.reviewNotice { position: relative; z-index: 3; display: grid; gap: 12px; min-width: 0; border: 1px solid #ded6c8; border-radius: 10px; background: #faf7f0; padding: 16px; color: #654b31; }
+.reviewNotice strong { font-size: 15px; }
+.reviewNotice p, .catalog .reviewNotice p { margin: 0; color: #654b31; font-size: 14px; line-height: 1.9; white-space: pre-wrap; overflow-wrap: anywhere; }
+.reviewNotice small { color: #765839; font-size: 12px; }
+.reviewNotice a { justify-self: start; }
+.formPage .primaryImageButton { min-height: 44px; border: 1px solid #c9d7ce; border-radius: 8px; padding: 8px 12px; background: #edf3ee !important; color: #173f35 !important; font: inherit; font-size: 13px; cursor: pointer; }
+.formPage .primaryImageButton[aria-pressed="true"] { border-color: #173f35; background: #173f35 !important; color: #fff !important; }
+.formPage :global(.provider-image-list) footer { flex-wrap: wrap; gap: 10px; }
+.mediaPreview { display: block; width: 100%; height: 224px; object-fit: contain; background: #f3f6f3; }
+.changeImageGrid .mediaPreview { height: 150px; }
+.mediaTypeLabel { display: grid; min-height: 44px; place-items: center; padding: 8px; color: #5d7167; font-size: 13px; }
+.videoThumbnail { display: grid; height: 100%; place-items: center; color: #173f35; font-size: 13px; }
+.uploadProgress { margin: 0; color: #173f35; font-size: 14px; font-variant-numeric: tabular-nums; }
 .formPage :global(.provider-product-form) { display: grid; gap: 24px; }
 .formPage :global(.provider-form-section) { min-width: 0; padding: 28px; border-radius: 16px; }
 .formPage :global(.provider-form-section) legend { font-size: 18px; font-weight: 700; }

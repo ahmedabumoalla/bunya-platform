@@ -5,15 +5,20 @@ import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { useAuthIdentity } from "@/components/auth/AuthIdentityProvider";
-import { signProductImageMap } from "@/lib/products/image-urls";
+import { isProductVideo, signProductImageMap } from "@/lib/products/image-urls";
 import { createClient } from "@/lib/supabase/client";
-import { optimizeUploadFile } from "@/lib/uploads/client";
+import { discardProductMedia, uploadProductMedia } from "@/lib/uploads/product-media-client";
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
 import { useDialogFocus } from "@/components/admin/useDialogFocus";
 import styles from "./ProviderProducts.module.css";
 
 type Category = { id: string; name: string };
 type SelectedImage = { file: File; preview: string };
+export function isVideoFile(file: File) { return isProductVideo({ mime_type: file.type, storage_path: file.name }); }
+export function invalidProductMediaFile(files: File[]) {
+  return files.find((file) => !["image/jpeg", "image/png", "image/webp", "video/mp4", "video/webm", "video/quicktime"].includes(file.type) || file.size === 0 || file.size > (isVideoFile(file) ? 100 : 5) * 1024 * 1024);
+}
+export type ProductReviewDecision = { outcome: string; reason: string | null; reviewed_at: string };
 type ProviderProduct = {
   id: string;
   name: string;
@@ -25,6 +30,7 @@ type ProviderProduct = {
   updated_at: string;
   custom_category: string | null;
   product_categories: { name: string } | null;
+  product_review_decisions: ProductReviewDecision[];
 };
 
 type ProviderProductImage = {
@@ -33,6 +39,7 @@ type ProviderProductImage = {
   alt_text: string;
   image_url: string | null;
   storage_path: string | null;
+  mime_type: string | null;
   is_primary: boolean;
   sort_order: number;
   signed_url: string | null;
@@ -96,9 +103,31 @@ const reviewClasses: Record<string, string> = {
   pending_review: "provider-status-info",
 };
 
+export function latestProductReviewDecision(decisions: ProductReviewDecision[] = []) {
+  return [...decisions].sort((first, second) => Date.parse(second.reviewed_at) - Date.parse(first.reviewed_at))[0];
+}
+
+export function productFeedbackFromQuery(query: string) {
+  const params = new URLSearchParams(query);
+  const messages: Record<string, string> = { created: "تم إنشاء المنتج بنجاح.", change_requested: "تم إرسال طلب تعديل المنتج إلى الإدارة.", resubmitted: "تم استلام التعديلات وإعادة إرسال المنتج للمراجعة." };
+  const keys = Object.keys(messages).filter((key) => params.get(key) === "1");
+  const message = keys.length ? messages[keys[keys.length - 1]] : "";
+  keys.forEach((key) => params.delete(key));
+  return { message, query: params.toString() };
+}
+
+export function ProductReviewNotice({ product, showAction = true }: { product: { id: string; review_status: string; product_review_decisions?: ProductReviewDecision[] }; showAction?: boolean }) {
+  if (product.review_status !== "needs_changes") return null;
+  const decision = latestProductReviewDecision(product.product_review_decisions);
+  return <aside className={styles.reviewNotice} role="note"><strong>التعديل المطلوب من الإدارة</strong><p>{decision?.reason?.trim() || "راجع بيانات المنتج وأعد إرساله للمراجعة. لا توجد ملاحظة إضافية مسجلة."}</p>{decision?.reviewed_at ? <small>آخر مراجعة: {new Date(decision.reviewed_at).toLocaleString("ar-SA")}</small> : null}{showAction ? <Link className={styles.changeRequestButton} href={`/merchant/products/${product.id}/change-request`}>تعديل المنتج وإعادة إرساله</Link> : null}</aside>;
+}
+
 export function ProviderProductsList() {
   const identity = useAuthIdentity();
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const queryString = searchParams.toString();
+  const [toast, setToast] = useState(() => productFeedbackFromQuery(queryString).message);
   const providerId = identity.details.provider?.providerId;
   const [products, setProducts] = useState<ProviderProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -112,6 +141,18 @@ export function ProviderProductsList() {
   const detailRequest = useRef(0);
 
   useEffect(() => {
+    const feedback = productFeedbackFromQuery(queryString);
+    if (!feedback.message) return;
+    router.replace(`/merchant/products${feedback.query ? `?${feedback.query}` : ""}${window.location.hash}`, { scroll: false });
+  }, [queryString, router]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timeout = window.setTimeout(() => setToast(""), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [toast]);
+
+  useEffect(() => {
     let active = true;
     const load = async () => {
       if (!providerId) {
@@ -121,7 +162,7 @@ export function ProviderProductsList() {
         }
         return;
       }
-      const { data, error: loadError } = await createClient().from("products").select("id,name,sku,base_unit,stock_quantity,review_status,is_published,updated_at,custom_category,product_categories(name)").eq("provider_id", providerId).order("updated_at", { ascending: false });
+      const { data, error: loadError } = await createClient().from("products").select("id,name,sku,base_unit,stock_quantity,review_status,is_published,updated_at,custom_category,product_categories(name),product_review_decisions(outcome,reason,reviewed_at)").eq("provider_id", providerId).order("updated_at", { ascending: false });
       if (!active) return;
       if (loadError) setError("تعذر تحميل منتجات المنشأة. تحقق من الاتصال ثم أعد المحاولة.");
       else setProducts((data ?? []) as unknown as ProviderProduct[]);
@@ -176,7 +217,7 @@ export function ProviderProductsList() {
     }
 
     const db = createClient();
-    const result = await db.from("products").select("id,name,sku,base_unit,stock_quantity,review_status,is_published,updated_at,created_at,short_description,description,full_description,availability_summary,availability_status,lead_time_label,delivery_label,delivery_window,delivery_notes,offer_type,minimum_order,rental_duration_value,rental_duration_unit,custom_category,product_categories(name),product_images(id,label,alt_text,image_url,storage_path,is_primary,sort_order),product_measurements(label,is_default,sort_order),product_variants(name,sku,attributes,is_active,sort_order),product_specifications(value,sort_order),product_warranties(label,duration,details)").eq("id", productId).eq("provider_id", providerId).maybeSingle();
+    const result = await db.from("products").select("id,name,sku,base_unit,stock_quantity,review_status,is_published,updated_at,created_at,short_description,description,full_description,availability_summary,availability_status,lead_time_label,delivery_label,delivery_window,delivery_notes,offer_type,minimum_order,rental_duration_value,rental_duration_unit,custom_category,product_categories(name),product_images(id,label,alt_text,image_url,storage_path,mime_type,is_primary,sort_order),product_measurements(label,is_default,sort_order),product_variants(name,sku,attributes,is_active,sort_order),product_specifications(value,sort_order),product_warranties(label,duration,details),product_review_decisions(outcome,reason,reviewed_at)").eq("id", productId).eq("provider_id", providerId).maybeSingle();
 
     if (detailRequest.current !== requestId) return;
     if (result.error || !result.data) {
@@ -191,7 +232,7 @@ export function ProviderProductsList() {
     const orderedImages = [...(product.product_images ?? [])].sort((first, second) => Number(second.is_primary) - Number(first.is_primary) || first.sort_order - second.sort_order);
     const signedUrls = await signProductImageMap(
       db,
-      orderedImages.map((image) => image.storage_path || ""),
+      orderedImages,
       { width: 1200, height: 900, quality: 76 },
     );
     const hydratedImages = orderedImages.map((image) => ({
@@ -225,10 +266,8 @@ export function ProviderProductsList() {
         <div><strong>{products.filter(product => product.review_status === "pending_review").length.toLocaleString("ar-SA")}</strong><span>بانتظار المراجعة</span></div>
       </div> : null}
 
-      {searchParams.get("created") === "1" ? (
-        <p className="provider-toast" role="status">
-          ✓ تم إنشاء المنتج بنجاح.
-        </p>
+      {toast ? (
+        <div className={`provider-toast ${styles.dismissibleToast}`} role="status"><span>{toast}</span><button type="button" onClick={() => setToast("")} aria-label="إغلاق رسالة النجاح">×</button></div>
       ) : null}
       {error ? (
         <p className="provider-toast provider-toast-error" role="alert">
@@ -293,6 +332,7 @@ export function ProviderProductsList() {
                   </div>
                 </dl>
                 <p>آخر تحديث: {new Date(product.updated_at).toLocaleString("ar-SA")}</p>
+                <ProductReviewNotice product={product}/>
                 <div className={styles.cardActions}>
                   {product.review_status === "approved" ? (
                     <Link className={styles.changeRequestButton} href={`/merchant/products/${product.id}/change-request`}>
@@ -358,9 +398,10 @@ function ProviderProductDetailsDialog({ product, loading, error, activeImage, on
             </header>
 
             {product.review_status === "pending_review" ? <p className={styles.readOnlyNotice}>⌛ المنتج تحت المراجعة. يمكنك مشاهدة جميع بياناته، ولا يمكن تعديله حتى تنتهي المراجعة.</p> : null}
+            <ProductReviewNotice product={product}/>
 
             <div className={styles.gallery}>
-              {shownImage?.signed_url ? (
+              {shownImage?.signed_url && isProductVideo(shownImage) ? <video className={styles.heroImage} src={shownImage.signed_url} controls playsInline preload="metadata" aria-label={shownImage.alt_text || `فيديو ${product.name}`}/> : shownImage?.signed_url ? (
                 <Image className={styles.heroImage} src={shownImage.signed_url} alt={shownImage.alt_text || product.name} width={1200} height={800} unoptimized />
               ) : (
                 <div className={styles.imageFallback}>
@@ -369,10 +410,10 @@ function ProviderProductDetailsDialog({ product, loading, error, activeImage, on
                 </div>
               )}
               {images.length > 1 ? (
-                <div className={styles.thumbnails} aria-label="صور المنتج">
+                <div className={styles.thumbnails} aria-label="صور وفيديوهات المنتج">
                   {images.map((image, index) => (
-                    <button type="button" key={image.id} className={index === activeImage ? styles.activeThumbnail : undefined} onClick={() => onActiveImage(index)} aria-label={`عرض الصورة ${index + 1}`} aria-pressed={index === activeImage}>
-                      <Image src={image.signed_url!} alt="" width={160} height={110} unoptimized />
+                    <button type="button" key={image.id} className={index === activeImage ? styles.activeThumbnail : undefined} onClick={() => onActiveImage(index)} aria-label={`عرض ${isProductVideo(image) ? "الفيديو" : "الصورة"} ${index + 1}`} aria-pressed={index === activeImage}>
+                      {isProductVideo(image) ? <span className={styles.videoThumbnail}>فيديو</span> : <Image src={image.signed_url!} alt="" width={160} height={110} unoptimized />}
                     </button>
                   ))}
                 </div>
@@ -504,8 +545,11 @@ export function ProviderProductCreate() {
   const [variantValue, setVariantValue] = useState("");
   const [variants, setVariants] = useState<ProductVariantInput[]>([]);
   const [images, setImages] = useState<SelectedImage[]>([]);
+  const [primaryImage, setPrimaryImage] = useState<string | null>(null);
+  const selectedPrimary = images.find((image) => image.preview === primaryImage && !isVideoFile(image.file))?.preview || images.find((image) => !isVideoFile(image.file))?.preview;
   const previewUrls = useRef<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -535,16 +579,16 @@ export function ProviderProductCreate() {
 
   const selectImages = (event: ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(event.target.files ?? []);
-    const invalid = selected.find((file) => !["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 5 * 1024 * 1024);
+    const invalid = invalidProductMediaFile(selected);
     if (invalid) {
-      setError(`الصورة ${invalid.name} غير مدعومة أو أكبر من 5MB.`);
+      setError(`الملف ${invalid.name} غير مدعوم أو فارغ أو يتجاوز الحد: 5MB للصورة و100MB للفيديو.`);
       event.target.value = "";
       return;
     }
     const existing = new Set(images.map(({ file }) => `${file.name}:${file.size}:${file.lastModified}`));
     const additions = selected.filter((file) => !existing.has(`${file.name}:${file.size}:${file.lastModified}`));
     if (images.length + additions.length > 6) {
-      setError(`يمكن رفع 6 صور كحد أقصى. لديك ${images.length.toLocaleString("ar-SA")} صورة محددة حاليًا.`);
+      setError(`يمكن رفع 6 صور وفيديوهات إجمالًا. لديك ${images.length.toLocaleString("ar-SA")} ملفات محددة حاليًا.`);
       event.target.value = "";
       return;
     }
@@ -610,6 +654,7 @@ export function ProviderProductCreate() {
       setError("أضف صورة واحدة على الأقل قبل إرسال المنتج للمراجعة.");
       return;
     }
+    if (images.length && !selectedPrimary) { setError("أضف صورة واحدة على الأقل واخترها رئيسية؛ لا يمكن تعيين فيديو كصورة رئيسية."); return; }
     const limitedQuantity = Number(form.get("stock_quantity") || 0);
     if (availabilityStatus === "limited" && limitedQuantity <= 0) {
       setError("حدد الكمية المتوفرة عندما تكون حالة التوفر «كمية محدودة».");
@@ -619,12 +664,16 @@ export function ProviderProductCreate() {
     setBusy(true);
     try {
       form.set("intent", reviewStatus);
-      const optimizedImages = await Promise.all(images.map((image) => optimizeUploadFile(image.file)));
-      optimizedImages.forEach((image) => form.append("images", image, image.name));
+      if (images.length) form.set("primary_image", `new:${images.findIndex((image) => image.preview === selectedPrimary)}`);
+      images.forEach((image) => form.append("images", image.file, image.file.name));
+      setUploadProgress(0);
+      await uploadProductMedia(form, { onProgress: setUploadProgress });
+      setUploadProgress(null);
       const response = await fetch("/api/provider/products", {
         method: "POST",
         body: form,
       });
+      if (!response.ok) await discardProductMedia(form);
       const result = (await response.json()) as { error?: string };
       if (!response.ok) {
         setError(result.error ?? "تعذر إنشاء المنتج.");
@@ -635,10 +684,11 @@ export function ProviderProductCreate() {
       setImages([]);
       router.push("/merchant/products?created=1");
       router.refresh();
-    } catch {
-      setError("تعذر الاتصال بالخادم أثناء إنشاء المنتج.");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "تعذر الاتصال بالخادم أثناء إنشاء المنتج.");
     } finally {
       setBusy(false);
+      setUploadProgress(null);
     }
   };
 
@@ -702,29 +752,30 @@ export function ProviderProductCreate() {
 
         <fieldset className="provider-form-section">
           <legend>
-            <span>2</span> صور المنتج
+            <span>2</span> صور وفيديوهات المنتج
           </legend>
           <label className="provider-image-drop">
             <span aria-hidden>▧</span>
-            <strong>اختر صور المنتج</strong>
-            <small>JPEG أو PNG أو WebP، حتى 5MB للصورة، وبحد أقصى 6 صور. يمكنك الضغط مرة أخرى لإضافة صور دون حذف المحدد سابقًا، والصورة الأولى ستكون الرئيسية.</small>
-            <input className="provider-image-input" type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={selectImages} />
+            <strong>اختر صورًا أو فيديوهات للمنتج</strong>
+            <small>الصور JPEG أو PNG أو WebP حتى 5MB، والفيديو MP4 أو WebM أو MOV حتى 100MB. الحد الإجمالي 6 ملفات مع صورة واحدة على الأقل، ويمكنك اختيار الصورة الرئيسية أدناه.</small>
+            <input className="provider-image-input" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov" multiple onChange={selectImages} disabled={busy}/>
           </label>
           {images.length ? (
             <div className="provider-image-list">
               {images.map((image, index) => (
                 <article key={`${image.file.name}-${image.file.lastModified}`}>
-                  <Image src={image.preview} alt={`معاينة ${image.file.name}`} width={320} height={224} unoptimized />
+                  {isVideoFile(image.file) ? <video className={styles.mediaPreview} src={image.preview} controls playsInline preload="metadata" aria-label={`معاينة ${image.file.name}`}/> : <Image src={image.preview} alt={`معاينة ${image.file.name}`} width={320} height={224} unoptimized />}
                   <strong>{image.file.name}</strong>
                   <small>
-                    {index === 0 ? "الصورة الرئيسية" : `الصورة ${index + 1}`} ·{" "}
+                    {image.preview === selectedPrimary ? "الصورة الرئيسية" : `${isVideoFile(image.file) ? "الفيديو" : "الصورة"} ${index + 1}`} ·{" "}
                     {(image.file.size / 1024 / 1024).toLocaleString("ar-SA", {
                       maximumFractionDigits: 2,
                     })}
                     MB
                   </small>
                   <footer>
-                    <button type="button" onClick={() => removeImage(index)}>
+                    {!isVideoFile(image.file) ? <button className={styles.primaryImageButton} type="button" aria-pressed={image.preview === selectedPrimary} onClick={() => setPrimaryImage(image.preview)} disabled={busy}>{image.preview === selectedPrimary ? "الصورة الرئيسية" : "تعيين كرئيسية"}</button> : null}
+                    <button type="button" onClick={() => removeImage(index)} disabled={busy}>
                       إزالة
                     </button>
                   </footer>
@@ -927,6 +978,7 @@ export function ProviderProductCreate() {
             {error}
           </p>
         ) : null}
+        {busy ? <p className={styles.uploadProgress} role="status" aria-live="polite">{uploadProgress === null ? "جارٍ حفظ المنتج…" : `جارٍ رفع ملفات المنتج: ${Math.round(uploadProgress)}٪`}</p> : null}
         <footer className="provider-form-actions">
           <Link className="provider-secondary" href="/merchant/products">
             إلغاء

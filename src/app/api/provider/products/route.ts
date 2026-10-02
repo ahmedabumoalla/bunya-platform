@@ -3,6 +3,9 @@ import { dispatchProductReviewNotifications } from "@/lib/notifications/product-
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { productImageTone } from "@/lib/products/image-tone";
+import { productPrimaryIndex, type UploadedProductMedia } from "@/lib/products/media";
+import { verifiedProductMedia } from "@/lib/products/media-server";
+import { PublicJoinError } from "@/lib/join/security";
 
 export const runtime = "nodejs";
 
@@ -12,6 +15,7 @@ const MAX_IMAGES = 6;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 type ProductInsert = {
+  id?: string;
   provider_id: string;
   created_by: string;
   category_id: string | null;
@@ -168,12 +172,21 @@ export async function POST(request: Request) {
   if (offerType === "rental" && (rentalDuration === null || rentalDuration <= 0 || !rentalDurationUnit)) {
     return Response.json({ error: "حدد مدة التأجير ووحدتها." }, { status: 400 });
   }
-  if (images.length > MAX_IMAGES) return Response.json({ error: `يمكن رفع ${MAX_IMAGES} صور كحد أقصى.` }, { status: 400 });
-  if (intent === "pending_review" && images.length === 0) {
+  const requestedProductId = text(form, "product_id");
+  if (requestedProductId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestedProductId)) return Response.json({ error: "معرف المنتج غير صالح." }, { status: 400 });
+  let directMedia: UploadedProductMedia[];
+  try { directMedia = await verifiedProductMedia(form, provider.providerId, requestedProductId); }
+  catch (error) { return Response.json({ error: error instanceof PublicJoinError ? error.message : "تعذر التحقق من المرفقات." }, { status: error instanceof PublicJoinError ? error.status : 500 }); }
+  if (directMedia.length && (!requestedProductId || images.length)) return Response.json({ error: "جلسة رفع المرفقات غير صالحة." }, { status: 400 });
+  const mediaCount = images.length + directMedia.length;
+  if (mediaCount > MAX_IMAGES) return Response.json({ error: `يمكن رفع ${MAX_IMAGES} صور وفيديوهات كحد أقصى.` }, { status: 400 });
+  if (intent === "pending_review" && mediaCount === 0) {
     return Response.json({ error: "أضف صورة واحدة على الأقل قبل إرسال المنتج للمراجعة." }, { status: 400 });
   }
   const invalidImage = images.find((image) => !IMAGE_TYPES.has(image.type) || image.size > MAX_IMAGE_BYTES);
   if (invalidImage) return Response.json({ error: `الصورة ${invalidImage.name} غير مدعومة أو أكبر من 5MB.` }, { status: 400 });
+  const primaryIndex = productPrimaryIndex(text(form, "primary_image"), [...images.map(file => file.type), ...directMedia.map(file => file.mimeType)].map((mimeType, index) => ({ key: `new:${index}`, mimeType })));
+  if ((mediaCount > 0 || text(form, "primary_image")) && primaryIndex < 0) return Response.json({ error: "اختر صورة رئيسية من الصور المرفقة للمنتج." }, { status: 400 });
 
   const supabase = await createClient();
   let categoryTone = "tools";
@@ -191,6 +204,7 @@ export async function POST(request: Request) {
   }
 
   const product: ProductInsert = {
+    ...(requestedProductId ? { id: requestedProductId } : {}),
     provider_id: provider.providerId,
     created_by: identity.userId,
     category_id: usesCustomCategory ? null : categoryId,
@@ -215,7 +229,8 @@ export async function POST(request: Request) {
     stock_quantity: stockQuantity,
     rental_duration_value: offerType === "rental" ? rentalDuration : null,
     rental_duration_unit: offerType === "rental" ? rentalDurationUnit : null,
-    review_status: intent,
+    // Assemble the draft before locking it for administrative review.
+    review_status: "draft",
     is_published: false,
     is_new: true,
   };
@@ -299,13 +314,25 @@ export async function POST(request: Request) {
         file_name: image.name,
         mime_type: image.type,
         file_size_bytes: image.size,
-        is_primary: index === 0,
+        is_primary: index === primaryIndex,
         sort_order: index,
       });
       if (imageRow.error) throw new Error(`تعذر تسجيل الصورة ${image.name}.`);
     }
 
+    for (let index = 0; index < directMedia.length; index++) {
+      const media = directMedia[index];
+      uploadedPaths.push(media.path);
+      const saved = await supabase.from("product_images").insert({ product_id: productId,
+        label: `${name} - مرفق ${index + 1}`, alt_text: `مرفق المنتج ${name}`, tone: categoryTone,
+        storage_path: media.path, file_name: media.name, mime_type: media.mimeType, file_size_bytes: media.size,
+        is_primary: index === primaryIndex, sort_order: index });
+      if (saved.error) throw new Error("تعذر حفظ مرفقات المنتج.");
+    }
+
     if (intent === "pending_review") {
+      const submitted = await supabase.rpc("submit_product_for_review", { p_product_id: productId });
+      if (submitted.error) throw new Error("تعذر إرسال المنتج للمراجعة.");
       const admin = createAdminClient();
       const recipients = await admin.from("admin_users").select("profile_id").eq("is_active", true);
       if (recipients.error || !recipients.data?.length) throw new Error("لا يوجد مدير نشط لاستقبال طلب المراجعة.");

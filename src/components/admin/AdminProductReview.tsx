@@ -4,7 +4,7 @@ import { lockBodyScroll } from "@/lib/body-scroll-lock";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { signProductImageMap } from "@/lib/products/image-urls";
+import { isProductVideo, signProductImageMap } from "@/lib/products/image-urls";
 import { createClient } from "@/lib/supabase/client";
 import { useDialogFocus } from "./useDialogFocus";
 import styles from "./AdminProductReview.module.css";
@@ -15,6 +15,7 @@ type ImageRow = {
   label: string;
   alt_text: string;
   image_url: string | null;
+  mime_type: string | null;
   storage_path: string | null;
   is_primary: boolean;
   sort_order: number;
@@ -67,7 +68,7 @@ type Product = {
   product_review_decisions: Decision[];
 };
 
-const productSelection = "id,category_id,name,sku,base_unit,stock_quantity,review_status,is_published,updated_at,created_at,custom_category,short_description,description,full_description,availability_summary,availability_status,lead_time_label,delivery_label,delivery_window,delivery_notes,offer_type,minimum_order,rental_duration_value,rental_duration_unit,providers(company_name),product_categories(id,name),product_images(id,label,alt_text,image_url,storage_path,is_primary,sort_order),product_measurements(label,is_default,sort_order),product_variants(name,sku,attributes,is_active,sort_order),product_specifications(value,sort_order),product_warranties(label,duration,details),product_review_decisions(outcome,reason,reviewed_at)";
+const productSelection = "id,category_id,name,sku,base_unit,stock_quantity,review_status,is_published,updated_at,created_at,custom_category,short_description,description,full_description,availability_summary,availability_status,lead_time_label,delivery_label,delivery_window,delivery_notes,offer_type,minimum_order,rental_duration_value,rental_duration_unit,providers(company_name),product_categories(id,name),product_images(id,label,alt_text,image_url,storage_path,mime_type,is_primary,sort_order),product_measurements(label,is_default,sort_order),product_variants(name,sku,attributes,is_active,sort_order),product_specifications(value,sort_order),product_warranties(label,duration,details),product_review_decisions(outcome,reason,reviewed_at)";
 const labels: Record<string, string> = {
   draft: "مسودة",
   pending_review: "بانتظار المراجعة",
@@ -142,13 +143,13 @@ export function AdminProductReview({ initialProductId }: { initialProductId?: st
         const rawProducts = (result.data || []) as unknown as Product[];
         const signedUrls = await signProductImageMap(
           db,
-          rawProducts.flatMap((product) => product.product_images.map((image) => image.storage_path || "")),
+          rawProducts.flatMap((product) => product.product_images),
           { width: 720, height: 720, quality: 72 },
         );
         const hydrated = rawProducts.map((product) => ({
           ...product,
           product_images: [...(product.product_images || [])]
-            .sort((a, b) => Number(b.is_primary) - Number(a.is_primary) || a.sort_order - b.sort_order)
+            .sort((a, b) => Number(isProductVideo(a)) - Number(isProductVideo(b)) || Number(b.is_primary) - Number(a.is_primary) || a.sort_order - b.sort_order)
             .map((image) => ({
               ...image,
               signed_url: (image.storage_path ? signedUrls.get(image.storage_path) : null) || image.image_url,
@@ -368,7 +369,7 @@ export function AdminProductReview({ initialProductId }: { initialProductId?: st
       ) : filtered.length ? (
         <section className={styles.list}>
           {filtered.map((product) => {
-            const productImage = product.product_images.find((item) => item.signed_url);
+            const productImage = product.product_images.find((item) => item.signed_url && !isProductVideo(item));
             return (
               <article className={styles.card} key={product.id}>
                 <div className={styles.visual}>
@@ -513,7 +514,9 @@ function ProductDialog({ product, categories, categoryDraft, categorySaving, act
           <div className={styles.gallery}>
             <div className={styles.heroImage}>
               {shown?.signed_url ? (
-                <Image src={shown.signed_url} alt={shown.alt_text || product.name} fill sizes="(max-width: 1000px) 90vw, 46vw" unoptimized />
+                isProductVideo(shown) ? <video key={shown.signed_url} src={shown.signed_url} controls preload="metadata" playsInline aria-label={shown.alt_text || product.name} className={styles.video}>
+                  <a href={shown.signed_url}>فتح فيديو المنتج</a>
+                </video> : <Image src={shown.signed_url} alt={shown.alt_text || product.name} fill sizes="(max-width: 1000px) 90vw, 46vw" unoptimized />
               ) : (
                 <div className={styles.fallback}>
                   <div>
@@ -526,8 +529,8 @@ function ProductDialog({ product, categories, categoryDraft, categorySaving, act
             {images.length > 1 ? (
               <div className={styles.thumbs}>
                 {images.map((image, index) => (
-                  <button className={index === activeImage ? styles.active : ""} type="button" onClick={() => onActiveImage(index)} key={image.id}>
-                    <Image src={image.signed_url!} alt="" fill sizes="120px" unoptimized />
+                  <button className={index === activeImage ? styles.active : ""} type="button" aria-label={image.label || (isProductVideo(image) ? "عرض الفيديو" : "عرض الصورة")} aria-pressed={index === activeImage} onClick={() => onActiveImage(index)} key={image.id}>
+                    {isProductVideo(image) ? <span>▶ فيديو</span> : <Image src={image.signed_url!} alt="" fill sizes="120px" unoptimized />}
                   </button>
                 ))}
               </div>

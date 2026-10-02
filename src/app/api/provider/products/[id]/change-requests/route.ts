@@ -10,6 +10,9 @@ import { assertSameOrigin, PublicJoinError } from "@/lib/join/security";
 import { dispatchNotificationEvent } from "@/lib/notifications/dispatcher";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { PRODUCT_IMAGE_TONES, productImageTone } from "@/lib/products/image-tone";
+import { productPrimaryIndex } from "@/lib/products/media";
+import { verifiedProductMedia } from "@/lib/products/media-server";
+import { dispatchProductReviewNotifications } from "@/lib/notifications/product-review-dispatcher";
 
 export const runtime = "nodejs";
 
@@ -85,8 +88,9 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       .maybeSingle();
     if (productResult.error) throw new Error("product_change_product_lookup_failed");
     if (!productResult.data || productResult.data.provider_id !== provider.providerId) throw new PublicJoinError("المنتج غير موجود ضمن منشأتك.", 404);
-    if (productResult.data.review_status !== "approved" || !productResult.data.is_published) {
-      throw new PublicJoinError("يمكن طلب تعديل المنتجات المعتمدة والمنشورة فقط.", 409);
+    const isRevision = productResult.data.review_status === "needs_changes";
+    if (!isRevision && (productResult.data.review_status !== "approved" || !productResult.data.is_published)) {
+      throw new PublicJoinError("يمكن تعديل المنتجات التي تحتاج تعديلات أو المعتمدة والمنشورة فقط.", 409);
     }
 
     const name = text(form, "name");
@@ -149,10 +153,18 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       .order("sort_order");
     if (currentImages.error) throw new Error("product_change_images_lookup_failed");
     const retained = (currentImages.data as ExistingImage[]).filter((image) => retainedIds.has(image.id));
+    if (retained.length !== retainedIds.size) throw new PublicJoinError("إحدى الصور المحددة لا تنتمي لهذا المنتج.", 400);
     const newImages = form.getAll("images").filter((value): value is File => value instanceof File && value.size > 0);
-    if (retained.length + newImages.length < 1 || retained.length + newImages.length > 6) throw new PublicJoinError("يجب الإبقاء على صورة واحدة وحتى 6 صور للمنتج.", 400);
+    const directMedia = await verifiedProductMedia(form, provider.providerId, productId);
+    if (directMedia.length && newImages.length) throw new PublicJoinError("جلسة رفع المرفقات غير صالحة.", 400);
+    if (retained.length + newImages.length + directMedia.length < 1 || retained.length + newImages.length + directMedia.length > 6) throw new PublicJoinError("أرفق من ملف واحد إلى 6 ملفات، تتضمن صورة للغلاف.", 400);
     const invalidImage = newImages.find((image) => !IMAGE_TYPES.has(image.type) || image.size > 5 * 1024 * 1024);
     if (invalidImage) throw new PublicJoinError(`الصورة ${invalidImage.name} غير مدعومة أو أكبر من 5MB.`, 400);
+    const primaryIndex = productPrimaryIndex(text(form, "primary_image"), [
+      ...retained.map(image => ({ key: image.id, mimeType: image.mime_type })),
+      ...[...newImages.map(file => file.type), ...directMedia.map(file => file.mimeType)].map((mimeType, index) => ({ key: `new:${index}`, mimeType })),
+    ]);
+    if (primaryIndex < 0) throw new PublicJoinError("اختر صورة رئيسية من الصور المرفقة للمنتج.", 400);
 
     const requestToken = crypto.randomUUID();
     const proposedImages: Array<Record<string, unknown>> = retained.map((image) => ({ ...image }));
@@ -175,8 +187,14 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         sort_order: proposedImages.length,
       });
     }
+    for (const media of directMedia) {
+      // Ownership, immutable path and actual Storage contents were verified above.
+      proposedImages.push({ label: `${name} - مرفق ${proposedImages.length + 1}`, alt_text: `مرفق المنتج ${name}`, tone: categoryTone,
+        image_url: null, storage_path: media.path, file_name: media.name, mime_type: media.mimeType,
+        file_size_bytes: media.size, is_primary: false, sort_order: proposedImages.length });
+    }
     proposedImages.forEach((image, index) => {
-      image.is_primary = index === 0;
+      image.is_primary = index === primaryIndex;
       image.sort_order = index;
       image.tone = PRODUCT_IMAGE_TONES.has(String(image.tone)) ? image.tone : categoryTone;
     });
@@ -243,9 +261,11 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       if (result.error.message.includes("No product data was changed")) throw new PublicJoinError("لم تغيّر أي بيانات في المنتج.", 400);
       throw new PublicJoinError(`تعذر حفظ طلب التعديل: ${result.error.message}`, 400);
     }
-    const payload = result.data as { request_id?: string; event_id?: string };
-    if (payload.event_id) await dispatchNotificationEvent(payload.event_id).catch((error) => console.error("product_change_notification_dispatch_failed", error instanceof Error ? error.message : "unknown"));
-    return authRouteResponse(request, { requestId: payload.request_id, status: "pending" }, 201);
+    const payload = result.data as { request_id?: string; event_id?: string; review_status?: string };
+    if (isRevision) {
+      if (process.env.NOTIFICATIONS_ENABLED === "true") await dispatchProductReviewNotifications().catch(() => console.error("product_resubmission_dispatch_failed"));
+    } else if (payload.event_id) await dispatchNotificationEvent(payload.event_id).catch((error) => console.error("product_change_notification_dispatch_failed", error instanceof Error ? error.message : "unknown"));
+    return authRouteResponse(request, { requestId: payload.request_id, status: "pending", reviewStatus: payload.review_status }, 201);
   } catch (error) {
     if (uploadedPaths.length) await createAdminClient().storage.from(IMAGE_BUCKET).remove(uploadedPaths).catch(() => undefined);
     if (error instanceof PublicJoinError) return authRouteResponse(request, { error: error.message }, error.status);

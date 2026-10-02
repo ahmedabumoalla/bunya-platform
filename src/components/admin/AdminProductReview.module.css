@@ -18,3 +18,4 @@
   background: #e4ebe6; color: #43584c; border-color: #bccbc2 !important;
   opacity: 1; box-shadow: none; cursor: not-allowed; transform: none;
 }
+.video{display:block;width:100%;height:100%;object-fit:contain;background:#10251e}.thumbs button{min-height:44px}.thumbs button span{color:#203e32;font-weight:800}

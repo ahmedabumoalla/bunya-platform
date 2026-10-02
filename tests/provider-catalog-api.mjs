@@ -14,9 +14,11 @@ const createCode=compile('src/app/api/provider/products/route.ts');
 const changeCode=compile('src/app/api/provider/products/[id]/change-requests/route.ts');
 const imageTones={};
 vm.runInNewContext(compile('src/lib/products/image-tone.ts'),{exports:imageTones});
+const media={};
+vm.runInNewContext(compile('src/lib/products/media.ts'),{exports:media});
 class PublicJoinError extends Error { constructor(message,status){super(message);this.status=status;} }
 
-function harness({authenticated=true,foreign=false,published=true,category=null,categoryError=false}={}){
+function harness({authenticated=true,foreign=false,published=true,reviewStatus,category=null,categoryError=false,directMedia=[]}={}){
   const writes=[],calls=[];
   const identity=authenticated?{status:'ready',activeRoles:['provider'],userId:'owner',details:{provider:{providerId,companyName:'Supplier'}}}:null;
   const db={
@@ -26,7 +28,7 @@ function harness({authenticated=true,foreign=false,published=true,category=null,
       const result=()=>{
         if(table==='product_categories')return {data:category?.id===filters.id&&category?.is_active===filters.is_active?{slug:category.slug}:null,error:categoryError?{message:'category lookup failed'}:null};
         if(operation==='insert')return {data:table==='products'?{id:productId}:null,error:null};
-        if(table==='products')return {data:{id:productId,provider_id:foreign?'another-provider':providerId,review_status:published?'approved':'draft',is_published:published},error:null};
+        if(table==='products')return {data:{id:productId,provider_id:foreign?'another-provider':providerId,review_status:reviewStatus||(published?'approved':'draft'),is_published:published},error:null};
         if(table==='product_images')return {data:[{id:imageId,storage_path:`${providerId}/${productId}/image.jpg`,is_primary:true,sort_order:0}],error:null};
         if(table==='admin_users')return {data:[{profile_id:'reviewer'}],error:null};
         return {data:[],error:null};
@@ -35,7 +37,7 @@ function harness({authenticated=true,foreign=false,published=true,category=null,
       return q;
     },
     storage:{from(){return {upload:async()=>({error:null}),remove:async()=>({error:null})};}},
-    async rpc(name,args){calls.push({name,args});return {data:{request_id:'change-request'},error:null};},
+    async rpc(name,args){calls.push({name,args});return {data:reviewStatus==='needs_changes'?{product_id:productId,review_status:'pending_review'}:{request_id:'change-request'},error:null};},
   };
   function load(code){
     const exports={};
@@ -44,6 +46,8 @@ function harness({authenticated=true,foreign=false,published=true,category=null,
       if(name==='@/lib/supabase/server')return {createClient:async()=>db};
       if(name==='@/lib/supabase/admin')return {createAdminClient:()=>db};
       if(name==='@/lib/products/image-tone')return imageTones;
+      if(name==='@/lib/products/media')return media;
+      if(name==='@/lib/products/media-server')return {verifiedProductMedia:async()=>directMedia};
       if(name==='@/lib/auth/resolve-identity')return {resolveAuthIdentity:async()=>identity};
       if(name==='@/lib/auth/request-client')return {createAuthRequestClient:async()=>({user:authenticated?{id:'owner'}:null,usesBearer:true,supabase:db}),isLocalAppOrigin:()=>false,authRouteResponse:(_,body,status)=>Response.json(body,{status}),authRouteOptions:()=>new Response(null,{status:204})};
       if(name==='@/lib/join/security')return {PublicJoinError,assertSameOrigin(){throw Error('Unexpected cookie request');}};
@@ -111,7 +115,7 @@ for(const [slug,tone] of Object.entries({cement:'cement',steel:'steel','blocks-b
   assert.equal(h.writes.find(row=>row.table==='product_images').payload.tone,tone);
   const changed=await h.change(request(form({category_id:categoryId})),{params:Promise.resolve({id:productId})});
   assert.equal(changed.status,201,`${slug}: ${await changed.text()}`);
-  assert.equal(h.calls[0].args.p_proposed_snapshot.images[0].tone,tone);
+  assert.equal(h.calls.find(call=>call.name==='submit_product_change_request').args.p_proposed_snapshot.images[0].tone,tone);
   cases++;
 }
 for(const options of [{},{category:{id:categoryId,slug:'cement',is_active:false}},{category:{id:categoryId,slug:'cement',is_active:true},categoryError:true}]){
@@ -120,4 +124,51 @@ for(const options of [{},{category:{id:categoryId,slug:'cement',is_active:false}
   assert.equal((await h.change(request(form({category_id:categoryId})),{params:Promise.resolve({id:productId})})).status,400);
   assert.equal(h.writes.length,0);assert.equal(h.calls.length,0);cases++;
 }
-console.log(`PASS: ${cases} catalog API cases; all nine live category slugs and future active categories accepted with valid image tones, absent/inactive/error categories denied, price-free contracts and ownership preserved. No real DB writes or messages.`);
+for(const primary of ['new:0','new:1']){
+  const h=harness(),data=form({intent:'pending_review',primary_image:primary});
+  for(const name of ['a.jpg','b.jpg'])data.append('images',new File(['image'],name,{type:'image/jpeg'}));
+  assert.equal((await h.create(request(data))).status,201);
+  assert.equal(h.writes.find(row=>row.table==='products').payload.review_status,'draft');
+  assert.equal(h.calls[0].name,'submit_product_for_review');
+  assert.deepEqual(h.writes.filter(row=>row.table==='product_images').map(row=>row.payload.is_primary),primary==='new:0'?[true,false]:[false,true]);
+  cases++;
+}
+for(const selection of [imageId,'new:0']){
+  const h=harness({published:false,reviewStatus:'needs_changes'}),data=form({primary_image:selection});
+  data.append('images',new File(['image'],'new.jpg',{type:'image/jpeg'}));
+  const response=await h.change(request(data),{params:Promise.resolve({id:productId})});
+  assert.equal(response.status,201,await response.clone().text());
+  assert.equal((await response.json()).reviewStatus,'pending_review');
+  assert.equal(h.calls[0].args.p_product_id,productId);
+  assert.deepEqual(Array.from(h.calls[0].args.p_proposed_snapshot.images,image=>image.is_primary),selection===imageId?[true,false]:[false,true]);
+  cases++;
+}
+for(const extra of [{primary_image:'new:88'},{primary_image:'foreign-id'},{retained_image_ids:'["foreign-image"]'}]){
+  const h=harness();
+  assert.equal((await h.change(request(form(extra)),{params:Promise.resolve({id:productId})})).status,400);
+  assert.equal(h.calls.length,0);cases++;
+}
+for(const reviewStatus of ['pending_review','rejected','inactive']){
+  const h=harness({published:false,reviewStatus});
+  assert.equal((await h.change(request(form()),{params:Promise.resolve({id:productId})})).status,409);
+  assert.equal(h.calls.length,0);cases++;
+}
+const direct=[{path:`${providerId}/${productId}/uploads/image.jpg`,name:'cover.jpg',mimeType:'image/jpeg',size:200},{path:`${providerId}/${productId}/uploads/video.mp4`,name:'work.mp4',mimeType:'video/mp4',size:20*1024**2}];
+{
+  const h=harness({directMedia:direct});
+  const response=await h.create(request(form({intent:'pending_review',product_id:productId,primary_image:'new:0'})));
+  assert.equal(response.status,201,await response.text());
+  assert.equal(h.writes.find(row=>row.table==='products').payload.id,productId);
+  assert.deepEqual(h.writes.filter(row=>row.table==='product_images').map(row=>[row.payload.mime_type,row.payload.is_primary]),[['image/jpeg',true],['video/mp4',false]]);
+  const changed=await h.change(request(form({primary_image:'new:0'})),{params:Promise.resolve({id:productId})});
+  assert.equal(changed.status,201,await changed.text());
+  const images=h.calls.find(call=>call.name==='submit_product_change_request').args.p_proposed_snapshot.images;
+  assert.deepEqual(Array.from(images,image=>image.is_primary),[false,true,false]);cases++;
+}
+for(const directMedia of [direct,[direct[1]]]){
+  const h=harness({directMedia});
+  assert.equal((await h.create(request(form({intent:'pending_review',product_id:productId,primary_image:directMedia.length===2?'new:1':'new:0'})))).status,400);
+  assert.equal((await h.change(request(form({retained_image_ids:'[]',primary_image:directMedia.length===2?'new:1':'new:0'})),{params:Promise.resolve({id:productId})})).status,400);
+  assert.equal(h.writes.length,0);assert.equal(h.calls.length,0);cases++;
+}
+console.log(`PASS: ${cases} catalog API cases; draft assembly/submission, corrections, selected existing/new cover, media metadata, tenant/status denials, active categories and price-free contracts. No real DB writes or messages.`);

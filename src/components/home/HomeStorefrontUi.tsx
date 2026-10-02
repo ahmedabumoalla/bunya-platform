@@ -2,6 +2,7 @@
 import type { CSSProperties } from "react";
 import Link from "next/link";
 import type { Product, ProductImage } from "@/lib/bunya-types";
+import { isProductVideo } from "@/lib/products/image-urls";
 import { BunyaLogo } from "@/components/brand/BunyaLogo";
 import { MobileHeaderLanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
 
@@ -50,6 +51,16 @@ export function Icon({ name }: { name: "search" | "grid" | "list" | "filter" | "
 export function ProductArtwork({ image, large = false }: { image?: ProductImage; large?: boolean }) {
   const tone = image ? visualTone[image.tone] : visualTone.cement;
   const style: ProductVisualStyle = { "--product-tone": tone.tone, "--product-ink": tone.ink };
+  const video = isProductVideo({ mime_type: image?.mimeType, image_url: image?.url });
+
+  if (video) return (
+    <figure className={`store-product-art ${large ? "store-product-art-large" : ""}`} style={{ ...style, display: "grid", placeItems: "center", background: "#eef2ed", color: "#203e32" }}>
+      {large && image?.url ? <video key={image.url} src={image.url} controls preload="metadata" playsInline aria-label={image.alt || image.label} style={{ width: "100%", height: "100%", objectFit: "contain", position: "relative", zIndex: 1 }}>
+        <a href={image.url}>فتح فيديو المنتج</a>
+      </video> : <span aria-label="فيديو المنتج" style={{ position: "relative", zIndex: 1 }}>▶ فيديو</span>}
+      <figcaption className="sr-only">{image?.alt || image?.label || "فيديو المنتج"}</figcaption>
+    </figure>
+  );
 
   return (
     <figure aria-label={image?.alt ?? "صورة منتج مواد بناء"} className={`store-product-art ${large ? "store-product-art-large" : ""} ${image ? `store-product-art-${image.tone}` : ""}`} role="img" style={style}>

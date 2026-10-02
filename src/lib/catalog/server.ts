@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { Product, ProductImage } from "@/lib/bunya-types";
-import { signProductImageMap } from "@/lib/products/image-urls";
+import { isProductVideo, signProductImageMap } from "@/lib/products/image-urls";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
@@ -39,6 +39,7 @@ type CatalogImageRow = {
   tone: ProductImage["tone"];
   storage_path: string | null;
   image_url: string | null;
+  mime_type: string | null;
   is_primary: boolean;
   sort_order: number;
 };
@@ -89,7 +90,7 @@ export async function loadPublicCatalog(): Promise<{ categories: string[]; produ
   }
 
   const [images, units, measurements, variants, specs, warranties, regions, productTranslations, categoryTranslations, unitTranslations, measurementTranslations] = await Promise.all([
-    supabase.from("product_images").select("id,product_id,label,alt_text,tone,storage_path,image_url,is_primary,sort_order").in("product_id", ids).order("is_primary", { ascending: false }).order("sort_order"),
+    supabase.from("product_images").select("id,product_id,label,alt_text,tone,storage_path,image_url,mime_type,is_primary,sort_order").in("product_id", ids).order("is_primary", { ascending: false }).order("sort_order"),
     supabase.from("product_units").select("id,product_id,name,sort_order").in("product_id", ids).order("sort_order"),
     supabase.from("product_measurements").select("id,product_id,unit_id,label,is_default,sort_order").in("product_id", ids).order("sort_order"),
     supabase.from("product_variants").select("id,product_id,name,sku,attributes,sort_order").in("product_id", ids).eq("is_active", true).order("sort_order"),
@@ -116,7 +117,7 @@ export async function loadPublicCatalog(): Promise<{ categories: string[]; produ
   const signedImageUrls = storedImages.length
     ? await signProductImageMap(
         createAdminClient(),
-        storedImages.map((image) => image.storage_path!),
+        storedImages,
         { width: 720, height: 720, quality: 72 },
       )
     : new Map<string, string>();
@@ -167,9 +168,12 @@ export async function loadPublicCatalog(): Promise<{ categories: string[]; produ
         ? { label: warranty.label, duration: warranty.duration, details: warranty.details }
         : { label: "لا توجد معلومات ضمان", duration: "—", details: "لم تُسجل معلومات ضمان لهذا المنتج." };
     })(),
-    images: imageRows.filter((item) => item.product_id === row.id).map((item) => ({
+    images: imageRows.filter((item) => item.product_id === row.id)
+      .sort((a, b) => Number(isProductVideo(a)) - Number(isProductVideo(b)))
+      .map((item) => ({
       id: item.id,
       label: item.label,
+      mimeType: item.mime_type,
       alt: item.alt_text,
       tone: item.tone as ProductImage["tone"],
       url: (item.storage_path ? signedImageUrls.get(item.storage_path) : null) || item.image_url,

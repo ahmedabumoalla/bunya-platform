@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { isProductVideo, signProductImageMap, type ProductMediaSource } from "@/lib/products/image-urls";
 import styles from "./AdminProductChangeReview.module.css";
 
 type JsonObject = Record<string, unknown>;
@@ -24,7 +26,7 @@ type ChangeRequest = {
 const selection = "id,status,before_snapshot,proposed_snapshot,changes,request_note,review_reason,created_at,reviewed_at,products(id,name,sku),providers(company_name)";
 const sectionLabels: Record<string, string> = {
   core: "البيانات الأساسية ونوع العرض والتوفر",
-  images: "صور المنتج",
+  images: "صور وفيديوهات المنتج",
   measurements: "القياسات",
   variants: "الخيارات والفئات",
   specifications: "المواصفات الفنية",
@@ -89,6 +91,37 @@ function coreChanges(before: unknown, after: unknown) {
   return [...new Set([...Object.keys(previous), ...Object.keys(proposed)])]
     .filter((key) => !["unit_price", "vat_inclusive"].includes(key) && JSON.stringify(previous[key]) !== JSON.stringify(proposed[key]))
     .map((key) => ({ field: key, before: previous[key], after: proposed[key] }));
+}
+
+type SnapshotMedia = ProductMediaSource & { id?: string; label?: string; alt_text?: string; is_primary?: boolean };
+
+function MediaSnapshot({ value }: { value: unknown }) {
+  const media = useMemo(() => (Array.isArray(value) ? value : [])
+    .filter((item): item is SnapshotMedia => !!item && typeof item === "object")
+    .sort((a, b) => Number(isProductVideo(a)) - Number(isProductVideo(b)) || Number(b.is_primary === true) - Number(a.is_primary === true)), [value]);
+  const [urls, setUrls] = useState(new Map<string, string>());
+  const [error, setError] = useState(false);
+  useEffect(() => {
+    let active = true;
+    void signProductImageMap(createClient(), media, { width: 720, height: 720, resize: "contain" }).then((result) => {
+      if (active) { setUrls(result); setError(false); }
+    }).catch(() => { if (active) setError(true); });
+    return () => { active = false; };
+  }, [media]);
+  if (!media.length) return <p>لا توجد وسائط</p>;
+  return <div className={styles.mediaGallery}>
+    {error ? <p role="status">تعذر تحميل بعض الوسائط.</p> : null}
+    {media.map((item, index) => {
+      const url = (item.storage_path ? urls.get(item.storage_path) : null) || item.image_url;
+      const video = isProductVideo(item);
+      return <figure key={item.id || item.storage_path || index}>
+        {url ? video ? <video src={url} controls preload="metadata" playsInline aria-label={item.alt_text || item.label || "فيديو المنتج"}>
+          <a href={url}>فتح فيديو المنتج</a>
+        </video> : <Image src={url} alt={item.alt_text || item.label || "صورة المنتج"} width={480} height={360} unoptimized /> : <p>الوسيط غير متاح للعرض.</p>}
+        <figcaption>{item.label || (video ? "فيديو المنتج" : "صورة المنتج")}{item.is_primary && !video ? " · الصورة الرئيسية" : ""}</figcaption>
+      </figure>;
+    })}
+  </div>;
 }
 
 export function AdminProductChangeReview({ initialRequestId }: { initialRequestId?: string }) {
@@ -182,8 +215,8 @@ export function AdminProductChangeReview({ initialRequestId }: { initialRequestI
                 <h3>{sectionLabels[change.field] || change.field}</h3>
                 {rows.map((row) => <div className={styles.diff} key={row.field}>
                   <strong>{change.field === "core" ? fieldLabels[row.field] || row.field : "التغيير الكامل"}</strong>
-                  <section><small>قبل التعديل</small><pre>{textValue(row.before)}</pre></section>
-                  <section className={styles.after}><small>بعد التعديل</small><pre>{textValue(row.after)}</pre></section>
+                  <section><small>قبل التعديل</small>{change.field === "images" ? <MediaSnapshot value={row.before} /> : <pre>{textValue(row.before)}</pre>}</section>
+                  <section className={styles.after}><small>بعد التعديل</small>{change.field === "images" ? <MediaSnapshot value={row.after} /> : <pre>{textValue(row.after)}</pre>}</section>
                 </div>)}
               </article>;
             })}

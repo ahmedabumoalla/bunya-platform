@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
-import { signProductImage } from "./image-urls";
+import { isProductVideo, signProductImage } from "./image-urls";
 
 type PendingImage = { id: string; resolve: (url: string) => void };
 const cache = new Map<string, { expiresAt: number; result: Promise<string> }>();
@@ -27,13 +27,13 @@ async function flush() {
     try {
       const db = createClient();
       const result = await db.from("product_images")
-        .select("product_id,image_url,storage_path,is_primary,sort_order")
+        .select("product_id,image_url,storage_path,mime_type,is_primary,sort_order")
         .in("product_id", [...new Set(batch.map(item => item.id))])
         .order("is_primary", { ascending: false }).order("sort_order");
       if (result.error) throw result.error;
       const firstImages = new Map<string, { storage_path: string | null; image_url: string | null }>();
       for (const image of result.data ?? []) {
-        if (!firstImages.has(image.product_id) && (image.storage_path || image.image_url)) firstImages.set(image.product_id, image);
+        if (!isProductVideo(image) && !firstImages.has(image.product_id) && (image.storage_path || image.image_url)) firstImages.set(image.product_id, image);
       }
       const urls = new Map<string, string>();
       const images = [...firstImages];

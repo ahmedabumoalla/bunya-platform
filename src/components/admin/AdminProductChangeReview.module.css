@@ -6,3 +6,4 @@
 
 .decision button:disabled { background: #e4ebe6; color: #43584c; border-color: #bccbc2; opacity: 1; cursor: not-allowed; }
 .decision button:focus-visible { outline: 3px solid #548367; outline-offset: 3px; }
+.mediaGallery{display:grid;gap:.8rem;min-width:0}.mediaGallery figure{margin:0;min-width:0}.mediaGallery img,.mediaGallery video{display:block;width:100%;height:auto;max-height:320px;object-fit:contain;border-radius:.6rem;background:#edf2ef}.mediaGallery figcaption{margin-top:.35rem;color:#41584c;font-size:.8rem;line-height:1.6;overflow-wrap:anywhere}

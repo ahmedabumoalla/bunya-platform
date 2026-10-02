@@ -8,6 +8,7 @@ export type ProductImage = {
   alt: string;
   tone: "cement" | "steel" | "blocks" | "insulation" | "plumbing" | "electric" | "wood" | "paint" | "tools";
   url?: string | null;
+  mimeType?: string | null;
 };
 
 export type ProductMeasurement = {
