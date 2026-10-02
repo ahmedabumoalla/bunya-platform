@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  generateTemporaryPassword,
+  generateOnboardingTemporaryPassword,
   requireJoinReviewer,
 } from "@/lib/join/admin";
 import { sendJoinApplicantDecision } from "@/lib/notifications/send-join-applicant-decision";
@@ -174,7 +174,7 @@ export async function POST(
         { message: "الحساب غير جاهز لإعادة الإرسال." },
         { status: 409 },
       );
-    const password = generateTemporaryPassword();
+    const password = generateOnboardingTemporaryPassword();
     const changed = await auth.admin.auth.admin.updateUserById(
       onboarding.data.auth_user_id,
       { password },
@@ -184,6 +184,16 @@ export async function POST(
         { message: "تعذر تحديث بيانات الدخول." },
         { status: 500 },
       );
+    const issuedAt = new Date();
+    const renewed = await auth.admin.from("profiles").update({
+      must_change_password: true,
+      temporary_password_issued_at: issuedAt.toISOString(),
+      temporary_password_expires_at: new Date(issuedAt.getTime() + 24 * 60 * 60 * 1000).toISOString(),
+      password_changed_at: null,
+    }).eq("id", onboarding.data.auth_user_id).eq("role", kind).select("id").maybeSingle();
+    if (renewed.error || !renewed.data) {
+      return NextResponse.json({ message: "تعذر تجديد صلاحية كلمة المرور المؤقتة. أعد المحاولة قبل إرسال بيانات الدخول." }, { status: 500 });
+    }
     const delivery = await sendOnboardingCredentials({
       kind: kind as "provider" | "contractor",
       applicationId: id,
@@ -270,7 +280,7 @@ export async function POST(
     }
   }
 
-  const password = generateTemporaryPassword();
+  const password = generateOnboardingTemporaryPassword();
   const created = await auth.admin.auth.admin.createUser({
     email: application.data.email,
     password,

@@ -86,5 +86,6 @@
   "085_provider_optional_username.sql": "e102e07e43b417a0db43ca4b27b0b38dfd1e9fafa210adb2d04d68249dea0ede",
   "086_provider_resumable_documents.sql": "8247bae721e6e6a01acdd1471cbe640c9649977b820cc3d18fc5cb66c815942d",
   "087_contractor_company_individual_onboarding.sql": "65b5fb097d7cd05b29aa817da153a65788457c10ea8e26d757d7e5ab5ec06ffd",
-  "088_contractor_approval_document_boundary.sql": "3364aaf97644c137bf6e0a8defd45db9a0e078d8a1b73638b1fef75e2fdbfdc1"
+  "088_contractor_approval_document_boundary.sql": "3364aaf97644c137bf6e0a8defd45db9a0e078d8a1b73638b1fef75e2fdbfdc1",
+  "089_onboarding_temporary_password_24_hours.sql": "2cc4c0b946abdc97e1e307911d42ad9d1d2194381562fd06689b59a210800e89"
 }

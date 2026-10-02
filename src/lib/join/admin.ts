@@ -33,3 +33,7 @@ export function generateTemporaryPassword(length = 18) {
   for (let i = chars.length - 1; i > 0; i--) { const j = randomInt(i + 1); [chars[i], chars[j]] = [chars[j], chars[i]]; }
   return chars.join("");
 }
+
+export function generateOnboardingTemporaryPassword() {
+  return String(randomInt(10_000_000, 100_000_000));
+}

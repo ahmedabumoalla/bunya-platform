@@ -9,7 +9,7 @@ export async function sendOnboardingCredentials(input:{kind:"provider"|"contract
   const role=input.kind==="provider"?"مزود":"مقاول";
   const portal=input.kind==="provider"?"/merchant":"/contractor";
   const details=input.details.map(({label,value})=>`${label}: ${value||"—"}`).join("\n");
-  const text=`مرحبًا ${input.applicantName}،\nتمت الموافقة على طلب انضمامك كـ${role} في منصة بُنية.\nرقم الطلب: ${input.applicationId}\n\nبيانات الطلب:\n${details}\n\nبيانات الدخول:\nالبريد المستخدم: ${input.email}\nكلمة المرور المؤقتة: ${input.password}\nالدخول إلى لوحة التحكم: ${site}/login?returnTo=${encodeURIComponent(portal)}\nغيّر كلمة المرور فور الدخول ولا تشاركها مع أي شخص.`;
+  const text=`مرحبًا ${input.applicantName}،\nتمت الموافقة على طلب انضمامك كـ${role} في منصة بُنية.\nرقم الطلب: ${input.applicationId}\n\nبيانات الطلب:\n${details}\n\nبيانات الدخول:\nالبريد المستخدم: ${input.email}\nكلمة المرور المؤقتة: ${input.password}\nصلاحيتها 24 ساعة من إصدارها.\nالدخول إلى لوحة التحكم: ${site}/login?returnTo=${encodeURIComponent(portal)}\nغيّر كلمة المرور فور الدخول ولا تشاركها مع أي شخص.`;
   const whatsapp=await sendGreenApiMessage({to:input.mobile,text,idempotencyKey:`${input.idempotencyKey}-wa`});
   await recordProviderSubmission({eventType:"onboarding.temporary_password",channel:"whatsapp",destinationMasked:maskWhatsAppDestination(input.mobile),idempotencyKey:`${input.idempotencyKey}-wa`,result:whatsapp}).catch(()=>undefined);
   const email=await sendResendSensitiveCopy({to:input.email,subject:"بيانات الدخول إلى منصة بُنية",text,idempotencyKey:`${input.idempotencyKey}-email`});
