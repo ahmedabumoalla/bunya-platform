@@ -31,6 +31,8 @@ type ProviderProduct = {
   custom_category: string | null;
   product_categories: { name: string } | null;
   product_review_decisions: ProductReviewDecision[];
+  product_images?: ProviderProductImage[];
+  cover_image?: ProviderProductImage | null;
 };
 
 type ProviderProductImage = {
@@ -107,6 +109,11 @@ export function latestProductReviewDecision(decisions: ProductReviewDecision[] =
   return [...decisions].sort((first, second) => Date.parse(second.reviewed_at) - Date.parse(first.reviewed_at))[0];
 }
 
+export function providerProductCover(images: ProviderProductImage[] = []) {
+  return [...images].filter(image => !isProductVideo(image) && (image.storage_path || image.image_url))
+    .sort((a, b) => Number(Boolean(b.is_primary)) - Number(Boolean(a.is_primary)) || a.sort_order - b.sort_order)[0] ?? null;
+}
+
 export function productFeedbackFromQuery(query: string) {
   const params = new URLSearchParams(query);
   const messages: Record<string, string> = { created: "تم إنشاء المنتج بنجاح.", change_requested: "تم إرسال طلب تعديل المنتج إلى الإدارة.", resubmitted: "تم استلام التعديلات وإعادة إرسال المنتج للمراجعة." };
@@ -162,13 +169,27 @@ export function ProviderProductsList() {
         }
         return;
       }
-      const { data, error: loadError } = await createClient().from("products").select("id,name,sku,base_unit,stock_quantity,review_status,is_published,updated_at,custom_category,product_categories(name),product_review_decisions(outcome,reason,reviewed_at)").eq("provider_id", providerId).order("updated_at", { ascending: false });
+      const db = createClient();
+      const { data, error: loadError } = await db.from("products").select("id,name,sku,base_unit,stock_quantity,review_status,is_published,updated_at,custom_category,product_categories(name),product_review_decisions(outcome,reason,reviewed_at),product_images(id,label,alt_text,image_url,storage_path,mime_type,is_primary,sort_order)").eq("provider_id", providerId).order("updated_at", { ascending: false });
       if (!active) return;
       if (loadError) setError("تعذر تحميل منتجات المنشأة. تحقق من الاتصال ثم أعد المحاولة.");
-      else setProducts((data ?? []) as unknown as ProviderProduct[]);
+      else {
+        const rows = (data ?? []) as unknown as ProviderProduct[];
+        const covers = rows.map(product => providerProductCover(product.product_images));
+        const urls = await signProductImageMap(db, covers.filter((cover): cover is ProviderProductImage => Boolean(cover)), { width: 640, height: 420, resize: "contain", quality: 74 });
+        if (!active) return;
+        setProducts(rows.map((product, index) => ({ ...product, cover_image: covers[index] ? {
+          ...covers[index], signed_url: urls.get(covers[index].storage_path || "") || covers[index].image_url,
+        } : null })));
+      }
       setLoading(false);
     };
-    void load();
+    void load().catch(() => {
+      if (active) {
+        setError("تعذر تحميل المنتجات وصورها. تحقق من الاتصال ثم أعد المحاولة.");
+        setLoading(false);
+      }
+    });
     return () => {
       active = false;
     };
@@ -305,8 +326,8 @@ export function ProviderProductsList() {
           {filtered.map((product) => (
             <article className={`${styles.clickableCard} provider-product-card`} key={product.id}>
               <button className={styles.cardTrigger} type="button" onClick={() => void openDetails(product.id)} aria-label={`عرض التفاصيل الكاملة للمنتج ${product.name}`} />
-              <div className="provider-product-visual">
-                <b>{product.name.slice(0, 1)}</b>
+              <div className={`provider-product-visual ${product.cover_image?.signed_url ? styles.productCover : ""}`}>
+                {product.cover_image?.signed_url ? <Image src={product.cover_image.signed_url} alt={product.cover_image.alt_text || product.name} width={640} height={420} unoptimized/> : <b>{product.name.slice(0, 1)}</b>}
                 <span>{product.custom_category || product.product_categories?.name || "منتج"}</span>
               </div>
               <div className="provider-product-body">

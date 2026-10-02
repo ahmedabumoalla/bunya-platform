@@ -63,20 +63,20 @@ function harness(componentName, query = '', fixture = null) {
     useRef(initial) { const index = cursor++; if (!(index in values)) values[index] = { current: initial }; return values[index]; },
     useMemo: fn => fn(), useEffect: fn => effects.push(fn),
   };
-  let objectIndex = 0;
+  let objectIndex = 0, selectedColumns = '', signedSources = [];
   const fixtureMocks = fixture ? {
     './ProviderProducts': ui,
-    '@/lib/products/image-urls': { ...media, signProductImageMap: async () => new Map() },
-    '@/lib/supabase/client': { createClient: () => ({ from(table) { return { select() { return this; }, eq() { return this; }, order() { return this; }, maybeSingle() { return this; }, then(resolve) { return Promise.resolve({ data: table === 'products' ? fixture : table === 'product_categories' ? [] : null, error: null }).then(resolve); } }; } }) },
+    '@/lib/products/image-urls': { ...media, signProductImageMap: async (_, sources) => { signedSources = sources; return new Map(sources.filter(item => item.storage_path).map(item => [item.storage_path, `https://storage.invalid/signed/${item.id}`])); } },
+    '@/lib/supabase/client': { createClient: () => ({ from(table) { return { select(columns) { if(table === 'products')selectedColumns = columns; return this; }, eq() { return this; }, order() { return this; }, maybeSingle() { return this; }, then(resolve) { return Promise.resolve({ data: table === 'products' ? fixture : table === 'product_categories' ? [] : null, error: null }).then(resolve); } }; } }) },
   } : {};
-  const component = load(fixture ? 'src/components/provider/ProviderProductChangeRequest.tsx' : path, { ...mocks, ...fixtureMocks, react: hooks, 'next/navigation': { useRouter: () => ({ replace: (url, options) => { replaced = { url, options }; } }), useSearchParams: () => new URLSearchParams(query) } }, {
+  const component = load(componentName === 'ProviderProductChangeRequest' ? 'src/components/provider/ProviderProductChangeRequest.tsx' : path, { ...mocks, ...fixtureMocks, react: hooks, 'next/navigation': { useRouter: () => ({ replace: (url, options) => { replaced = { url, options }; } }), useSearchParams: () => new URLSearchParams(query) } }, {
     URL: { createObjectURL: () => `blob:${objectIndex++}`, revokeObjectURL: () => {} },
     window: { location: { hash: '#catalog' }, setTimeout(fn, delay) { assert.equal(delay, 5000); timer = fn; return 123; }, clearTimeout(id) { assert.equal(id, 123); cleared = true; } },
   })[componentName];
   function render() { cursor = 0; effects.length = 0; tree = component({ productId: 'product-id' }); return tree; }
   function nodes(predicate, node = tree) { if (!node || typeof node !== 'object') return []; if (Array.isArray(node)) return node.flatMap(child => nodes(predicate, child ?? null)); return [...(predicate(node) ? [node] : []), ...nodes(predicate, node.props?.children ?? null)]; }
   render();
-  return { render, nodes, effects, get replaced() { return replaced; }, fireTimer: () => timer(), get cleared() { return cleared; } };
+  return { render, nodes, effects, get selectedColumns() { return selectedColumns; }, get signedSources() { return signedSources; }, get replaced() { return replaced; }, fireTimer: () => timer(), get cleared() { return cleared; } };
 }
 const list = harness('ProviderProductsList', 'created=1&filter=available');
 list.effects[0]();
@@ -131,3 +131,28 @@ assert.match(submitLabel, /إعادة الإرسال/);
 const css = require('postcss').parse(readFileSync('src/components/provider/ProviderProducts.module.css', 'utf8'));
 assert.ok(css.nodes.length);
 console.log('PASS correction editor loading/CTA, retained/new video previews and image cover fallback; CSS parsed');
+
+const gallery = [
+  {id:'video',mime_type:'video/mp4',storage_path:'owner/product/video.mp4',is_primary:true,sort_order:0},
+  {id:'secondary',mime_type:'image/jpeg',storage_path:'owner/product/second.jpg',is_primary:false,sort_order:0},
+  {id:'chosen',mime_type:'image/jpeg',storage_path:'owner/product/cover.jpg',alt_text:'Selected product cover',is_primary:true,sort_order:4},
+];
+const baseProduct = {...product,name:'Product',base_unit:'piece',stock_quantity:null,updated_at:'2026-10-02T00:00:00Z'};
+const cards = harness('ProviderProductsList','',[
+  {...baseProduct,product_images:gallery},
+  {...baseProduct,id:'external',product_images:[{id:'external-cover',image_url:'https://images.invalid/existing.jpg',sort_order:0}]},
+  {...baseProduct,id:'empty',product_images:[]},
+  {...baseProduct,id:'only-video',product_images:[gallery[0]]},
+]);
+cards.effects[2](); await new Promise(resolve=>setImmediate(resolve)); cards.render();
+assert.match(cards.selectedColumns,/product_images\(.*is_primary,sort_order\)/);
+assert.deepEqual(Array.from(cards.signedSources,item=>item.id),['chosen','external-cover']);
+const cardImages = cards.nodes(node=>node.type === mocks['next/image'].default);
+assert.deepEqual(cardImages.map(node=>node.props.src),['https://storage.invalid/signed/chosen','https://images.invalid/existing.jpg']);
+assert.equal(cardImages[0].props.alt,'Selected product cover');
+assert.equal(cards.nodes(node=>node.type === 'article').length,4);
+assert.equal(ui.providerProductCover(gallery).id,'chosen');
+assert.equal(ui.providerProductCover(gallery.slice(0,2)).id,'secondary');
+assert.equal(ui.providerProductCover([gallery[0]]),null);
+assert.equal(gallery[0].id,'video','Cover selection must not reorder saved gallery');
+console.log('PASS actual product list loads media, signs only image covers and renders selected/private and legacy/external photos; missing media and videos keep fallback');

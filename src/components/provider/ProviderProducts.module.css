@@ -22,6 +22,9 @@
 .catalog :global(.provider-product-visual) { display: flex; min-height: 140px; align-items: center; justify-content: space-between; gap: 20px; padding: 24px; background: #edf2ed; color: #335749; }
 .catalog :global(.provider-product-visual) b { color: #335749 !important; font-size: 54px; line-height: 1; font-weight: 500; opacity: .7; }
 .catalog :global(.provider-product-visual) span { max-width: 65%; padding: 6px 10px; border: 1px solid #d3dfd4; border-radius: 7px; background: #f8faf6; color: #5d7167 !important; font-size: 12px; }
+.catalog .productCover { position: relative; height: 220px; padding: 0; overflow: hidden; }
+.catalog .productCover img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.catalog .productCover span { position: absolute; inset-inline-end: 12px; bottom: 12px; }
 .catalog :global(.provider-product-body) { display: grid; gap: 18px; padding: 22px; }
 .catalog :global(.provider-product-body) header { align-items: flex-start; gap: 12px; flex-wrap: wrap; }
 .catalog :global(.provider-product-body) h3 { margin: 5px 0 0; color: #203e32; font-size: 19px; line-height: 1.6; overflow-wrap: anywhere; }
