@@ -18,6 +18,7 @@ import {
   type StorefrontQuoteDetails,
 } from "@/lib/quotes/pending-draft";
 import { createClient } from "@/lib/supabase/client";
+import type { PublicAccount } from "@/lib/auth/public-account";
 import { BunyaHomeMotion } from "./home/BunyaHomeMotion";
 import { BunyaLogoIntro } from "./home/BunyaLogoIntro";
 import {
@@ -32,6 +33,7 @@ type HomeStorefrontProps = {
   categories: ProductCategory[];
   products: Product[];
   dataError?: string;
+  account?: PublicAccount;
 };
 
 type QuoteFormState = {
@@ -191,6 +193,7 @@ export function HomeStorefront({
   categories,
   products,
   dataError,
+  account,
 }: HomeStorefrontProps) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -758,6 +761,7 @@ export function HomeStorefront({
         scope={storefrontRef}
       />
       <StoreHeader
+        account={account}
         compact={headerCompact}
         menuOpen={mobileMenuOpen}
         onMenuToggle={() => setMobileMenuOpen((current) => !current)}

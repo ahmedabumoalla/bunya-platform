@@ -157,3 +157,14 @@
   .empty { padding: 32px 18px; }
 }
 @media (prefers-reduced-motion: reduce) { .page * { transition: none !important; } }
+
+.searchPanel { padding: 26px; border: 1px solid var(--customer-line, #dce5dd); border-inline-start: 4px solid #477e62; border-radius: 16px; background: #fff; }
+.searchPanel .sectionHeading p { max-width: 800px; line-height: 1.9; }
+.searchFacts { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 22px; margin: 22px 0; }
+.searchFacts > div { min-width: 0; }
+.searchFacts dt { color: #5d7167; font-size: 13px; }
+.searchFacts dd { margin: 7px 0 0; font-weight: 600; overflow-wrap: anywhere; }
+.searchActions { display: flex; padding-top: 18px; border-top: 1px solid var(--customer-line, #dce5dd); }
+.stopConfirmation { width: 100%; }
+.stopConfirmation p { margin-top: 0; line-height: 1.8; }
+@media (max-width: 700px) { .searchPanel { padding: 20px; } .searchFacts { grid-template-columns: 1fr; gap: 15px; } .searchActions > button { width: 100%; } }

@@ -1115,19 +1115,24 @@ async function resolveEvent(
     const proposal = await admin
       .from("contractor_proposals")
       .select(
-        "proposal_code,amount,contractor_profiles(display_name),contractor_opportunities(project_requests(customer_profile_id,title,request_code))",
+        "proposal_code,amount,status,valid_until,contractor_profiles(display_name),contractor_opportunities(is_current,project_requests(id,customer_profile_id,title,request_code,search_status))",
       )
       .eq("id", event.aggregate_id)
       .maybeSingle();
     const opportunity = proposal.data?.contractor_opportunities as unknown as {
+      is_current: boolean;
       project_requests?: {
+        id: string;
         customer_profile_id: string;
         title: string;
         request_code: string;
+        search_status: string;
       } | null;
     } | null;
     const request = opportunity?.project_requests;
+    if (proposal.error) throw proposal.error;
     if (!proposal.data || !request) return [];
+    if (!opportunity?.is_current || request.search_status !== "awaiting_customer" || proposal.data.status !== "under_review" || new Date(proposal.data.valid_until).getTime() <= Date.now()) return [];
     const customer = await admin
       .from("profiles")
       .select("mobile,email")
@@ -1136,7 +1141,8 @@ async function resolveEvent(
     const contractor = proposal.data.contractor_profiles as unknown as {
       display_name?: string;
     } | null;
-    const text = `تم استلام عرض جديد من ${contractor?.display_name || "مقاول"} للطلب ${request.request_code} (${request.title}) بقيمة ${proposal.data.amount} ر.س.\nراجع العرض واتخذ القرار من حسابك: ${site}/customer/project-requests`;
+    const projectUrl = `/customer/project-requests/${request.id}`;
+    const text = `تم استلام عرض جديد من ${contractor?.display_name || "مقاول"} للطلب ${request.request_code} (${request.title}) بقيمة ${proposal.data.amount} ر.س.\nراجع العرض واقبله أو ارفضه للبحث عن مقاول آخر: ${site}${projectUrl}`;
     const recipients: Recipient[] = [
       {
         profileId: request.customer_profile_id,
@@ -1144,7 +1150,7 @@ async function resolveEvent(
         mobile: customer.data?.mobile,
         email: customer.data?.email,
         title: "عرض مقاول جديد",
-        actionUrl: "/customer/project-requests",
+        actionUrl: projectUrl,
         text,
       },
     ];
@@ -1233,7 +1239,36 @@ async function resolveEvent(
       .select("profile_id,phone,display_name")
       .eq("id", contractorId)
       .maybeSingle();
+    if (contractor.error) throw contractor.error;
     if (!contractor.data) return [];
+    if (event.event_type === "contractor.opportunity_new") {
+      const opportunity = await admin.from("contractor_opportunities")
+        .select("id,status,expires_at,is_current,project_requests(title,city,search_status)")
+        .eq("id", event.aggregate_id).maybeSingle();
+      if (opportunity.error) throw opportunity.error;
+      const row = opportunity.data;
+      if (!row?.is_current || row.project_requests?.search_status !== "awaiting_contractor" || new Date(row.expires_at).getTime() <= Date.now()) return [];
+      const actionUrl = `/contractor/opportunities/${row.id}`;
+      return [{
+        profileId: contractor.data.profile_id, contractorProfileId: contractorId,
+        mobile: contractor.data.phone, title: "طلب عرض سعر لمشروع", actionUrl,
+        text: `مرحبًا ${contractor.data.display_name}، نطلب عرضك لمشروع «${row.project_requests.title}» في ${row.project_requests.city}.\nمهلة الرد يومَا عمل، وآخر موعد ${notificationDate(row.expires_at)} بتوقيت الرياض (الجمعة والسبت لا يُحسبان).\nعمولة بُنية ٥٪ من قيمة المشروع عند إسناده إليك.\nالتفاصيل وتقديم العرض: ${site}${actionUrl}`,
+      }];
+    }
+    if (event.event_type.startsWith("contractor.proposal_")) {
+      const proposal = await admin.from("contractor_proposals").select("id,opportunity_id,status,change_request,rejection_reason").eq("id", event.aggregate_id).maybeSingle();
+      if (proposal.error) throw proposal.error;
+      if (!proposal.data) return [];
+      const result = event.event_type.slice("contractor.proposal_".length);
+      if (!["accepted", "rejected", "needs_changes"].includes(result) || proposal.data.status !== result) return [];
+      const needsChanges = result === "needs_changes";
+      const title = needsChanges ? "طلب تعديل عرضك" : result === "accepted" ? "تم قبول عرضك" : "تم رفض عرضك";
+      const projectId = String(event.payload?.project_id || "");
+      const actionUrl = needsChanges ? `/contractor/opportunities/${proposal.data.opportunity_id}` : result === "accepted" && /^[0-9a-f-]{36}$/i.test(projectId) ? `/contractor/projects/${projectId}` : `/contractor/proposals/${proposal.data.id}`;
+      return [{ profileId: contractor.data.profile_id, contractorProfileId: contractorId, mobile: contractor.data.phone, title, actionUrl,
+        text: `${title}.\n${needsChanges ? `${proposal.data.change_request || "راجع التعديلات المطلوبة"}\nلديك يومَا عمل لإرسال العرض المعدّل.` : result === "accepted" ? "يمكنك متابعة مراحل المشروع من حسابك. عمولة بُنية ٥٪ من قيمة المشروع." : proposal.data.rejection_reason || "اختار العميل متابعة البحث عن مقاول آخر."}\n${site}${actionUrl}`,
+      }];
+    }
     return [
       {
         profileId: contractor.data.profile_id,

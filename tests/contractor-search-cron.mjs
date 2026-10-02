@@ -1,0 +1,24 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import vm from 'node:vm';
+import ts from 'typescript';
+import {timingSafeEqual} from 'node:crypto';
+const source=readFileSync('src/app/api/cron/contractor-search/route.ts','utf8');
+const code=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+let calls=0,fail=false;
+const exports={};
+vm.runInNewContext(code,{exports,Buffer,process:{env:{CRON_SECRET:'cron-secret',NOTIFICATIONS_ENABLED:'false'}},require(name){
+  if(name==='node:crypto')return {timingSafeEqual};
+  if(name==='next/server')return {NextResponse:{json:(body,{status=200}={})=>({body,status})}};
+  if(name==='@/lib/supabase/admin')return {createAdminClient:()=>({rpc:async(name,args)=>{calls++;assert.equal(name,'process_contractor_searches');assert.equal(args.p_limit,50);return {data:1,error:fail?{message:'internal details'}:null};}})};
+  throw Error(name);
+}});
+const run=auth=>exports.GET({headers:{get:()=>auth}});
+for(const auth of [null,'Bearer wrong','Bearer سسسسسسسسسسس'])assert.equal((await run(auth)).status,401);
+assert.equal(calls,0);
+assert.equal((await run('Bearer cron-secret')).status,200);
+assert.equal(calls,1,'progression independent of outgoing notification toggle');
+fail=true;const result=await run('Bearer cron-secret');assert.equal(result.status,503);assert.ok(!JSON.stringify(result).includes('internal details'));
+const crons=JSON.parse(readFileSync('vercel.json','utf8')).crons;
+assert.ok(crons.some(row=>row.path==='/api/cron/contractor-search'&&row.schedule==='*/5 * * * *'));
+console.log('PASS search cron authorization, Unicode/wrong-secret rejection, service RPC, disabled-notification independence, scheduler registration and redacted failure.');

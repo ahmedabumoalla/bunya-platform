@@ -5,8 +5,9 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { ContractorProfile } from "@/lib/bunya-types";
 import { createClient } from "@/lib/supabase/client";
+import { publicAccountFor, type PublicAccount } from "@/lib/auth/public-account";
 
-export function ContractorsDirectory({ contractors, dataError }: { contractors: ContractorProfile[]; dataError?: string }) {
+export function ContractorsDirectory({ contractors, dataError, account = publicAccountFor(null) }: { contractors: ContractorProfile[]; dataError?: string; account?: PublicAccount }) {
   const [query, setQuery] = useState("");
   const [region, setRegion] = useState("الكل");
   const [specialty, setSpecialty] = useState("الكل");
@@ -49,7 +50,7 @@ export function ContractorsDirectory({ contractors, dataError }: { contractors: 
   };
 
   return <main className="contractors-page">
-    <header className="directory-header"><div><Link className="directory-brand" href="/"><span>ب</span> بُنية</Link><p>دليل المقاولين المعتمدين</p></div><div className="directory-actions"><Link href="/contractors/join">انضم كمقاول</Link><Link href="/">الرئيسية</Link></div></header>
+    <header className="directory-header"><div><Link className="directory-brand" href="/"><span>ب</span> بُنية</Link><p>دليل المقاولين المعتمدين</p></div><div className="directory-actions">{account.signedIn ? <Link href={account.href}>حسابي</Link> : null}{account.canApplyContractor ? <Link href="/contractors/join">انضم كمقاول</Link> : null}<Link href="/">الرئيسية</Link></div></header>
     <section className="directory-hero"><div><p>شبكة بُنية المهنية</p><h1>ابحث عن مقاول مناسب لمشروعك</h1><span>ملفات المقاولين المعتمدين والنشطين في قاعدة بيانات بُنية.</span></div><Link className="directory-create-project" href="/customer/project-requests/new">＋ إنشاء طلب مشروع</Link></section>
     <section className="directory-content">
       {dataError ? <div className="directory-empty" role="alert"><strong>تعذر الاتصال بقاعدة البيانات</strong><span>{dataError}</span></div> : null}

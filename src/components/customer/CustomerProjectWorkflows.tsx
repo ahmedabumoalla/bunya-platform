@@ -27,6 +27,17 @@ type Proposal = {
   contractor_proposal_stages: { name: string; description: string; duration: string; value_percentage: number; expected_at: string; sort_order: number }[];
 };
 type Decision = "accepted" | "needs_changes" | "rejected";
+type ProjectSearch = {
+  status: "searching" | "awaiting_contractor" | "awaiting_customer" | "stopped" | "exhausted" | "awarded";
+  active_opportunity_id: string | null; active_proposal_id: string | null;
+  response_deadline_at: string | null; proposal_valid_until: string | null;
+  contractor_name: string | null; invited_count: number;
+  commission_rate?: number | null; commission_amount?: number | null;
+};
+const searchLabels: Record<ProjectSearch["status"], string> = {
+  searching: "جارٍ البحث عن مقاول", awaiting_contractor: "بانتظار عرض المقاول",
+  awaiting_customer: "عرض بانتظار قرارك", stopped: "أوقفت البحث", exhausted: "بانتظار توفر مقاول مناسب", awarded: "تم اختيار المقاول",
+};
 const decisionLabels: Record<Decision, string> = { accepted: "قبول العرض", needs_changes: "طلب تعديل", rejected: "رفض العرض" };
 const statusLabels: Record<string, string> = {
   draft: "مسودة", pending_admin_review: "قيد المراجعة", needs_customer_changes: "بانتظار تعديلك",
@@ -79,7 +90,6 @@ export function ProjectRequestForm() {
     const data = new FormData(event.currentTarget);
     const value = (name: string) => String(data.get(name) ?? "").trim();
     const specialties = [...new Set(value("specialties").split(/[،,\n]/).map(item => item.trim()).filter(Boolean))];
-    const deadline = new Date(value("proposal_deadline_at"));
     const min = value("budget_min");
     const max = Number(value("budget_max"));
     if (["title", "project_type", "description", "scope", "city", "region", "estimated_duration", "expected_start_at"].some(name => !value(name))) {
@@ -90,14 +100,11 @@ export function ProjectRequestForm() {
     if (!Number.isFinite(max) || max <= 0 || (min && (!Number.isFinite(Number(min)) || Number(min) < 0 || Number(min) > max))) {
       setError("أدخل ميزانية صحيحة، واجعل الحد الأعلى أكبر من صفر ولا يقل عن الحد الأدنى."); return;
     }
-    if (!Number.isFinite(deadline.getTime()) || deadline.getTime() <= Date.now() + 3600000) {
-      setError("يجب أن يكون آخر موعد لاستقبال العروض بعد أكثر من ساعة من الآن."); return;
-    }
     const request = {
       title: value("title"), project_type: value("project_type"), description: value("description"), scope: value("scope"),
       city: value("city"), region: value("region"), budget_min: min, budget_max: max,
       expected_start_at: value("expected_start_at"), estimated_duration: value("estimated_duration"),
-      proposal_deadline_at: deadline.toISOString(), minimum_rating: value("minimum_rating"),
+      minimum_rating: value("minimum_rating"),
       budget_negotiable: data.get("budget_negotiable") === "on",
     };
     const fingerprint = JSON.stringify({ request, specialties });
@@ -142,13 +149,12 @@ export function ProjectRequestForm() {
           <legend>المواعيد وتفضيلات المقاول</legend><div className={styles.fields}>
             <Field label="تاريخ البدء المتوقع"><input name="expected_start_at" type="date" required /></Field>
             <Field label="المدة التقديرية"><input name="estimated_duration" required placeholder="مثال: ٣ أشهر" /></Field>
-            <Field label="آخر موعد لاستقبال العروض" hint="بتوقيت جهازك، وبعد أكثر من ساعة من الآن."><input name="proposal_deadline_at" type="datetime-local" required /></Field>
             <Field label="الحد الأدنى لتقييم المقاول — اختياري"><select name="minimum_rating" defaultValue=""><option value="">جميع التقييمات</option><option value="3">٣ من ٥ فأعلى</option><option value="3.5">٣٫٥ من ٥ فأعلى</option><option value="4">٤ من ٥ فأعلى</option><option value="4.5">٤٫٥ من ٥ فأعلى</option><option value="5">٥ من ٥</option></select></Field>
           </div>
         </fieldset>
-        <div className={styles.submitArea}>{error ? <p className={styles.error} role="alert">{error}</p> : null}<p>بنشر المشروع، ستتاح تفاصيله للمقاولين المطابقين للمنطقة والتخصصات وتفضيلاتك.</p><div className={styles.actions}><button className={styles.primary} type="submit" disabled={busy}>{busy ? "جارٍ نشر المشروع…" : "نشر المشروع واستقبال العروض"}</button><Link href="/customer/project-requests" className={styles.secondary}>العودة إلى مشاريعي</Link></div></div>
+        <div className={styles.submitArea}>{error ? <p className={styles.error} role="alert">{error}</p> : null}<p>نطلب عرضًا من مقاول مناسب يخدم موقع مشروعك، ونمنحه يومَي عمل للرد. إذا لم يرد أو رفضت عرضه، ننتقل للمقاول التالي حتى تقبل عرضًا أو توقف البحث من تفاصيل المشروع.</p><div className={styles.actions}><button className={styles.primary} type="submit" disabled={busy}>{busy ? "جارٍ نشر المشروع…" : "نشر المشروع والبحث عن مقاول"}</button><Link href="/customer/project-requests" className={styles.secondary}>العودة إلى مشاريعي</Link></div></div>
       </form>
-      <aside className={styles.guide} aria-label="دليل طلب المشروع"><span className={styles.eyebrow}>من الفكرة إلى التنفيذ</span><h2>تفاصيل أفضل،<br />عروض أوضح.</h2><p>اكتب ما يهمك من البداية لتكون المقارنة بين عروض المقاولين أسهل.</p><ol><li><strong>صف احتياجك</strong><span>حدد الأعمال المطلوبة والموقع والميزانية.</span></li><li><strong>راجع العروض</strong><span>قارن السعر والمدة ونطاق العمل لكل مقاول.</span></li><li><strong>اختر العرض المناسب</strong><span>اطلب تعديلًا أو اقبل العرض بعد مراجعة تفاصيله.</span></li></ol><Link href="/customer/support">تحتاج مساعدة في طلبك؟ <span aria-hidden="true">←</span></Link></aside>
+      <aside className={styles.guide} aria-label="دليل طلب المشروع"><span className={styles.eyebrow}>من الفكرة إلى التنفيذ</span><h2>تفاصيل أفضل،<br />عروض أوضح.</h2><p>أنت تتحكم في البحث، ولا يُسند المشروع إلا بعد موافقتك.</p><ol><li><strong>صف احتياجك</strong><span>حدد الأعمال المطلوبة والموقع والميزانية.</span></li><li><strong>استقبل عرضًا مناسبًا</strong><span>نتواصل مع المقاولين بالتتابع، ويملك كل مقاول يومَي عمل للرد، باستثناء الجمعة والسبت.</span></li><li><strong>اتخذ قرارك</strong><span>اقبل العرض، اطلب تعديله، أو ارفضه لنبحث عن مقاول آخر. يمكنك إيقاف البحث في أي وقت قبل اختيار المقاول.</span></li></ol><Link href="/customer/support">تحتاج مساعدة في طلبك؟ <span aria-hidden="true">←</span></Link></aside>
     </div>
   </main>;
 }
@@ -156,6 +162,9 @@ export function ProjectRequestForm() {
 export function ProjectProposalDecisions({ id }: { id: string }) {
   const [project, setProject] = useState<Project | null>(null);
   const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [search, setSearch] = useState<ProjectSearch | null>(null);
+  const [searchError, setSearchError] = useState("");
+  const [confirmStop, setConfirmStop] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadedId, setLoadedId] = useState("");
   const [loadError, setLoadError] = useState("");
@@ -171,6 +180,7 @@ export function ProjectProposalDecisions({ id }: { id: string }) {
   const attempt = useRef<{ fingerprint: string; key: string } | null>(null);
   const reasonField = useRef<HTMLTextAreaElement>(null);
   const decisionTrigger = useRef<string | null>(null);
+  const searchAttempt = useRef<{ action: string; projectId: string; key: string } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -178,14 +188,17 @@ export function ProjectProposalDecisions({ id }: { id: string }) {
     void Promise.all([
       client.from("project_requests").select(customerProjectSelect).eq("id", id).maybeSingle(),
       client.from("contractor_proposals").select(customerProposalSelect).eq("contractor_opportunities.project_request_id", id).neq("status", "draft").order("submitted_at", { ascending: false }),
-    ]).then(([requestResult, proposalResult]) => {
+      client.rpc("get_customer_project_search", { p_project_id: id }),
+    ]).then(([requestResult, proposalResult, searchResult]) => {
       if (cancelled) return;
       setProject(requestResult.data as unknown as Project | null);
       setProposals((proposalResult.data ?? []) as unknown as Proposal[]);
+      setSearch(searchResult.error ? null : searchResult.data as ProjectSearch | null);
+      setSearchError(searchResult.error || !searchResult.data ? "تعذر تحميل حالة البحث. حدّث الصفحة قبل اتخاذ أي إجراء." : "");
       setLoadError(requestResult.error || proposalResult.error ? "تعذر تحميل تفاصيل المشروع أو عروضه. أعد المحاولة." : "");
       setLoadedId(id);
       setLoading(false);
-    }).catch(() => { if (!cancelled) { setLoadError("تعذر الاتصال. تحقق من الإنترنت وأعد المحاولة."); setLoadedId(id); setLoading(false); } });
+    }).catch(() => { if (!cancelled) { setLoadError("تعذر الاتصال. تحقق من الإنترنت وأعد المحاولة."); setSearch(null); setLoadedId(id); setLoading(false); } });
     return () => { cancelled = true; };
   }, [id, refresh]);
   useEffect(() => {
@@ -203,7 +216,7 @@ export function ProjectProposalDecisions({ id }: { id: string }) {
   function cancelDecision() { setActive(null); setReason(""); setDecisionError(""); }
   async function decide(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!active || inFlight.current) return;
+    if (!active || inFlight.current || search?.status !== "awaiting_customer" || search.active_proposal_id !== active.proposalId) return;
     const trimmed = reason.trim();
     if (trimmed.length < 5) { setDecisionError("اكتب سبب القرار أو التعديلات المطلوبة بخمسة أحرف على الأقل."); return; }
     const fingerprint = JSON.stringify({ ...active, reason: trimmed });
@@ -217,22 +230,53 @@ export function ProjectProposalDecisions({ id }: { id: string }) {
         setDecisionError(/not reviewable/i.test(result.error.message) ? "تغيّرت حالة العرض. حدّث العروض للاطلاع على آخر حالة قبل اتخاذ القرار." : "تعذر تسجيل القرار. أعد المحاولة أو حدّث العروض للتحقق من حالتها.");
         return;
       }
-      setNotice(active.decision === "accepted" ? "تم قبول العرض واختيار المقاول لمشروعك." : active.decision === "needs_changes" ? "تم إرسال طلب التعديل إلى المقاول." : "تم تسجيل رفض العرض.");
+      setNotice(active.decision === "accepted" ? "تم قبول العرض واختيار المقاول لمشروعك." : active.decision === "needs_changes" ? "تم طلب التعديل من المقاول، ولديه يومَا عمل لإرسال العرض المعدّل." : "تم رفض العرض، وسننتقل إلى المقاول المناسب التالي.");
       setActive(null); setReason(""); setLoading(true); setRefresh(value => value + 1);
     } catch { setDecisionError("تعذر الاتصال. حدّث العروض للتحقق من حالة القرار قبل إعادة المحاولة."); }
     finally { inFlight.current = false; setBusy(false); }
   }
   function reload() { setLoading(true); setLoadError(""); setActive(null); setRefresh(value => value + 1); }
+  async function changeSearch(action: "stop" | "resume") {
+    if (inFlight.current || !search) return;
+    if (searchAttempt.current?.action !== action || searchAttempt.current.projectId !== id) {
+      searchAttempt.current = { action, projectId: id, key: crypto.randomUUID() };
+    }
+    inFlight.current = true; setBusy(true); setSearchError(""); setNotice("");
+    try {
+      const result = await createClient().rpc(action === "stop" ? "stop_project_contractor_search" : "resume_project_contractor_search", {
+        p_project_id: id, p_idempotency_key: searchAttempt.current.key,
+      });
+      if (result.error) { setSearchError("تعذر تغيير حالة البحث. حدّث الحالة وأعد المحاولة."); return; }
+      searchAttempt.current = null;
+      setConfirmStop(false); setActive(null);
+      setNotice(action === "stop" ? "تم إيقاف البحث. لن نرسل طلبات عروض جديدة حتى تستأنفه." : "تم استئناف البحث عن مقاول مناسب.");
+      setSearch(null); setLoading(true); setRefresh(value => value + 1);
+    } catch { setSearchError("تعذر الاتصال. حدّث حالة المشروع للتحقق قبل إعادة المحاولة."); }
+    finally { inFlight.current = false; setBusy(false); }
+  }
 
   if ((loading || loadedId !== id) && project?.id !== id) return <main className={styles.page}><PageHeading title="تفاصيل المشروع" description="راجع مشروعك وقارن عروض المقاولين في مكان واحد." /><div className={styles.empty} role="status">جارٍ تحميل المشروع وعروض المقاولين…</div></main>;
   if (!project || project.id !== id) return <main className={styles.page}><PageHeading title={loadError ? "تعذر تحميل المشروع" : "المشروع غير متاح"} description={loadError || "قد لا يكون الطلب موجودًا أو متاحًا لهذا الحساب."} />{loadError ? <button className={styles.secondary} onClick={reload}>إعادة المحاولة</button> : <Link href="/customer/project-requests" className={styles.primary}>العودة إلى مشاريعي</Link>}</main>;
-  const reviewable = proposals.filter(proposal => ["under_review", "needs_changes"].includes(proposal.status)).length;
-  const visible = proposals.filter(proposal => filter === "all" || (filter === "reviewable" ? ["under_review", "needs_changes"].includes(proposal.status) : proposal.status === filter)).sort((a, b) => sort === "lowest" ? Number(a.amount) - Number(b.amount) : sort === "highest" ? Number(b.amount) - Number(a.amount) : (b.submitted_at || "").localeCompare(a.submitted_at || ""));
+  const canReview = (proposal: Proposal) => search?.status === "awaiting_customer" && search.active_proposal_id === proposal.id && proposal.status === "under_review";
+  const reviewable = proposals.filter(canReview).length;
+  const visible = proposals.filter(proposal => filter === "all" || (filter === "reviewable" ? canReview(proposal) : proposal.status === filter)).sort((a, b) => sort === "lowest" ? Number(a.amount) - Number(b.amount) : sort === "highest" ? Number(b.amount) - Number(a.amount) : (b.submitted_at || "").localeCompare(a.submitted_at || ""));
   const isAwarded = ["awarded", "in_progress", "completed", "cancelled"].includes(project.lifecycle_status);
 
   return <main className={styles.page}>
     <PageHeading title={customerReadableText(project.title)} description={`${customerReadableText(project.project_type)} · ${customerReadableText(project.city)} · ${customerReadableText(project.region)}`} />
-    <section className={styles.projectSummary} aria-label="ملخص المشروع"><div className={styles.summaryTop}><span className={styles.reference}>طلب <bdi>{project.request_code}</bdi></span><Status value={project.lifecycle_status} /></div><dl className={styles.summaryFacts}><div><dt>الميزانية التقديرية</dt><dd>{project.estimated_budget_min !== null ? `${money(project.estimated_budget_min)} — ` : "حتى "}{money(project.estimated_budget_max)}</dd><small>{project.budget_negotiable ? "قابلة للتفاوض" : "حسب الميزانية المحددة"}</small></div><div><dt>تاريخ البدء المتوقع</dt><dd>{dateLabel(project.expected_start_at)}</dd><small>مدة التنفيذ: {customerReadableText(project.estimated_duration)}</small></div><div><dt>آخر موعد للعروض</dt><dd>{dateLabel(project.proposal_deadline_at, true)}</dd><small>بتوقيت الرياض</small></div></dl><details className={styles.projectBrief}><summary>تفاصيل الطلب ونطاق العمل</summary><div className={styles.briefGrid}><div><h3>وصف المشروع</h3><p>{customerReadableText(project.description)}</p></div><div><h3>نطاق العمل</h3><p>{customerReadableText(project.scope)}</p></div></div><div className={styles.tags}>{project.project_request_specialties?.map(item => <span key={item.specialty_name}>{customerReadableText(item.specialty_name)}</span>)}</div>{project.minimum_rating !== null ? <p className={styles.muted}>الحد الأدنى لتقييم المقاول: {project.minimum_rating} من ٥</p> : null}</details></section>
+    <section className={styles.projectSummary} aria-label="ملخص المشروع"><div className={styles.summaryTop}><span className={styles.reference}>طلب <bdi>{project.request_code}</bdi></span><Status value={project.lifecycle_status} /></div><dl className={styles.summaryFacts}><div><dt>الميزانية التقديرية</dt><dd>{project.estimated_budget_min !== null ? `${money(project.estimated_budget_min)} — ` : "حتى "}{money(project.estimated_budget_max)}</dd><small>{project.budget_negotiable ? "قابلة للتفاوض" : "حسب الميزانية المحددة"}</small></div><div><dt>تاريخ البدء المتوقع</dt><dd>{dateLabel(project.expected_start_at)}</dd><small>مدة التنفيذ: {customerReadableText(project.estimated_duration)}</small></div><div><dt>مهلة رد كل مقاول</dt><dd>يومَا عمل</dd><small>بتوقيت الرياض، باستثناء الجمعة والسبت</small></div></dl><details className={styles.projectBrief}><summary>تفاصيل الطلب ونطاق العمل</summary><div className={styles.briefGrid}><div><h3>وصف المشروع</h3><p>{customerReadableText(project.description)}</p></div><div><h3>نطاق العمل</h3><p>{customerReadableText(project.scope)}</p></div></div><div className={styles.tags}>{project.project_request_specialties?.map(item => <span key={item.specialty_name}>{customerReadableText(item.specialty_name)}</span>)}</div>{project.minimum_rating !== null ? <p className={styles.muted}>الحد الأدنى لتقييم المقاول: {project.minimum_rating} من ٥</p> : null}</details></section>
+    <section className={styles.searchPanel} aria-label="متابعة البحث عن مقاول" aria-busy={busy || loading}>
+      <div className={styles.sectionHeading}><div><span className={styles.eyebrow}>متابعة البحث</span><h2>{search ? searchLabels[search.status] : "جارٍ تحديث حالة البحث"}</h2><p>{search?.status === "awaiting_customer" ? "وصل عرض المقاول. راجعه ثم اقبله، اطلب تعديله، أو ارفضه للانتقال إلى المقاول التالي." : search?.status === "stopped" ? "البحث متوقف بطلبك، والعروض السابقة محفوظة للاطلاع. استأنفه للمتابعة." : search?.status === "exhausted" ? "لا يوجد مقاول إضافي مطابق حاليًا. يبقى الطلب محفوظًا وسنبحث عند توفر مقاول مناسب، أو يمكنك إيقاف البحث." : search?.status === "awarded" ? "اختير المقاول بعد موافقتك، وانتهى البحث لهذا المشروع." : "نتواصل مع مقاول واحد في كل مرة ممن يخدمون موقع مشروعك ويطابقون التخصص المطلوب. إذا لم يرسل عرضًا خلال يومَي عمل، ننتقل تلقائيًا إلى التالي."}</p></div></div>
+      {search ? <dl className={styles.searchFacts}>
+        <div><dt>المقاول الحالي</dt><dd>{search.contractor_name || "لم يُحدد بعد"}</dd></div>
+        <div><dt>{search.status === "awaiting_customer" ? "صلاحية العرض الحالي" : "موعد رد المقاول"}</dt><dd>{dateLabel(search.status === "awaiting_customer" ? search.proposal_valid_until : search.response_deadline_at, true)}</dd></div>
+        <div><dt>المقاولون الذين تواصلنا معهم</dt><dd>{Number(search.invited_count || 0).toLocaleString("ar-SA")}</dd></div>
+      </dl> : null}
+      {searchError ? <p className={styles.error} role="alert">{searchError}</p> : null}
+      {search && !isAwarded && search.status !== "awarded" ? <div className={styles.searchActions}>
+        {search.status === "stopped" ? <button type="button" className={styles.primary} disabled={busy || loading || Boolean(loadError)} onClick={() => void changeSearch("resume")}>{busy ? "جارٍ الاستئناف…" : "استئناف البحث عن مقاول"}</button> : confirmStop ? <div className={styles.stopConfirmation} role="group" aria-label="تأكيد إيقاف البحث"><p>هل تريد إيقاف البحث؟ ستتوقف طلبات عروض الأسعار، ويمكنك استئناف البحث لاحقًا.</p><div className={styles.actions}><button type="button" className={styles.reject} disabled={busy || loading} onClick={() => void changeSearch("stop")}>{busy ? "جارٍ الإيقاف…" : "نعم، أوقف البحث"}</button><button type="button" className={styles.secondary} disabled={busy} onClick={() => setConfirmStop(false)}>متابعة البحث</button></div></div> : <button type="button" className={styles.secondary} disabled={busy || loading || Boolean(loadError)} onClick={() => { setConfirmStop(true); setActive(null); }}>إيقاف البحث عن مقاول</button>}
+      </div> : null}
+    </section>
     <section className={styles.proposals} aria-label="عروض المقاولين" aria-busy={loading}>
       <div className={styles.sectionHeading}><div><span className={styles.eyebrow}>الخطوة التالية</span><h2>عروض المقاولين <span className={styles.count}>{proposals.length.toLocaleString("ar-SA")}</span></h2><p>{reviewable ? `${reviewable.toLocaleString("ar-SA")} عرض بانتظار مراجعتك. قارن التفاصيل قبل اختيار المقاول.` : "كل عرض يوضح السعر والمدة ونطاق العمل المقترح."}</p></div><button className={styles.secondary} disabled={loading || busy} onClick={reload}>{loading ? "جارٍ التحديث…" : "تحديث العروض"}</button></div>
       {notice ? <p className={styles.success} role="status">{notice}</p> : null}{loadError ? <p className={styles.error} role="alert">{loadError}</p> : null}
@@ -244,7 +288,7 @@ export function ProjectProposalDecisions({ id }: { id: string }) {
         {proposal.scope_details ? <p className={styles.scope}>{customerReadableText(proposal.scope_details)}</p> : null}
         <details className={styles.offerDetails}><summary>تفاصيل العرض ومراحل التنفيذ</summary><div className={styles.briefGrid}><div><h4>يشمل العرض</h4>{proposal.includes?.length ? <ul>{proposal.includes.map((item, index) => <li key={`${index}-${item}`}>{customerReadableText(item)}</li>)}</ul> : <p className={styles.muted}>لم تُذكر بنود إضافية.</p>}</div><div><h4>لا يشمل العرض</h4>{proposal.excludes?.length ? <ul>{proposal.excludes.map((item, index) => <li key={`${index}-${item}`}>{customerReadableText(item)}</li>)}</ul> : <p className={styles.muted}>لم تُذكر استثناءات.</p>}</div>{proposal.warranty ? <div><h4>الضمان</h4><p>{customerReadableText(proposal.warranty)}</p></div> : null}{proposal.team ? <div><h4>فريق العمل</h4><p>{customerReadableText(proposal.team)}</p></div> : null}</div>{proposal.notes ? <div><h4>ملاحظات المقاول</h4><p>{customerReadableText(proposal.notes)}</p></div> : null}{proposal.contractor_proposal_stages?.length ? <div className={styles.stages}><h4>مراحل التنفيذ</h4>{[...proposal.contractor_proposal_stages].sort((a, b) => a.sort_order - b.sort_order).map((stage, index) => <div className={styles.stage} key={`${stage.sort_order}-${index}`}><strong>{customerReadableText(stage.name)}</strong><span>{stage.value_percentage}٪ من قيمة المشروع</span><p>{customerReadableText(stage.description)}</p><small>المدة: {customerReadableText(stage.duration)} · الموعد المتوقع: {dateLabel(stage.expected_at)}</small></div>)}</div> : <p className={styles.muted}>لم تُضف مراحل تنفيذ إلى هذا العرض.</p>}</details>
         {proposal.change_request ? <p className={styles.previousDecision}><strong>التعديلات المطلوبة:</strong> {customerReadableText(proposal.change_request)}</p> : null}{proposal.rejection_reason ? <p className={styles.previousDecision}><strong>سبب الرفض:</strong> {customerReadableText(proposal.rejection_reason)}</p> : null}
-        {!isAwarded && ["under_review", "needs_changes"].includes(proposal.status) ? active?.proposalId === proposal.id ? <form className={styles.decision} onSubmit={decide}><h4>{decisionLabels[active.decision]}</h4><p>{active.decision === "accepted" ? "سيُختار هذا المقاول لتنفيذ المشروع وتُرفض العروض الأخرى التي قيد المراجعة. راجع السعر ونطاق العمل قبل التأكيد." : active.decision === "needs_changes" ? "وضح للمقاول ما تريد تعديله في السعر أو المدة أو نطاق العمل." : "أضف سببًا واضحًا لمساعدة المقاول على فهم قرارك."}</p><label className={styles.field}><span>{active.decision === "needs_changes" ? "التعديلات المطلوبة" : "سبب القرار"}</span><textarea ref={reasonField} value={reason} onChange={event => setReason(event.target.value)} disabled={busy} required minLength={5} rows={3} aria-invalid={Boolean(decisionError)} aria-describedby={decisionError ? `decision-error-${proposal.id}` : undefined} /></label>{decisionError ? <p id={`decision-error-${proposal.id}`} className={styles.error} role="alert">{decisionError}</p> : null}<div className={styles.actions}><button type="submit" className={styles.primary} disabled={busy}>{busy ? "جارٍ تسجيل القرار…" : `تأكيد ${decisionLabels[active.decision]}`}</button><button type="button" className={styles.secondary} onClick={cancelDecision} disabled={busy}>إلغاء</button></div></form> : <footer className={styles.actions}><button id={`decision-${proposal.id}-accepted`} className={styles.primary} disabled={busy || loading || Boolean(loadError)} onClick={event => openDecision(proposal.id, "accepted", event.currentTarget)}>قبول العرض</button><button id={`decision-${proposal.id}-needs_changes`} className={styles.secondary} disabled={busy || loading || Boolean(loadError)} onClick={event => openDecision(proposal.id, "needs_changes", event.currentTarget)}>طلب تعديل</button><button id={`decision-${proposal.id}-rejected`} className={styles.reject} disabled={busy || loading || Boolean(loadError)} onClick={event => openDecision(proposal.id, "rejected", event.currentTarget)}>رفض العرض</button></footer> : null}
+        {!isAwarded && search?.status === "awaiting_customer" && search.active_proposal_id === proposal.id && ["under_review", "needs_changes"].includes(proposal.status) ? active?.proposalId === proposal.id ? <form className={styles.decision} onSubmit={decide}><h4>{decisionLabels[active.decision]}</h4><p>{active.decision === "accepted" ? "سيُختار هذا المقاول لتنفيذ المشروع وتُرفض العروض الأخرى التي قيد المراجعة. راجع السعر ونطاق العمل قبل التأكيد." : active.decision === "needs_changes" ? "وضح للمقاول ما تريد تعديله في السعر أو المدة أو نطاق العمل." : "وضح سبب رفض العرض. سنطلب عرضًا من المقاول المناسب التالي بعد تأكيد الرفض."}</p><label className={styles.field}><span>{active.decision === "needs_changes" ? "التعديلات المطلوبة" : "سبب القرار"}</span><textarea ref={reasonField} value={reason} onChange={event => setReason(event.target.value)} disabled={busy} required minLength={5} rows={3} aria-invalid={Boolean(decisionError)} aria-describedby={decisionError ? `decision-error-${proposal.id}` : undefined} /></label>{decisionError ? <p id={`decision-error-${proposal.id}`} className={styles.error} role="alert">{decisionError}</p> : null}<div className={styles.actions}><button type="submit" className={styles.primary} disabled={busy}>{busy ? "جارٍ تسجيل القرار…" : `تأكيد ${decisionLabels[active.decision]}`}</button><button type="button" className={styles.secondary} onClick={cancelDecision} disabled={busy}>إلغاء</button></div></form> : <footer className={styles.actions}><button id={`decision-${proposal.id}-accepted`} className={styles.primary} disabled={busy || loading || Boolean(loadError)} onClick={event => openDecision(proposal.id, "accepted", event.currentTarget)}>قبول العرض</button><button id={`decision-${proposal.id}-needs_changes`} className={styles.secondary} disabled={busy || loading || Boolean(loadError)} onClick={event => openDecision(proposal.id, "needs_changes", event.currentTarget)}>طلب تعديل</button><button id={`decision-${proposal.id}-rejected`} className={styles.reject} disabled={busy || loading || Boolean(loadError)} onClick={event => openDecision(proposal.id, "rejected", event.currentTarget)}>رفض العرض</button></footer> : null}
       </article>)}</div>
     </section>
   </main>;

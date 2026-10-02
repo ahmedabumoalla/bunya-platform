@@ -131,6 +131,7 @@ class _BunyaShellState extends State<BunyaShell> {
   Future<Profile?>? roleProfile;
   final List<MobileQuoteItem> quoteItems = [];
   int index = 0;
+  bool showCustomerWorkspace = false;
 
   @override
   void initState() {
@@ -194,7 +195,8 @@ class _BunyaShellState extends State<BunyaShell> {
           final needsPhoneVerification =
               !repo.hasVerifiedPhone &&
               (profile == null ||
-                  const {'customer', 'provider'}.contains(profile.role));
+                  const {'customer', 'provider'}.contains(profile.role) ||
+                  (showCustomerWorkspace && profile.canSwitchToCustomer));
           if (needsPhoneVerification) {
             return PhoneVerificationScreen(
               repository: repo,
@@ -228,9 +230,18 @@ class _BunyaShellState extends State<BunyaShell> {
                 'contractor',
                 'driver',
               }.contains(profile.role)) {
+            if (showCustomerWorkspace && profile.canSwitchToCustomer) {
+              return _customerShell(businessProfile: profile);
+            }
             return RoleWorkspace(
               profile: profile,
               repository: repo,
+              onOpenCustomerWorkspace: profile.canSwitchToCustomer
+                  ? () => setState(() {
+                      showCustomerWorkspace = true;
+                      index = 0;
+                    })
+                  : null,
               storefrontHome:
                   profile.role == 'provider' || profile.role == 'contractor'
                   ? CatalogTab(
@@ -268,7 +279,7 @@ class _BunyaShellState extends State<BunyaShell> {
     return _customerShell();
   }
 
-  Widget _customerShell() {
+  Widget _customerShell({Profile? businessProfile}) {
     final pages = [
       CatalogTab(
         catalog: catalog,
@@ -295,6 +306,17 @@ class _BunyaShellState extends State<BunyaShell> {
         title: const BunyaWordmark(),
         actions: [
           const BunyaLanguageButton(),
+          if (businessProfile != null)
+            IconButton(
+              tooltip: businessProfile.role == 'contractor'
+                  ? 'العودة لحساب المقاول'
+                  : 'العودة لحساب المزود',
+              onPressed: () => setState(() {
+                showCustomerWorkspace = false;
+                index = 0;
+              }),
+              icon: const Icon(Icons.switch_account_outlined),
+            ),
           Badge(
             isLabelVisible: quoteItems.isNotEmpty,
             label: Text('${quoteItems.length}'),

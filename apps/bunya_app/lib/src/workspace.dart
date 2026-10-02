@@ -2045,6 +2045,7 @@ class RoleWorkspace extends StatefulWidget {
     this.storefrontHome,
     this.quoteItemCount = 0,
     this.onOpenQuoteBasket,
+    this.onOpenCustomerWorkspace,
   });
   final Profile profile;
   final BunyaRepository repository;
@@ -2053,6 +2054,7 @@ class RoleWorkspace extends StatefulWidget {
   final Widget? storefrontHome;
   final int quoteItemCount;
   final VoidCallback? onOpenQuoteBasket;
+  final VoidCallback? onOpenCustomerWorkspace;
 
   @override
   State<RoleWorkspace> createState() => _RoleWorkspaceState();
@@ -2173,6 +2175,12 @@ class _RoleWorkspaceState extends State<RoleWorkspace> {
           ),
           actions: [
             const BunyaLanguageButton(),
+            if (widget.onOpenCustomerWorkspace != null)
+              IconButton(
+                tooltip: 'حسابي كعميل',
+                onPressed: widget.onOpenCustomerWorkspace,
+                icon: const Icon(Icons.switch_account_outlined),
+              ),
             if (widget.onOpenQuoteBasket != null)
               Badge(
                 isLabelVisible: widget.quoteItemCount > 0,
@@ -3213,6 +3221,11 @@ class _ContractorProposalScreenState extends State<ContractorProposalScreen> {
           decoration: const InputDecoration(
             labelText: 'نطاق العمل وتفاصيل العرض',
           ),
+        ),
+        const SizedBox(height: 14),
+        const Text(
+          'نشر أعمالك واستقبال دعوات المشاريع دون اشتراك شهري. تُطبّق عمولة بُنية بنسبة ٥٪ على المشاريع المتعاقد عليها.',
+          style: TextStyle(color: BunyaColors.muted, height: 1.7),
         ),
         const SizedBox(height: 16),
         FilledButton.icon(
@@ -10197,9 +10210,10 @@ const _fieldLabels = <String, String>{
   'status': 'الحالة',
   'review_status': 'حالة المراجعة',
   'approval_status': 'حالة الاعتماد',
+  'platform_commission_rate': 'نسبة عمولة بُنية',
+  'platform_commission_amount': 'عمولة المشروع المتفق عليها',
   'availability': 'حالة التوفر',
   'is_active': 'الحساب نشط',
-  'subscription_active': 'الاشتراك نشط',
   'is_published': 'ظاهر للعملاء',
   'is_verified': 'تم التحقق',
   'created_at': 'تاريخ الإنشاء',
@@ -10328,9 +10342,11 @@ String _displayValue(String key, Object? raw) {
     'discount_amount',
     'estimated_budget_min',
     'estimated_budget_max',
+    'platform_commission_amount',
   }.contains(key)) {
     return '$value ر.س';
   }
+  if (key == 'platform_commission_rate') return '$value%';
   if (key == 'rating') return '$value من 5';
   if (key.endsWith('_duration_hours')) return '$value ساعة';
   return value;

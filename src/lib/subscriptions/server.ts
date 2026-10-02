@@ -9,6 +9,7 @@ export async function loadSubscriptionPlans(): Promise<SubscriptionPlan[]> {
     .from("subscription_plans")
     .select("id,role,name,price_monthly,description,benefits")
     .eq("is_active", true)
+    .eq("role", "provider")
     .order("price_monthly");
   if (error) throw new Error(`تعذر تحميل خطط الاشتراك: ${error.message}`);
   return (data ?? []).map((row) => ({

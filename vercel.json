@@ -1,6 +1,7 @@
 {
   "crons": [
     { "path": "/api/cron/notifications", "schedule": "*/2 * * * *" },
-    { "path": "/api/cron/provider-uploads", "schedule": "17 * * * *" }
+    { "path": "/api/cron/provider-uploads", "schedule": "17 * * * *" },
+    { "path": "/api/cron/contractor-search", "schedule": "*/5 * * * *" }
   ]
 }

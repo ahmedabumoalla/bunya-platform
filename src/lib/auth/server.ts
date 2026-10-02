@@ -23,10 +23,10 @@ export async function requirePortalRole(expectedRole: AppRole) {
 
   if (identity.profile?.mustChangePassword) redirect("/account/change-password");
 
-  const contractorCustomerAccess = expectedRole === "customer" && identity.primaryRole === "contractor"
-    && identity.activeRoles.includes("contractor") && identity.activeRoles.includes("customer")
-    && roleIsReady("contractor", identity.details) && roleIsReady("customer", identity.details);
-  if (identity.primaryRole !== expectedRole && !contractorCustomerAccess) {
+  const professionalCustomerAccess = expectedRole === "customer" && (identity.primaryRole === "contractor" || identity.primaryRole === "provider")
+    && identity.activeRoles.includes(identity.primaryRole) && identity.activeRoles.includes("customer")
+    && roleIsReady(identity.primaryRole, identity.details) && roleIsReady("customer", identity.details);
+  if (identity.primaryRole !== expectedRole && !professionalCustomerAccess) {
     redirect(routeForRole(identity.primaryRole));
   }
 

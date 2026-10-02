@@ -5,6 +5,8 @@ import type { Product, ProductImage } from "@/lib/bunya-types";
 import { isProductVideo } from "@/lib/products/image-urls";
 import { BunyaLogo } from "@/components/brand/BunyaLogo";
 import { MobileHeaderLanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
+import { publicAccountFor, type PublicAccount } from "@/lib/auth/public-account";
+import styles from "./PublicAccountHeader.module.css";
 
 type ProductVisualStyle = CSSProperties & {
   "--product-tone"?: string;
@@ -74,6 +76,7 @@ export function ProductArtwork({ image, large = false }: { image?: ProductImage;
 }
 
 type StoreHeaderProps = {
+  account?: PublicAccount;
   compact: boolean;
   menuOpen: boolean;
   quoteCount: number;
@@ -83,10 +86,10 @@ type StoreHeaderProps = {
   onQuoteOpen: () => void;
 };
 
-export function StoreHeader({ compact, menuOpen, quoteCount, quoteOpen, onMenuToggle, onNavigate, onQuoteOpen }: StoreHeaderProps) {
+export function StoreHeader({ compact, menuOpen, quoteCount, quoteOpen, onMenuToggle, onNavigate, onQuoteOpen, account = publicAccountFor(null) }: StoreHeaderProps) {
   const quoteLabel = `طلب عرض السعر يحتوي على ${quoteCount.toLocaleString("ar-SA")} منتج`;
   return (
-    <header className={`store-header ${compact ? "store-header-compact" : ""}`}>
+    <header className={`store-header ${styles.header} ${compact ? "store-header-compact" : ""}`}>
       <div className="store-header-layout mx-auto max-w-[90rem]">
         <a className="store-brand" href="#products" aria-label="بُنية - متجر مواد البناء" onClick={onNavigate}>
           <BunyaLogo priority sizes="(max-width: 700px) 112px, 125px" />
@@ -99,12 +102,12 @@ export function StoreHeader({ compact, menuOpen, quoteCount, quoteOpen, onMenuTo
         </nav>
 
         <nav className="store-desktop-portals" aria-label="بوابات بُنية">
-          <Link className="store-portal-link store-portal-link-primary" href="/login">لوحة التحكم</Link>
-          <Link className="store-portal-link" href="/providers/join">المزودون</Link>
-          <Link className="store-portal-link" href="/contractors/join">المقاولون</Link>
+          <Link className="store-portal-link store-portal-link-primary" href={account.href}>{account.signedIn ? "حسابي" : "لوحة التحكم"}</Link>
+          {account.canApplyProvider ? <Link className="store-portal-link" href="/providers/join">المزودون</Link> : null}
+          {account.canApplyContractor ? <Link className="store-portal-link" href="/contractors/join">المقاولون</Link> : null}
         </nav>
 
-        <MobileHeaderLanguageSwitcher />
+        <div className={styles.mobileActions}>{account.signedIn ? <Link className={styles.accountLink} href={account.href}>حسابي</Link> : null}<MobileHeaderLanguageSwitcher /></div>
         <button aria-controls="store-quote-drawer" aria-expanded={quoteOpen} className="store-icon-button store-header-quote" aria-label={quoteLabel} onClick={onQuoteOpen} type="button">
           <Icon name="quote" /><span className="store-count">{quoteCount.toLocaleString("ar-SA")}</span>
         </button>
@@ -115,9 +118,9 @@ export function StoreHeader({ compact, menuOpen, quoteCount, quoteOpen, onMenuTo
         <a href="#products" onClick={onNavigate}>المنتجات</a>
         <a href="#latest" onClick={onNavigate}>أحدث المنتجات</a>
         <Link href="/contractors">ابحث عن مقاول</Link>
-        <Link href="/login">لوحة التحكم</Link>
-        <Link href="/providers/join">بوابة المزودين</Link>
-        <Link href="/contractors/join">بوابة المقاولين</Link>
+        <Link href={account.href}>{account.signedIn ? "حسابي" : "لوحة التحكم"}</Link>
+        {account.canApplyProvider ? <Link href="/providers/join">بوابة المزودين</Link> : null}
+        {account.canApplyContractor ? <Link href="/contractors/join">بوابة المقاولين</Link> : null}
       </nav>
     </header>
   );

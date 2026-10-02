@@ -26,7 +26,7 @@ export function OpportunityProposal({id}:{id:string}) {
      {[["warranty","الضمان"],["team","الفريق"]].map(([n,l])=><label className="portal-field" key={n}><span>{l}</span><input name={n} required type="text"/></label>)}
      <label className="portal-field wide"><span>ملاحظات <small>اختياري</small></span><textarea name="notes" rows={3}/></label>
     </div></fieldset>
-    <div className="contractor-proposal-confirmation"><label className="contractor-catalog-check"><input name="policy" type="checkbox" required/><span>أوافق على السياسة</span></label><p>راجع تفاصيل العرض والمواعيد قبل إرساله.</p></div>
+    <div className="contractor-proposal-confirmation"><label className="contractor-catalog-check"><input name="policy" type="checkbox" required/><span>أوافق على السياسة</span></label><p>نشر أعمالك واستقبال دعوات المشاريع دون اشتراك شهري. تُطبّق عمولة بُنية بنسبة ٥٪ على المشاريع المتعاقد عليها. راجع تفاصيل العرض والمواعيد قبل إرساله.</p></div>
     {msg?<p className="contractor-catalog-form-error" role="alert">{msg}</p>:null}<footer className="contractor-catalog-actions"><p aria-live="polite">{busy?"جارٍ إرسال عرضك…":"سيُرسل عرضك إلى العميل للمراجعة."}</p><button disabled={busy} className="portal-primary-button contractor-catalog-primary">{busy?"جارٍ الإرسال…":"تقديم العرض"}</button></footer>
    </form>
   </div>

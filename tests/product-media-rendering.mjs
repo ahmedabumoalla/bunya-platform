@@ -34,6 +34,8 @@ const ui = load('src/components/home/HomeStorefrontUi.tsx', {
   '@/lib/products/image-urls': media,
   '@/components/brand/BunyaLogo': {},
   '@/components/i18n/LanguageSwitcher': {},
+  '@/lib/auth/public-account': { publicAccountFor: () => ({ signedIn: false, href: '/login', canApplyProvider: true, canApplyContractor: true }) },
+  './PublicAccountHeader.module.css': { default: {} },
 });
 for (const mimeType of ['video/mp4', 'video/webm', 'video/quicktime']) {
   const image = { id: 'v', label: 'Product video', alt: 'Product demonstration', tone: 'cement', mimeType, url: 'https://test.invalid/media' };

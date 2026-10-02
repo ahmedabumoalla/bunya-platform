@@ -45,9 +45,14 @@ for (const [name, states, expected] of views) {
 }
 const dashboard = html('ContractorDashboard', [profile, { opportunities: 7, proposals: 3, projects: 2, reviews: 1, documents: 1, services: 1, portfolio: 1 }, false, '']);
 assert.match(dashboard, /٧/); assert.match(dashboard, /href="\/contractor\/opportunities"/); assert.match(dashboard, /اكتشف المشاريع المناسبة لك/); assert.doesNotMatch(dashboard, /قاعدة البيانات|NaN/);
-assert.match(html('ContractorDashboard', [{ ...profile, subscription_active: false }, {}, false, '']), /فعّل اشتراكك/);
+const unsubscribedDashboard = html('ContractorDashboard', [{ ...profile, subscription_active: false }, {}, false, '']);
+assert.match(unsubscribedDashboard, /اكتشف المشاريع المناسبة لك/); assert.doesNotMatch(unsubscribedDashboard, /فعّل اشتراكك|تفعيل اشتراك المقاول/);
+assert.match(html('ContractorOpportunities', [[], { ...profile, subscription_active: false }, false, '']), /حسابك جاهز/);
 assert.match(html('ContractorDashboard', [{ ...profile, approval_status: 'pending' }, {}, false, '']), /جهّز حسابك/);
 const details = html('ContractorProjectDetail', [project, [{ id: 'stage-1', name: 'مرحلة التنفيذ', status: 'in_progress', progress: 50, value_percentage: 20 }], [{ id: 'update-1', title: 'تحديث', description: 'تفاصيل التحديث', update_type: 'daily_report' }], false, '', ''], { id: project.id });
+assert.doesNotMatch(details, /قيمة العمولة المتفق عليها/);
+const commissioned = html('ContractorProjectDetail', [{ ...project, platform_commission_rate: 5, platform_commission_amount: 1200 }, [], [], false, '', ''], { id: project.id });
+assert.match(commissioned, /قيمة العمولة المتفق عليها/); assert.match(commissioned, /٥%/); assert.match(commissioned, /١٬٢٠٠/);
 assert.match(details, /حالة المشروع/); assert.match(details, /إرسال لاعتماد العميل/); assert.match(details, /تسجيل تأخير/); assert.match(details, /تقرير يومي/); assert.doesNotMatch(details, />[^<]*daily_report/);
 const proposalDetails = html('ContractorProposalDetail', [proposal, [{ id: 'stage-2', name: 'خطة العمل', value_percentage: 100 }], false, ''], { id: proposal.id });
 assert.match(proposalDetails, /حالة العرض/); assert.match(proposalDetails, /تعديل العرض وإرساله/);

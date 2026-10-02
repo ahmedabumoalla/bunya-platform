@@ -20,8 +20,8 @@ export default async function SubscriptionsPage() {
           <div className="mx-auto max-w-7xl">
             <RolePageHeader
               eyebrow="الاشتراكات"
-              title="خطتان واضحتان للتجار والمقاولين"
-              description="خطط الاشتراك النشطة المتاحة للمزودين والمقاولين في منصة بُنية."
+              title="خطط المزودين والتعامل مع المقاولين"
+              description="انضمام المقاول واستقبال دعوات المشاريع لا يتطلب اشتراكًا شهريًا؛ تعتمد المنصة على عمولة بنسبة ٥٪ على المشاريع المتعاقد عليها. تظهر أدناه خطط المزودين المتاحة."
             />
 
             {dataError ? <div className="glass-card rounded-lg p-8 text-center" role="alert"><h2 className="text-xl font-black">تعذر الاتصال بقاعدة البيانات</h2><p className="mt-2 text-[var(--muted)]">لا يمكن تحميل خطط الاشتراك حاليا. حاول مرة أخرى لاحقا.</p></div> : subscriptionPlans.length ? <div className="grid gap-6 lg:grid-cols-2">

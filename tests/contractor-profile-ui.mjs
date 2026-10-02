@@ -46,7 +46,7 @@ const nodes=(tree,predicate)=>{if(!tree||typeof tree!=='object')return[];if(Arra
 (async()=>{
   let tree=render();assert.match(renderToStaticMarkup(tree),/role="status"/);effects[0]();await new Promise(resolve=>setImmediate(resolve));tree=render();
   let html=renderToStaticMarkup(tree);
-  assert.doesNotMatch(html,/>needs_changes</);assert.match(html,/مطلوب تعديل البيانات/);assert.match(html,/للقراءة فقط/);assert.doesNotMatch(html,/<main/);
+  assert.match(html,/عمولة المشاريع/);assert.doesNotMatch(html,/>الاشتراك</);assert.doesNotMatch(html,/>needs_changes</);assert.match(html,/مطلوب تعديل البيانات/);assert.match(html,/للقراءة فقط/);assert.doesNotMatch(html,/<main/);
   for(const id of ['identity','experience','location','contact']) {assert.match(html,new RegExp(`href="#profile-${id}"`));assert.match(html,new RegExp(`id="profile-${id}"`));}
   assert.equal(nodes(tree,node=>['input','textarea','select'].includes(node.type)).length,11);
   let summary=nodes(tree,node=>node.type==='textarea'&&node.props.value===row.summary)[0];summary.props.onChange({target:{value:'  نبذة محدثة  '}});tree=render();

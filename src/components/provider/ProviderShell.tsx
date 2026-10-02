@@ -103,7 +103,7 @@ export function ProviderShell({ children }: { children: ReactNode }) {
           <Link href={href} className={active ? "active" : ""} aria-label={label} aria-current={active ? "page" : undefined} title={collapsed ? label : undefined} onClick={() => setDrawerOpen(false)}><span aria-hidden="true"><Icon name={icon} /></span><b>{label}</b>{href === "/merchant/notifications" && unread ? <em>{unread > 99 ? "99+" : unread}</em> : null}</Link>
         </div>;
       })}</nav>
-      <div className="provider-sidebar-footer"><LogoutButton className="provider-logout" title="تسجيل الخروج"><span aria-hidden="true"><Icon name="arrow" /></span><b>تسجيل الخروج</b></LogoutButton><small>بُنية · شركاء البناء</small></div>
+      <div className="provider-sidebar-footer">{identity.activeRoles.includes("customer") && identity.details.customer.exists ? <Link className="provider-logout" href="/customer" title="حساب العميل والمشتريات" aria-label="حساب العميل والمشتريات"><span aria-hidden="true"><Icon name="flow" /></span><b>حساب العميل والمشتريات</b></Link> : null}<LogoutButton className="provider-logout" title="تسجيل الخروج"><span aria-hidden="true"><Icon name="arrow" /></span><b>تسجيل الخروج</b></LogoutButton><small>بُنية · شركاء البناء</small></div>
     </aside>
     <section className="provider-workspace" inert={mobile && drawerOpen}>
       <header className="provider-topbar">

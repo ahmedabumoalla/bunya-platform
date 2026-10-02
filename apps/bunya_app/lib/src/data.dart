@@ -357,9 +357,19 @@ class Profile {
     required this.mobile,
     required this.role,
     required this.mustChangePassword,
+    this.activeRoles = const [],
+    this.isActive = true,
   });
   final String name, email, mobile, role;
   final bool mustChangePassword;
+  final List<String> activeRoles;
+  final bool isActive;
+
+  bool get canSwitchToCustomer =>
+      isActive &&
+      !mustChangePassword &&
+      const {'provider', 'contractor'}.contains(role) &&
+      activeRoles.contains('customer');
 }
 
 class JoinSubmission {
@@ -1026,11 +1036,22 @@ class BunyaRepository {
     final row = await client
         .from('profiles')
         .select(
-          'full_name,email,mobile,role,must_change_password,preferred_locale',
+          'full_name,email,mobile,role,must_change_password,preferred_locale,is_active',
         )
         .eq('id', user!.id)
         .maybeSingle();
     if (row == null) return null;
+    List<String> activeRoles = const [];
+    try {
+      final roles = await client
+          .from('user_roles')
+          .select('role')
+          .eq('profile_id', user!.id)
+          .isFilter('revoked_at', null);
+      activeRoles = List.unmodifiable(roles.map((value) => '${value['role']}'));
+    } catch (_) {
+      // Preserve the current workspace if secondary roles cannot be loaded.
+    }
     await BunyaLocaleController.adoptProfileLocale(
       row['preferred_locale'] as String?,
     );
@@ -1040,6 +1061,8 @@ class BunyaRepository {
       mobile: '${row['mobile'] ?? ''}',
       role: '${row['role'] ?? 'customer'}',
       mustChangePassword: row['must_change_password'] == true,
+      activeRoles: activeRoles,
+      isActive: row['is_active'] != false,
     );
   }
 

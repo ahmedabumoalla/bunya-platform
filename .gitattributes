@@ -7,3 +7,5 @@ supabase/migrations/088_contractor_approval_document_boundary.sql text eol=lf
 supabase/migrations/089_onboarding_temporary_password_24_hours.sql text eol=lf
 supabase/migrations/090_provider_catalog_without_prices.sql text eol=lf
 supabase/migrations/091_provider_product_correction_resubmission.sql text eol=lf
+supabase/migrations/092_contractor_sequential_project_search.sql text eol=lf
+supabase/migrations/093_professional_customer_accounts.sql text eol=lf
