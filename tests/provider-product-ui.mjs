@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 import vm from 'node:vm';
 import ts from 'typescript';
 import React from 'react';
+import { webcrypto } from 'node:crypto';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 const require = createRequire(import.meta.url);
@@ -54,9 +55,9 @@ for (const file of [{ ...photo, size: photo.size + 1 }, { ...video, size: video.
 console.log('PASS feedback URL consumption, latest review reason/CTA SSR, image/video size boundaries');
 
 // Small hook harness executes real component event handlers without a browser.
-function harness(componentName, query = '', fixture = null) {
+function harness(componentName, query = '', fixture = null, options = {}) {
   const values = [], effects = [];
-  let cursor = 0, tree, timer, cleared = false, replaced;
+  let cursor = 0, tree, timer, cleared = false, replaced, pushed, submitted;
   const hooks = {
     ...React,
     useState(initial) { const index = cursor++; if (!(index in values)) values[index] = typeof initial === 'function' ? initial() : initial; return [values[index], next => { values[index] = typeof next === 'function' ? next(values[index]) : next; }]; },
@@ -67,16 +68,20 @@ function harness(componentName, query = '', fixture = null) {
   const fixtureMocks = fixture ? {
     './ProviderProducts': ui,
     '@/lib/products/image-urls': { ...media, signProductImageMap: async (_, sources) => { signedSources = sources; return new Map(sources.filter(item => item.storage_path).map(item => [item.storage_path, `https://storage.invalid/signed/${item.id}`])); } },
-    '@/lib/supabase/client': { createClient: () => ({ from(table) { return { select(columns) { if(table === 'products')selectedColumns = columns; return this; }, eq() { return this; }, order() { return this; }, maybeSingle() { return this; }, then(resolve) { return Promise.resolve({ data: table === 'products' ? fixture : table === 'product_categories' ? [] : null, error: null }).then(resolve); } }; } }) },
+    '@/lib/uploads/product-media-client': { uploadProductMedia: async()=>{}, discardProductMedia: async()=>{} },
+    '@/lib/supabase/client': { createClient: () => ({ from(table) { return { select(columns) { if(table === 'products')selectedColumns = columns; return this; }, eq() { return this; }, order() { return this; }, maybeSingle() { return this; }, then(resolve,reject) { return (options.transportError ? Promise.reject(Error('offline')) : Promise.resolve({ data: table === 'products' ? fixture : table === 'product_categories' ? [] : null, error: options.pendingError && table === 'product_change_requests' ? {message:'denied'} : null })).then(resolve,reject); } }; } }) },
   } : {};
-  const component = load(componentName === 'ProviderProductChangeRequest' ? 'src/components/provider/ProviderProductChangeRequest.tsx' : path, { ...mocks, ...fixtureMocks, react: hooks, 'next/navigation': { useRouter: () => ({ replace: (url, options) => { replaced = { url, options }; } }), useSearchParams: () => new URLSearchParams(query) } }, {
+  const component = load(componentName === 'ProviderProductChangeRequest' ? 'src/components/provider/ProviderProductChangeRequest.tsx' : path, { ...mocks, ...fixtureMocks, react: hooks, 'next/navigation': { useRouter: () => ({ push:url=>{pushed=url;},refresh(){}, replace: (url, options) => { replaced = { url, options }; } }), useSearchParams: () => new URLSearchParams(query) } }, {
+    crypto:webcrypto,
+    FormData:class extends FormData { constructor(fields) {super();for(const [key,value] of Object.entries(fields||{}))this.set(key,value);} },
+    fetch:async(url,init)=>{submitted={url,...init};return Response.json({reviewStatus:'pending_review'});},
     URL: { createObjectURL: () => `blob:${objectIndex++}`, revokeObjectURL: () => {} },
     window: { location: { hash: '#catalog' }, setTimeout(fn, delay) { assert.equal(delay, 5000); timer = fn; return 123; }, clearTimeout(id) { assert.equal(id, 123); cleared = true; } },
   })[componentName];
   function render() { cursor = 0; effects.length = 0; tree = component({ productId: 'product-id' }); return tree; }
   function nodes(predicate, node = tree) { if (!node || typeof node !== 'object') return []; if (Array.isArray(node)) return node.flatMap(child => nodes(predicate, child ?? null)); return [...(predicate(node) ? [node] : []), ...nodes(predicate, node.props?.children ?? null)]; }
   render();
-  return { render, nodes, effects, get selectedColumns() { return selectedColumns; }, get signedSources() { return signedSources; }, get replaced() { return replaced; }, fireTimer: () => timer(), get cleared() { return cleared; } };
+  return { render, nodes, effects, get submitted(){return submitted;},get pushed(){return pushed;},get selectedColumns() { return selectedColumns; }, get signedSources() { return signedSources; }, get replaced() { return replaced; }, fireTimer: () => timer(), get cleared() { return cleared; } };
 }
 const list = harness('ProviderProductsList', 'created=1&filter=available');
 list.effects[0]();
@@ -156,3 +161,26 @@ assert.equal(ui.providerProductCover(gallery.slice(0,2)).id,'secondary');
 assert.equal(ui.providerProductCover([gallery[0]]),null);
 assert.equal(gallery[0].id,'video','Cover selection must not reorder saved gallery');
 console.log('PASS actual product list loads media, signs only image covers and renders selected/private and legacy/external photos; missing media and videos keep fallback');
+
+const correctionFixture={...baseProduct,provider_id:'owner',product_measurements:[],product_variants:[],product_specifications:[],product_images:[gallery[2]],lead_time_label:'Two days',delivery_window:'Morning',delivery_notes:'Original delivery note'};
+const submitEditor=harness('ProviderProductChangeRequest','',correctionFixture);
+submitEditor.effects[0]();await new Promise(resolve=>setImmediate(resolve));submitEditor.render();
+const fields=Object.fromEntries(submitEditor.nodes(node=>node.props?.name && ['input','textarea','select'].includes(node.type)).map(node=>[node.props.name,node.props.value??node.props.defaultValue??'']));
+assert.equal(fields.delivery_notes,'Original delivery note');
+fields.delivery_notes='Supplier is responsible for delivery';
+await submitEditor.nodes(node=>node.type==='form')[0].props.onSubmit({preventDefault(){},currentTarget:fields});
+assert.equal(submitEditor.submitted.url,'/api/provider/products/product-id/change-requests');
+assert.equal(submitEditor.submitted.method,'POST');
+assert.equal(submitEditor.submitted.body.get('delivery_notes'),fields.delivery_notes);
+assert.equal(submitEditor.submitted.body.get('primary_image'),'chosen');
+assert.deepEqual(JSON.parse(submitEditor.submitted.body.get('retained_image_ids')),['chosen']);
+assert.equal(submitEditor.pushed,'/merchant/products?resubmitted=1');
+for(const options of [{transportError:true},{pendingError:true}]){
+ const failed=harness('ProviderProductChangeRequest','',correctionFixture,options);
+ failed.effects[0]();await new Promise(resolve=>setImmediate(resolve));failed.render();
+ assert.equal(failed.nodes(node=>node.props?.role==='alert').length,1);
+ assert.equal(failed.nodes(node=>node.type==='form').length,0);
+ const retry=failed.nodes(node=>node.type==='button'&&node.props.children==='إعادة المحاولة')[0];assert.ok(retry);retry.props.onClick();failed.render();
+ assert.equal(failed.nodes(node=>node.props?.role==='alert').length,0);
+}
+console.log('PASS loaded correction form submits edited delivery note and retained cover, redirects after saving, and recovers from transport/pending-query errors');

@@ -1,10 +1,17 @@
 # Bunya Platform — Project Reference
 
+## 2026-10-02 — Product correction URL registration and complete submission verification
+
+- Diagnosed the supplied merchant change-request URL: RoleDatabasePortal had an editor branch but no Next page registered that URL. Anonymous redirect checks masked the missing route. Added the standard empty route slot under merchant/products/[id]/change-request; MerchantLayout still owns authentication and the actual editor. Editor now catches transport/image failures, refuses unavailable statuses, checks pending-query errors and offers retry instead of a stuck loader.
+- Fresh Next typegen (~4.5s) plus tests/provider-product-route.mjs confirms actual framework URL/page registration. Extended component tests (~0.9s) exercise loaded delivery-note editing, actual submit handler payload/retained cover/success navigation, failed transport/pending lookup and retry, alongside existing card/cover/toast tests. TypeScript, affected ESLint and diff checks passed (~10s). Existing unchanged API/SQL implementation evidence reused; no migration or native build/browser inspection.
+- Exact live editor REST selection succeeded for the reported product (five images, review reason, needs_changes, no pending change). Under its owner's authenticated PostgreSQL role, a transaction-only full snapshot correction changed delivery_notes, verified persistence plus unpublished pending_review and owner-scoped reads, then rolled back (~4.6s; tmp/product-correction-rollback-check.sql). An initial same-snapshot rehearsal also passed; independent post-check confirmed original status/images and rollback of its receipt. No committed product/review mutation or notification dispatch. Release evidence follows.
+
 ## 2026-10-02 — Missing provider product card image
 
 - The merchant list queried no product media and rendered a permanent name initial. Prior gallery/cover checks did not exercise the actual list card, so the omission remained after6add997. The list now fetches its owned products' image metadata, chooses the selected image (or first available image), signs only those covers and renders the real photo with a responsive contained layout/category badge. Videos cannot be covers; products without images retain the existing fallback. Async loading failures show an error instead of leaving a spinner.
 - Focused UI test (~1.9s) now exercises the real list query, signing and rendered Image props alongside existing toast/correction/editor checks: non-first primary photo, video exclusion, legacy external URLs and absent-image fallback. TypeScript and affected ESLint passed (~10s), diff check passed; source responsive/accessibility review preserves card button and correction action. No database/API/schema changes or browser inspection.
 - Read-only live verification of the reported product (~4s) found five stored images, verified the selected cover exists and fetched an image response from its transformed private signed URL (`tmp/provider-card-cover-live-check.mjs`); no files/data were modified. Release evidence follows.
+- Release790a936 built/deployed successfully: https://vercel.com/ahmedabumoallas-projects/bunya-platform/7aXzpFdADm5FD4uhCTdY4LZMH9i8. No authenticated browser inspection; list behavior is covered by the focused component test and live image fetch above. This release note changes documentation only.
 
 ## 2026-10-02 — Product correction requests, temporary feedback and selected media cover
 

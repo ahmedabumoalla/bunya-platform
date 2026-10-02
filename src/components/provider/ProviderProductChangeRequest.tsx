@@ -60,6 +60,7 @@ export function ProviderProductChangeRequest({ productId }: { productId: string 
   const [categories, setCategories] = useState<Category[]>([]);
   const [pendingRequest, setPendingRequest] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [busy, setBusy] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [error, setError] = useState("");
@@ -92,12 +93,15 @@ export function ProviderProductChangeRequest({ productId }: { productId: string 
       db.from("product_change_requests").select("id").eq("product_id", productId).eq("status", "pending").maybeSingle(),
     ]).then(async ([categoryResult, productResult, pendingResult]) => {
       if (!active) return;
-      if (categoryResult.error || productResult.error || !productResult.data) {
+      if (categoryResult.error || productResult.error || pendingResult.error || !productResult.data) {
         setError("تعذر تحميل بيانات المنتج للتعديل."); setLoading(false); return;
       }
       const value = productResult.data as unknown as Product;
       if (value.provider_id !== identity.details.provider?.providerId) {
         setError("المنتج غير مرتبط بمنشأتك."); setLoading(false); return;
+      }
+      if (!["needs_changes", "approved"].includes(value.review_status)) {
+        setError("هذا المنتج غير متاح للتعديل الآن. راجع حالته في قائمة المنتجات."); setLoading(false); return;
       }
       const images = [...(value.product_images || [])].sort((a, b) => Number(b.is_primary) - Number(a.is_primary) || a.sort_order - b.sort_order);
       const urls = await signProductImageMap(db, images, { width: 720, height: 520, quality: 74 });
@@ -115,9 +119,11 @@ export function ProviderProductChangeRequest({ productId }: { productId: string 
       setExistingImages(images.map((item) => ({ ...item, signed_url: (item.storage_path ? urls.get(item.storage_path) : null) || item.image_url })));
       setPendingRequest(Boolean(pendingResult.data));
       setLoading(false);
+    }).catch(() => {
+      if (active) { setError("تعذر تحميل بيانات المنتج وصوره. تحقق من الاتصال ثم أعد المحاولة."); setLoading(false); }
     });
     return () => { active = false; previewUrls.forEach((url) => URL.revokeObjectURL(url)); };
-  }, [identity.details.provider?.providerId, productId]);
+  }, [identity.details.provider?.providerId, productId, loadAttempt]);
 
   const allImageCount = existingImages.length + newImages.length;
   const selectImages = (event: ChangeEvent<HTMLInputElement>) => {
@@ -164,7 +170,7 @@ export function ProviderProductChangeRequest({ productId }: { productId: string 
   };
 
   if (loading) return <div className="provider-skeleton"><i/><i/><i/></div>;
-  if (error && !product) return <section className="provider-empty"><h2>تعذر فتح طلب التعديل</h2><p>{error}</p><Link className="provider-secondary" href="/merchant/products">العودة للمنتجات</Link></section>;
+  if (error && !product) return <section className="provider-empty"><h2>تعذر فتح طلب التعديل</h2><p role="alert">{error}</p><button className="provider-primary" type="button" onClick={() => { setError(""); setLoading(true); setLoadAttempt(value => value + 1); }}>إعادة المحاولة</button><Link className="provider-secondary" href="/merchant/products">العودة للمنتجات</Link></section>;
   if (!product) return null;
   const delivery = product.product_delivery_configs;
   const correction = product.review_status === "needs_changes";
