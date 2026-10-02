@@ -69,7 +69,7 @@ function Shell({
   return (
     <div className={styles.workspace}>
       <header className={styles.hero}>
-        <div>
+        <div className={styles.heroContent}>
           <h1>{title}</h1>
           <p>{description}</p>
         </div>
@@ -99,7 +99,7 @@ function Empty({
   );
 }
 function ErrorBox({ value }: { value: string }) {
-  return value ? <div className={styles.error}>{value}</div> : null;
+  return value ? <div className={styles.error} role="alert">{value}</div> : null;
 }
 
 export function ProviderQuoteRequests() {
@@ -140,7 +140,7 @@ export function ProviderQuoteRequests() {
         title="طلبات التحقق والتسعير"
         description="جارٍ تحميل الطلبات الموجهة لمنشأتك…"
       >
-        <div />
+        <div className={styles.loading} role="status">جارٍ تحميل طلبات التسعير…</div>
       </Shell>
     );
   return (
@@ -288,7 +288,7 @@ export function ProviderQuotes() {
             <article className={styles.card} key={row.id}>
               <div className={styles.cardHead}>
                 <b>{row.response_code}</b>
-                <span className={styles.badge}>{status(row.status)}</span>
+                <span className={styles.badge} data-status={row.status}>{status(row.status)}</span>
               </div>
               <div className={styles.row}>
                 <span>
@@ -383,7 +383,7 @@ export function ProviderOrders() {
               <article className={styles.card} key={row.id}>
                 <div className={styles.cardHead}>
                   <b>{row.fulfillment_code}</b>
-                  <span className={styles.badge}>{status(row.status)}</span>
+                  <span className={styles.badge} data-status={row.status}>{status(row.status)}</span>
                 </div>
                 <div className={styles.row}>
                   <span>{row.delivery_region}</span>
@@ -579,7 +579,7 @@ export function ProviderFinance() {
       description="لوحة مالية حقيقية تعرض الرصيد والحركات والحسابات البنكية وطلبات الصرف."
     >
       <ErrorBox value={error} />
-      {message ? <div className={styles.message}>{message}</div> : null}
+      {message ? <div className={styles.message} role="status">{message}</div> : null}
       <div className={styles.metrics}>
         <div className={styles.metric}>
           الرصيد الدفتري<b>{money(balance)}</b>
@@ -604,6 +604,7 @@ export function ProviderFinance() {
       <div className={styles.grid}>
         <section className={styles.panel}>
           <h2>إضافة حساب بنكي</h2>
+          <p className={styles.muted}>أضف بيانات الحساب، ثم تابع حالة اعتماده أدناه.</p>
           <form
             className={styles.form}
             onSubmit={(e) => void submit(e, "bank")}
@@ -665,6 +666,7 @@ export function ProviderFinance() {
         </section>
         <section className={styles.panel}>
           <h2>طلب صرف</h2>
+          <p className={styles.muted}>اختر حسابًا معتمدًا وحدد مبلغًا ضمن رصيدك المتاح.</p>
           <form
             className={styles.form}
             onSubmit={(e) => void submit(e, "settlement")}
@@ -712,7 +714,7 @@ export function ProviderFinance() {
                 <div className={styles.row}>
                   <b>{s.settlement_code}</b>
                   <strong>{money(s.amount)}</strong>
-                  <span className={styles.badge}>{status(s.status)}</span>
+                  <span className={styles.badge} data-status={s.status}>{status(s.status)}</span>
                 </div>
                 <small>{date(s.created_at)}</small>
                 {s.admin_notes ? <p>{s.admin_notes}</p> : null}
@@ -724,8 +726,8 @@ export function ProviderFinance() {
       <section className={styles.panel}>
         <h2>الحركات المالية</h2>
         {transactions.length ? (
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
+          <div className={styles.tableWrap} tabIndex={0} role="region" aria-label="سجل الحركات المالية">
+            <table className={styles.table} aria-label="الحركات المالية">
               <thead>
                 <tr>
                   <th>المرجع</th>
@@ -786,15 +788,19 @@ export function ProviderPolicies({ audience = "provider" }: { audience?: PolicyA
       description="آخر النسخ المنشورة من الإدارة، وتظهر هنا فور نشرها."
     >
       <ErrorBox value={error} />
-      <nav className={styles.actions} aria-label="الوثائق الأساسية"><Link href="/terms">شروط الاستخدام</Link><Link href="/privacy">الخصوصية</Link><Link href={`/policies?audience=${audience}`}>مركز السياسات</Link></nav>
+      <nav className={styles.policyLinks} aria-label="الوثائق الأساسية"><Link href="/terms">شروط الاستخدام</Link><Link href="/privacy">الخصوصية</Link><Link href={`/policies?audience=${audience}`}>مركز السياسات</Link></nav>
       {rows.length ? (
-        <div className={styles.grid}>
-          <section className={styles.panel}>
-            <div className={styles.cards}>
+        <div className={styles.policyLayout}>
+          <section className={styles.policyList} aria-label="السياسات المنشورة">
+            <p className={styles.sectionEyebrow}>الوثائق المنشورة · {rows.length}</p>
+            <div className={styles.policyChoices}>
               {rows.map((p) => (
                 <button
                   key={p.id}
-                  className={styles.card}
+                  type="button"
+                  className={`${styles.policyChoice} ${selected?.id === p.id ? styles.policyChoiceActive : ""}`}
+                  aria-pressed={selected?.id === p.id}
+                  aria-controls="workspace-policy-content"
                   onClick={() => setSelected(p)}
                 >
                   <b>{p.title}</b>
@@ -806,7 +812,8 @@ export function ProviderPolicies({ audience = "provider" }: { audience?: PolicyA
               ))}
             </div>
           </section>
-          <article className={styles.panel}>
+          <article className={`${styles.panel} ${styles.policyArticle}`} id="workspace-policy-content" aria-live="polite">
+            <p className={styles.sectionEyebrow}>الإصدار {selected?.version} · {date(selected?.published_at)}</p>
             <h2>{selected?.title}</h2>
             <p className={styles.muted}>{selected?.summary}</p>
             <div className={styles.policyBody}>{body}</div>
@@ -817,6 +824,14 @@ export function ProviderPolicies({ audience = "provider" }: { audience?: PolicyA
       )}
     </Shell>
   );
+}
+
+function ProfileSection({ id, title, description, children }: { id: string; title: string; description: string; children: React.ReactNode }) {
+  return <fieldset className={styles.profileSection} id={id}><legend>{title}</legend><p className={styles.sectionDescription}>{description}</p><div className={styles.sectionFields}>{children}</div></fieldset>;
+}
+
+function ProfileInput({ label, name, value, type = "text", required = false }: { label: string; name: string; value: string; type?: string; required?: boolean }) {
+  return <label>{label}<input name={name} type={type} required={required} defaultValue={value} dir={type === "email" || type === "url" ? "ltr" : "auto"}/></label>;
 }
 
 export function ProviderProfile() {
@@ -863,6 +878,7 @@ export function ProviderProfile() {
     e.preventDefault();
     setBusy(true);
     setError("");
+    setMessage("");
     const f = new FormData(e.currentTarget);
     f.set("action", "save");
     f.set("deliveryAvailable", String(f.get("deliveryAvailable") === "on"));
@@ -884,7 +900,10 @@ export function ProviderProfile() {
   const upload = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setBusy(true);
-    const f = new FormData(e.currentTarget);
+    setError("");
+    setMessage("");
+    const form = e.currentTarget;
+    const f = new FormData(form);
     f.set("action", "document");
     try {
       const r = await fetch("/api/provider/profile", {
@@ -894,7 +913,7 @@ export function ProviderProfile() {
         p = await r.json();
       if (!r.ok) throw new Error(p.error);
       setMessage("تم رفع المستند للمراجعة.");
-      e.currentTarget.reset();
+      form.reset();
       await load();
     } catch (x) {
       setError(x instanceof Error ? x.message : "تعذر الرفع");
@@ -908,153 +927,56 @@ export function ProviderProfile() {
       description="بيانات تعريف المنشأة وعنوانها الوطني وسجلاتها ومستندات الإثبات."
     >
       <ErrorBox value={error} />
-      {message ? <div className={styles.message}>{message}</div> : null}
-      <form
-        className={`${styles.panel} ${styles.form}`}
-        onSubmit={(e) => void save(e)}
-      >
-        {logo ? (
-          <img className={styles.logo} src={logo} alt="شعار المنشأة" />
-        ) : (
-          <div className={styles.logo} />
-        )}
-        <label>
-          تحديث الشعار
-          <input
-            name="logo"
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-          />
-        </label>
-        <label>
-          اسم المنشأة
-          <input
-            name="companyName"
-            required
-            defaultValue={data.company_name || ""}
-          />
-        </label>
-        <label>
-          اسم المسؤول
-          <input
-            name="contactName"
-            required
-            defaultValue={data.contact_name || ""}
-          />
-        </label>
-        <label>
-          الجوال
-          <input name="mobile" required defaultValue={data.mobile || ""} />
-        </label>
-        <label>
-          البريد الإلكتروني
-          <input
-            name="email"
-            type="email"
-            required
-            defaultValue={data.email || ""}
-          />
-        </label>
-        <label>
-          اسم المستخدم العام
-          <input name="username" defaultValue={data.username || ""} />
-        </label>
-        <label>
-          الموقع الإلكتروني
-          <input
-            name="websiteUrl"
-            type="url"
-            defaultValue={data.website_url || ""}
-          />
-        </label>
-        <label className={styles.wide}>
-          نبذة المنشأة
-          <textarea
-            name="publicDescription"
-            rows={4}
-            defaultValue={data.public_description || ""}
-          />
-        </label>
-        <h3 className={styles.wide}>السجلات والتعريف</h3>
-        <label>
-          رقم السجل التجاري
-          <input
-            name="commercialRegistrationNumber"
-            defaultValue={data.commercial_registration_number || ""}
-          />
-        </label>
-        <label>
-          الرقم الضريبي
-          <input name="vatNumber" defaultValue={data.vat_number || ""} />
-        </label>
-        <h3 className={styles.wide}>العنوان الوطني</h3>
-        <label>
-          العنوان المختصر
-          <input
-            name="nationalAddressShortCode"
-            defaultValue={data.national_address_short_code || ""}
-          />
-        </label>
-        <label>
-          رقم المبنى
-          <input
-            name="buildingNumber"
-            defaultValue={data.building_number || ""}
-          />
-        </label>
-        <label>
-          الشارع
-          <input name="streetName" defaultValue={data.street_name || ""} />
-        </label>
-        <label>
-          الحي
-          <input name="district" defaultValue={data.district || ""} />
-        </label>
-        <label>
-          المدينة
-          <input name="city" defaultValue={data.city || ""} />
-        </label>
-        <label>
-          المنطقة
-          <input name="region" defaultValue={data.region || ""} />
-        </label>
-        <label>
-          الرمز البريدي
-          <input name="postalCode" defaultValue={data.postal_code || ""} />
-        </label>
-        <label>
-          الرقم الفرعي
-          <input
-            name="secondaryNumber"
-            defaultValue={data.secondary_number || ""}
-          />
-        </label>
-        <label>
-          الدولة
-          <input name="country" defaultValue={data.country || "السعودية"} />
-        </label>
-        <label>
-          رابط خرائط Google
-          <input
-            name="googleMapsUrl"
-            type="url"
-            defaultValue={data.google_maps_url || ""}
-          />
-        </label>
-        <label className={styles.wide}>
-          <input
-            name="deliveryAvailable"
-            type="checkbox"
-            defaultChecked={Boolean(data.delivery_available)}
-          />{" "}
-          المنشأة توفر التوصيل
-        </label>
-        <button className={styles.primary} disabled={busy}>
-          حفظ ملف المنشأة
-        </button>
+      <section className={styles.profileOverview} aria-label="ملخص المنشأة">
+        <div className={styles.profileIdentity}>
+          {logo ? <img className={styles.logo} src={logo} alt="شعار المنشأة"/> : <div className={`${styles.logo} ${styles.logoPlaceholder}`} aria-hidden="true">{String(data.company_name || "ب").trim().slice(0, 1)}</div>}
+          <div><p className={styles.sectionEyebrow}>ملف المنشأة</p><h2>{data.company_name || "بيانات منشأتك"}</h2><p className={styles.muted}>{data.contact_name || "التعريف والتواصل والمستندات في مكان واحد"}</p></div>
+        </div>
+        <dl className={styles.profileFacts}>
+          <div><dt>المدينة</dt><dd>{data.city || "غير مضافة"}</dd></div>
+          <div><dt>خدمة التوصيل</dt><dd>{data.delivery_available ? "متوفرة" : "غير متوفرة"}</dd></div>
+          <div><dt>مستندات الإثبات</dt><dd>{docs.length} مستند</dd></div>
+        </dl>
+      </section>
+      <nav className={styles.sectionNav} aria-label="أقسام ملف المنشأة">
+        <a href="#provider-identity">التعريف</a><a href="#provider-contact">التواصل</a><a href="#provider-legal">السجلات</a><a href="#provider-address">العنوان</a><a href="#provider-documents">المستندات</a>
+      </nav>
+      <form className={`${styles.panel} ${styles.profileForm}`} onSubmit={(e) => void save(e)} aria-busy={busy}>
+        <ProfileSection id="provider-identity" title="التعريف بالمنشأة" description="الاسم والشعار والمعلومات التي تعرّف بمنشأتك على المنصة.">
+          <ProfileInput name="companyName" label="اسم المنشأة" value={data.company_name || ""} required/>
+          <ProfileInput name="username" label="اسم المستخدم العام" value={data.username || ""}/>
+          <ProfileInput name="websiteUrl" label="الموقع الإلكتروني" type="url" value={data.website_url || ""}/>
+          <label>تحديث الشعار<input name="logo" type="file" accept="image/png,image/jpeg,image/webp"/><small className={styles.fieldHint}>PNG أو JPEG أو WebP</small></label>
+          <label className={styles.wide}>نبذة المنشأة<textarea name="publicDescription" rows={4} defaultValue={data.public_description || ""}/></label>
+        </ProfileSection>
+        <ProfileSection id="provider-contact" title="معلومات التواصل" description="بيانات المسؤول ووسائل التواصل المرتبطة بالمنشأة.">
+          <ProfileInput name="contactName" label="اسم المسؤول" value={data.contact_name || ""} required/>
+          <ProfileInput name="mobile" label="الجوال" value={data.mobile || ""} required/>
+          <ProfileInput name="email" label="البريد الإلكتروني" type="email" value={data.email || ""} required/>
+        </ProfileSection>
+        <ProfileSection id="provider-legal" title="السجلات والتعريف" description="أرقام التسجيل الرسمية للمنشأة.">
+          <ProfileInput name="commercialRegistrationNumber" label="رقم السجل التجاري" value={data.commercial_registration_number || ""}/>
+          <ProfileInput name="vatNumber" label="الرقم الضريبي" value={data.vat_number || ""}/>
+        </ProfileSection>
+        <ProfileSection id="provider-address" title="العنوان الوطني والتوصيل" description="تفاصيل موقع المنشأة وعنوانها المسجّل.">
+          <ProfileInput name="nationalAddressShortCode" label="العنوان المختصر" value={data.national_address_short_code || ""}/>
+          <ProfileInput name="buildingNumber" label="رقم المبنى" value={data.building_number || ""}/>
+          <ProfileInput name="streetName" label="الشارع" value={data.street_name || ""}/>
+          <ProfileInput name="district" label="الحي" value={data.district || ""}/>
+          <ProfileInput name="city" label="المدينة" value={data.city || ""}/>
+          <ProfileInput name="region" label="المنطقة" value={data.region || ""}/>
+          <ProfileInput name="postalCode" label="الرمز البريدي" value={data.postal_code || ""}/>
+          <ProfileInput name="secondaryNumber" label="الرقم الفرعي" value={data.secondary_number || ""}/>
+          <ProfileInput name="country" label="الدولة" value={data.country || "السعودية"}/>
+          <ProfileInput name="googleMapsUrl" label="رابط خرائط Google" type="url" value={data.google_maps_url || ""}/>
+          <label className={`${styles.wide} ${styles.checkboxField}`}><input name="deliveryAvailable" type="checkbox" defaultChecked={Boolean(data.delivery_available)}/><span>المنشأة توفر التوصيل</span></label>
+        </ProfileSection>
+        <footer className={styles.saveBar}><p>تُرسل التغييرات للمراجعة بعد الحفظ.</p><button className={styles.primary} disabled={busy}>{busy ? "جارٍ الحفظ…" : "حفظ ملف المنشأة"}</button></footer>
       </form>
-      <section className={styles.panel}>
-        <h2>مستندات الإثبات</h2>
+      {message ? <div className={styles.message} role="status">{message}</div> : null}
+      <section className={`${styles.panel} ${styles.documentSection}`} id="provider-documents" aria-labelledby="provider-documents-title">
+        <h2 id="provider-documents-title">مستندات الإثبات</h2>
+        <p className={styles.muted}>أرفق مستندات منشأتك وتابع حالة مراجعتها وتواريخ انتهائها.</p>
         <form className={styles.form} onSubmit={(e) => void upload(e)}>
           <label>
             نوع المستند
@@ -1089,8 +1011,8 @@ export function ProviderProfile() {
           </button>
         </form>
         {docs.length ? (
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
+          <div className={styles.tableWrap} tabIndex={0} role="region" aria-label="سجل مستندات المنشأة">
+            <table className={styles.table} aria-label="مستندات الإثبات">
               <thead>
                 <tr>
                   <th>المستند</th>
@@ -1105,7 +1027,7 @@ export function ProviderProfile() {
                   <tr key={d.id}>
                     <td>{d.file_name}</td>
                     <td>{d.document_number || "—"}</td>
-                    <td>{status(d.status)}</td>
+                    <td><span className={styles.badge} data-status={d.status}>{status(d.status)}</span></td>
                     <td>{d.expires_at || "—"}</td>
                     <td>{date(d.created_at)}</td>
                   </tr>

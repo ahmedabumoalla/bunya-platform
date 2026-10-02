@@ -8,6 +8,8 @@ import { useAuthIdentity } from "@/components/auth/AuthIdentityProvider";
 import { signProductImageMap } from "@/lib/products/image-urls";
 import { createClient } from "@/lib/supabase/client";
 import { optimizeUploadFile } from "@/lib/uploads/client";
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
+import { useDialogFocus } from "@/components/admin/useDialogFocus";
 import styles from "./ProviderProducts.module.css";
 
 type Category = { id: string; name: string };
@@ -141,14 +143,13 @@ export function ProviderProductsList() {
 
   useEffect(() => {
     if (!detailId) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const unlockScroll = lockBodyScroll();
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") setDetailId(null);
     };
     window.addEventListener("keydown", closeOnEscape);
     return () => {
-      document.body.style.overflow = previousOverflow;
+      unlockScroll();
       window.removeEventListener("keydown", closeOnEscape);
     };
   }, [detailId]);
@@ -206,11 +207,11 @@ export function ProviderProductsList() {
   };
 
   return (
-    <section className="provider-page-stack">
+    <section className={`provider-page-stack ${styles.catalog}`}>
       <header className="provider-page-header">
         <div>
           <p>كتالوج المنشأة</p>
-          <h2>المنتجات</h2>
+          <h1>المنتجات</h1>
           <span>أضف منتجات منشأتك وأرسلها للمراجعة قبل ظهورها في الكتالوج العام.</span>
         </div>
         <div>
@@ -219,6 +220,12 @@ export function ProviderProductsList() {
           </Link>
         </div>
       </header>
+
+      {!loading && !error ? <div className={styles.inventorySummary} aria-label="ملخص المنتجات">
+        <div><strong>{products.length.toLocaleString("ar-SA")}</strong><span>منتجات المنشأة</span></div>
+        <div><strong>{products.filter(product => product.is_published).length.toLocaleString("ar-SA")}</strong><span>منشور في الكتالوج</span></div>
+        <div><strong>{products.filter(product => product.review_status === "pending_review").length.toLocaleString("ar-SA")}</strong><span>بانتظار المراجعة</span></div>
+      </div> : null}
 
       {searchParams.get("created") === "1" ? (
         <p className="provider-toast" role="status">
@@ -236,6 +243,7 @@ export function ProviderProductsList() {
           <span aria-hidden>⌕</span>
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="ابحث بالاسم أو رمز SKU" aria-label="البحث في المنتجات" />
         </label>
+        {!loading && !error ? <span className={styles.resultCount} role="status">{filtered.length.toLocaleString("ar-SA")} منتج{query.trim() ? " مطابق للبحث" : " في القائمة"}</span> : null}
       </div>
 
       {loading ? (
@@ -244,16 +252,16 @@ export function ProviderProductsList() {
           <i />
           <i />
         </div>
-      ) : filtered.length === 0 ? (
+      ) : error ? null : filtered.length === 0 ? (
         <div className="provider-empty">
           <span aria-hidden>▦</span>
           <h3>{products.length ? "لا توجد نتائج مطابقة" : "لم تُضف منتجات بعد"}</h3>
           <p>{products.length ? "غيّر عبارة البحث لعرض المنتجات." : "أنشئ أول منتج وأرسله إلى الإدارة للمراجعة."}</p>
-          {!products.length ? (
+          {products.length ? <button className="provider-secondary" type="button" onClick={() => setQuery("")}>مسح البحث</button> : (
             <Link className="provider-primary" href="/merchant/products/new">
               إضافة أول منتج
             </Link>
-          ) : null}
+          )}
         </div>
       ) : (
         <div className="provider-product-grid">
@@ -307,6 +315,7 @@ export function ProviderProductsList() {
 }
 
 function ProviderProductDetailsDialog({ product, loading, error, activeImage, onActiveImage, onClose, onRetry }: { product: ProviderProductDetails | null; loading: boolean; error: string; activeImage: number; onActiveImage: (index: number) => void; onClose: () => void; onRetry: () => void }) {
+  const dialogRef = useDialogFocus();
   const images = product?.product_images.filter((image) => image.signed_url) ?? [];
   const shownImage = images[Math.min(activeImage, Math.max(images.length - 1, 0))];
 
@@ -317,7 +326,7 @@ function ProviderProductDetailsDialog({ product, loading, error, activeImage, on
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <section className={`${styles.detailModal} provider-modal`} role="dialog" aria-modal="true" aria-labelledby="provider-product-detail-title" aria-busy={loading}>
+      <section ref={dialogRef} tabIndex={-1} className={`${styles.detailModal} provider-modal`} role="dialog" aria-modal="true" aria-label={!product ? "تفاصيل المنتج" : undefined} aria-labelledby={product ? "provider-product-detail-title" : undefined} aria-busy={loading}>
         <button className="provider-modal-close" type="button" onClick={onClose} aria-label="إغلاق تفاصيل المنتج">
           ×
         </button>
@@ -637,11 +646,11 @@ export function ProviderProductCreate() {
   };
 
   return (
-    <section className="provider-page-stack">
+    <section className={`provider-page-stack ${styles.formPage}`}>
       <header className="provider-page-header">
         <div>
           <p>كتالوج المنشأة</p>
-          <h2>إضافة منتج جديد</h2>
+          <h1>إضافة منتج جديد</h1>
           <span>احفظه كمسودة لإكماله لاحقًا، أو أرسله للمراجعة ليتم اعتماده ونشره.</span>
         </div>
         <div>

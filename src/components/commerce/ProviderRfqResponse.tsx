@@ -186,20 +186,20 @@ export function ProviderRfqResponse({ id }: { id: string }) {
   }
   if (error && !target)
     return (
-      <main className="database-page">
-        <section className="database-state database-error">
+      <section className="database-page">
+        <section className="database-state database-error" role="alert">
           <h1>تعذر فتح الطلب</h1>
           <p>{error}</p>
         </section>
-      </main>
+      </section>
     );
   if (!target)
     return (
-      <main className="database-page">
-        <section className="database-state">
+      <section className="database-page">
+        <section className="database-state" role="status" aria-live="polite">
           <p>جارٍ تحميل بيانات الطلب...</p>
         </section>
-      </main>
+      </section>
     );
   const windowState = pricingWindowState(
     target.pricing_opens_at,
@@ -208,7 +208,7 @@ export function ProviderRfqResponse({ id }: { id: string }) {
     now,
   );
   return (
-    <main className={`database-page ${styles.page}`}>
+    <section className={`database-page ${styles.page}`}>
       <header className={styles.header}>
         <div>
           <p>{existing ? "عرض السعر محفوظ" : "طلب تسعير موجّه لمنشأتك"}</p>
@@ -322,8 +322,8 @@ export function ProviderRfqResponse({ id }: { id: string }) {
             ) : null}
           </section>
         </div>
-        <aside className={`${styles.panel} ${styles.formPanel}`}>
-          <h2>
+        <aside className={`${styles.panel} ${styles.formPanel}`} aria-labelledby="provider-offer-heading">
+          <h2 id="provider-offer-heading">
             {existing ? `عرضك ${existing.response_code}` : "تفاصيل عرض منشأتك"}
           </h2>
           <p className={styles.scopeNote}>
@@ -407,7 +407,7 @@ export function ProviderRfqResponse({ id }: { id: string }) {
                 </div>
               ) : null}
               {existing.can_revise ? (
-                <form className={`${styles.revisionForm} ${styles.wide}`} onSubmit={submit}>
+                <form className={`${styles.revisionForm} ${styles.wide}`} onSubmit={submit} aria-busy={busy}>
                   <div className={styles.outbidAlert}>
                     <strong>وصل عرض منافس أقل</strong>
                     <span>أقل تكلفة واصلة حاليًا: {amount(existing.current_competitor_landed_cost || 0)}</span>
@@ -430,6 +430,7 @@ export function ProviderRfqResponse({ id }: { id: string }) {
                     ملاحظة التخفيض
                     <textarea name="notes" rows={2} defaultValue={existing.notes || ""} />
                   </label>
+                  {error ? <p className={styles.error} role="alert">{error}</p> : null}
                   <button className={styles.submit} disabled={busy || !price}>
                     {busy ? "جارٍ حفظ التخفيض..." : "تخفيض عرضي وإرساله"}
                   </button>
@@ -455,7 +456,7 @@ export function ProviderRfqResponse({ id }: { id: string }) {
               </p>
             </div>
           ) : (
-            <form className={styles.form} onSubmit={submit}>
+            <form className={styles.form} onSubmit={submit} aria-busy={busy}>
               <label>
                 سعر الوحدة (ر.س)
                 <input
@@ -569,7 +570,7 @@ export function ProviderRfqResponse({ id }: { id: string }) {
                 والتوفر. يتم اختيار أقل تكلفة مؤهلة بعد التحقق من الكمية وموعد
                 التسليم.
               </p>
-              {error ? <p className={styles.error}>{error}</p> : null}
+              {error ? <p className={styles.error} role="alert">{error}</p> : null}
               <button className={styles.submit} disabled={busy || !price}>
                 {busy ? "جارٍ إرسال العرض..." : "تأكيد وإرسال عرض السعر"}
               </button>
@@ -577,6 +578,6 @@ export function ProviderRfqResponse({ id }: { id: string }) {
           )}
         </aside>
       </div>
-    </main>
+    </section>
   );
 }

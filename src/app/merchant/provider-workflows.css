@@ -1,0 +1,442 @@
+/* Provider-only presentation for shared support and fulfillment components. */
+.provider-app[data-provider-design="refined"] :is(.ops-panel, .provider-delivery-confirm) {
+  --workflow-forest: #173f32;
+  --workflow-ink: #203e32;
+  --workflow-muted: #5d7167;
+  --workflow-border: #dce5df;
+  --workflow-canvas: #f3f6f3;
+  --workflow-surface: #fff;
+  --workflow-copper: #9e6444;
+  min-width: 0;
+  color: var(--workflow-ink);
+}
+
+.provider-app[data-provider-design="refined"] .ops-panel {
+  align-content: start;
+  gap: 1.15rem;
+  padding: 1.5rem;
+  border: 1px solid var(--workflow-border) !important;
+  border-radius: 16px;
+  background: var(--workflow-surface) !important;
+  box-shadow: 0 3px 12px rgb(23 63 53 / 3%) !important;
+  backdrop-filter: none;
+}
+
+.provider-app[data-provider-design="refined"] .ops-panel > h2 {
+  margin: 0;
+  padding-bottom: .95rem;
+  border-bottom: 1px solid var(--workflow-border);
+  color: var(--workflow-ink) !important;
+  font-size: 1.04rem;
+  font-weight: 800;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.provider-app[data-provider-design="refined"] .ops-columns {
+  grid-template-columns: minmax(16rem, .72fr) minmax(0, 1.28fr);
+  align-items: start;
+  gap: 1.25rem;
+}
+
+.provider-app[data-provider-design="refined"] .ops-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 1.1rem 1.25rem;
+}
+
+.provider-app[data-provider-design="refined"] :is(.ops-form label, .ops-panel > label) {
+  display: grid;
+  min-width: 0;
+  gap: .5rem;
+  color: var(--workflow-ink) !important;
+  font-size: .84rem;
+  font-weight: 600;
+  line-height: 1.8;
+}
+
+.provider-app[data-provider-design="refined"] :is(.ops-panel, .provider-delivery-confirm) :is(input:not([type="checkbox"]), select, textarea) {
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  padding: .7rem .85rem;
+  border: 1px solid var(--workflow-border) !important;
+  border-radius: 9px;
+  background: var(--workflow-surface) !important;
+  color: var(--workflow-ink) !important;
+  box-shadow: none;
+  font: inherit;
+  font-size: .88rem;
+  line-height: 1.7;
+}
+
+.provider-app[data-provider-design="refined"] .ops-panel textarea {
+  min-height: 115px;
+  resize: vertical;
+}
+
+.provider-app[data-provider-design="refined"] .ops-panel input[type="file"] {
+  padding: .65rem;
+  border-style: dashed !important;
+  background: var(--workflow-canvas) !important;
+  color: var(--workflow-muted) !important;
+  font-size: .8rem;
+}
+
+.provider-app[data-provider-design="refined"] .ops-panel input[type="file"]::file-selector-button {
+  min-height: 38px;
+  margin-inline-end: .8rem;
+  padding: .4rem .8rem;
+  border: 1px solid var(--workflow-border);
+  border-radius: 7px;
+  background: var(--workflow-surface);
+  color: var(--workflow-forest);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.provider-app[data-provider-design="refined"] :is(.ops-form > button, .ops-actions > button, .provider-driver-assignment-controls > button, .provider-delivery-confirm .customer-delivery-code-row > button) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: .7rem 1.15rem;
+  border: 1px solid var(--workflow-forest) !important;
+  border-radius: 9px;
+  background: var(--workflow-forest) !important;
+  color: #fff !important;
+  box-shadow: none !important;
+  font: inherit;
+  font-size: .84rem;
+  font-weight: 700;
+  line-height: 1.7;
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+.provider-app[data-provider-design="refined"] .ops-form > button {
+  justify-self: start;
+  min-width: 11rem;
+  grid-column: 1 / -1;
+}
+
+.provider-app[data-provider-design="refined"] :is(.ops-actions, .ops-files) {
+  gap: .65rem;
+  align-items: center;
+}
+
+.provider-app[data-provider-design="refined"] :is(.ops-form > button, .ops-actions > button, .provider-driver-assignment-controls > button, .provider-delivery-confirm .customer-delivery-code-row > button):hover:not(:disabled) {
+  border-color: #245448 !important;
+  background: #245448 !important;
+}
+
+.provider-app[data-provider-design="refined"] :is(.ops-actions > button + button, .ops-actions > a, .ops-files > a) {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: .6rem .85rem;
+  border: 1px solid var(--workflow-border) !important;
+  border-radius: 8px;
+  background: var(--workflow-surface) !important;
+  color: var(--workflow-forest) !important;
+  font-size: .81rem;
+  font-weight: 600;
+  line-height: 1.7;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.provider-app[data-provider-design="refined"] :is(.ops-form > button, .ops-actions > button, .provider-driver-assignment-controls > button, .provider-delivery-confirm .customer-delivery-code-row > button):disabled {
+  border-color: var(--workflow-border) !important;
+  background: #e7ede8 !important;
+  color: #62746a !important;
+  opacity: 1 !important;
+  cursor: not-allowed;
+}
+
+.provider-app[data-provider-design="refined"] .ops-list {
+  gap: .6rem;
+}
+
+.provider-app[data-provider-design="refined"] .ops-list > button {
+  min-width: 0;
+  min-height: 78px;
+  gap: .5rem;
+  padding: 1rem;
+  border: 1px solid var(--workflow-border) !important;
+  border-radius: 10px;
+  background: var(--workflow-surface) !important;
+  text-align: start;
+  cursor: pointer;
+}
+
+.provider-app[data-provider-design="refined"] .ops-list > button:hover {
+  background: var(--workflow-canvas) !important;
+}
+
+.provider-app[data-provider-design="refined"] .ops-list > button[aria-pressed="true"] {
+  border-color: #8baa9b !important;
+  border-inline-start: 3px solid var(--workflow-forest) !important;
+  background: #edf4ef !important;
+}
+
+.provider-app[data-provider-design="refined"] .ops-list b {
+  color: var(--workflow-ink) !important;
+  font-size: .87rem;
+  font-weight: 700;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+
+.provider-app[data-provider-design="refined"] .ops-list span {
+  color: var(--workflow-muted);
+  font-size: .73rem;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+
+.provider-app[data-provider-design="refined"] .ops-thread {
+  gap: .9rem;
+  max-height: 32rem;
+  padding: .1rem;
+  padding-inline-end: .4rem;
+  scrollbar-width: thin;
+  scrollbar-color: #c5d4ca transparent;
+  overscroll-behavior: contain;
+}
+
+.provider-app[data-provider-design="refined"] .ops-thread article {
+  min-width: 0;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--workflow-border);
+  border-radius: 11px;
+  background: var(--workflow-canvas);
+  overflow-wrap: anywhere;
+}
+
+.provider-app[data-provider-design="refined"] .ops-thread article > b {
+  color: var(--workflow-forest) !important;
+  font-size: .78rem;
+  font-weight: 700;
+}
+
+.provider-app[data-provider-design="refined"] .ops-thread article > p {
+  margin: .5rem 0 .8rem;
+  color: var(--workflow-ink) !important;
+  font-size: .88rem;
+  line-height: 1.95;
+  white-space: pre-wrap;
+}
+
+.provider-app[data-provider-design="refined"] .ops-thread article > small {
+  color: var(--workflow-muted) !important;
+  font-size: .72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.provider-app[data-provider-design="refined"] .ops-thread article.internal {
+  border-color: #e8dacb;
+  background: #faf6ef;
+}
+
+.provider-app[data-provider-design="refined"] .ops-panel .database-state {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: .65rem;
+  min-height: 170px;
+  padding: 1.5rem;
+  border: 1px dashed var(--workflow-border) !important;
+  border-radius: 11px;
+  background: var(--workflow-canvas) !important;
+  box-shadow: none !important;
+  text-align: center;
+}
+
+.provider-app[data-provider-design="refined"] .ops-panel .database-state > span {
+  color: #8aa093;
+  font-size: 1.8rem;
+}
+
+.provider-app[data-provider-design="refined"] .ops-panel .database-state p {
+  margin: 0;
+  color: var(--workflow-muted) !important;
+  font-size: .85rem;
+  line-height: 1.9;
+}
+
+.provider-app[data-provider-design="refined"] .database-panel:has(> .admin-detail-meta) {
+  padding: 1.5rem;
+  border: 1px solid #dce5df !important;
+  border-radius: 16px;
+  background: #fff !important;
+  box-shadow: 0 3px 12px rgb(23 63 53 / 3%) !important;
+}
+
+.provider-app[data-provider-design="refined"] .database-panel > .admin-detail-meta {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 0 0 1.5rem;
+}
+
+.provider-app[data-provider-design="refined"] .database-panel .admin-detail-meta > div {
+  min-width: 0;
+  padding: .8rem 1rem;
+  border: 1px solid #dce5df !important;
+  border-radius: 9px;
+  background: #f3f6f3 !important;
+}
+
+.provider-app[data-provider-design="refined"] .database-panel .admin-detail-meta dt {
+  color: #5d7167 !important;
+  font-size: .76rem;
+  font-weight: 500;
+  line-height: 1.8;
+}
+
+.provider-app[data-provider-design="refined"] .database-panel .admin-detail-meta dd {
+  margin: .4rem 0 0;
+  color: #203e32 !important;
+  font-size: .9rem;
+  font-weight: 700;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+
+.provider-app[data-provider-design="refined"] .provider-delivery-confirm {
+  display: grid;
+  gap: 1.25rem;
+  margin-top: 1.5rem;
+  padding: 1.35rem;
+  border: 1px solid var(--workflow-border) !important;
+  border-inline-start: 3px solid var(--workflow-forest) !important;
+  border-radius: 12px;
+  background: var(--workflow-surface) !important;
+}
+
+.provider-app[data-provider-design="refined"] .provider-delivery-confirm > div:first-child {
+  display: grid;
+  gap: .45rem;
+}
+
+.provider-app[data-provider-design="refined"] .provider-delivery-confirm strong {
+  color: var(--workflow-ink) !important;
+  font-size: .95rem;
+  line-height: 1.8;
+}
+
+.provider-app[data-provider-design="refined"] .provider-delivery-confirm small {
+  color: var(--workflow-muted) !important;
+  font-size: .79rem;
+  line-height: 1.9;
+}
+
+.provider-app[data-provider-design="refined"] .provider-delivery-confirm .admin-detail-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .85rem;
+  margin: 0;
+}
+
+.provider-app[data-provider-design="refined"] .provider-driver-assignment {
+  gap: 1rem;
+  border-top: 1px solid var(--workflow-border);
+  padding-top: 1.2rem;
+}
+
+.provider-app[data-provider-design="refined"] .provider-driver-assignment-controls {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: .8rem;
+}
+
+.provider-app[data-provider-design="refined"] .provider-driver-assignment p {
+  padding: 1rem;
+  background: var(--workflow-canvas);
+  color: var(--workflow-muted) !important;
+  font-size: .82rem;
+  font-weight: 500;
+  line-height: 1.9;
+}
+
+.provider-app[data-provider-design="refined"] .provider-driver-manage-link {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  min-height: 44px;
+  color: var(--workflow-forest) !important;
+  font-size: .82rem;
+  font-weight: 700;
+  line-height: 1.8;
+  text-decoration: underline;
+  text-underline-offset: .25em;
+}
+
+.provider-app[data-provider-design="refined"] .provider-delivery-confirm .customer-delivery-code-row {
+  grid-template-columns: minmax(9rem, .65fr) minmax(0, 1fr);
+  padding-top: 1rem;
+  border-top: 1px solid var(--workflow-border);
+}
+
+.provider-app[data-provider-design="refined"] .provider-delivery-confirm .customer-delivery-code-row input {
+  font-size: 1.1rem;
+  letter-spacing: .18em;
+  font-variant-numeric: tabular-nums;
+}
+
+.provider-app[data-provider-design="refined"] :is(.ops-panel, .provider-delivery-confirm) :is(input, select, textarea, button, a):focus-visible {
+  outline: 2px solid var(--workflow-forest) !important;
+  outline-offset: 3px !important;
+  box-shadow: 0 0 0 4px rgb(23 63 53 / 10%) !important;
+}
+
+@media (max-width: 1000px) {
+  .provider-app[data-provider-design="refined"] .ops-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .provider-app[data-provider-design="refined"] .database-panel > .admin-detail-meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .provider-app[data-provider-design="refined"] :is(.ops-panel, .database-panel:has(> .admin-detail-meta)) {
+    padding: 1.1rem;
+    border-radius: 12px;
+  }
+
+  .provider-app[data-provider-design="refined"] :is(.ops-form, .provider-driver-assignment-controls, .provider-delivery-confirm .customer-delivery-code-row) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .provider-app[data-provider-design="refined"] .ops-form > button {
+    justify-self: stretch;
+    width: 100%;
+  }
+
+  .provider-app[data-provider-design="refined"] .ops-actions > button {
+    flex: 1 1 auto;
+  }
+
+  .provider-app[data-provider-design="refined"] :is(.ops-panel, .provider-delivery-confirm) :is(input:not([type="file"]), select, textarea) {
+    font-size: 1rem;
+  }
+
+  .provider-app[data-provider-design="refined"] .provider-delivery-confirm {
+    padding: 1rem;
+  }
+
+  .provider-app[data-provider-design="refined"] .provider-delivery-confirm .admin-detail-meta {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .provider-app[data-provider-design="refined"] :is(.ops-panel, .provider-delivery-confirm) :is(button, a) {
+    transition: none;
+  }
+}

@@ -5,6 +5,8 @@ import {RoleDatabasePortal} from "@/components/database/RoleDatabasePortal";
 import {requirePortalRole} from "@/lib/auth/server";
 import "./provider.css";
 import "./drivers.css";
+import "./provider-refined.css";
+import "./provider-workflows.css";
 
 export default async function MerchantLayout({ children }: { children: ReactNode }) {
   const identity=await requirePortalRole("provider");

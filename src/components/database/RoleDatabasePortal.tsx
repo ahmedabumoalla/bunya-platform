@@ -124,7 +124,7 @@ const providerRoutes: RouteConfig[] = [
   {
     path: "/merchant",
     title: "لوحة المزود",
-    description: "مؤشرات منشأتك من قاعدة البيانات تحت سياسات RLS.",
+    description: "تابع منتجاتك وطلبات التسعير وأوامر التوريد، وأدر أعمال منشأتك من مكان واحد.",
     table: "internal_fulfillment_orders",
     fields: ["order_id", "provider_id", "status", "total_amount", "created_at"],
     metrics: [
@@ -438,15 +438,16 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
   if(pathname.endsWith("/notifications"))return <NotificationCenter source="general"/>;
 
   const viewer = identity.profile?.fullName ?? identity.profile?.username ?? "مستخدم بُنية";
+  const PageContainer = role === "provider" ? "section" : "main";
   return (
-    <main className="database-page" data-role={role}>
+    <PageContainer className="database-page" data-role={role}>
       {pathname !== "/admin/catalog" && <header className="database-page-header">
         <div>
-          <p>{config.table === "admin_users" ? "إدارة الحسابات" : "Supabase · Live Data"}</p>
-          <h1>{detailId ? `تفاصيل ${config.title}` : config.title}</h1>
+          <p>{role === "provider" ? "مساحة أعمالك في بُنية" : config.table === "admin_users" ? "إدارة الحسابات" : "Supabase · Live Data"}</p>
+          <h1>{providerHome ? `مرحبًا، ${viewer.split(" ")[0]}` : detailId ? `تفاصيل ${config.title}` : config.title}</h1>
           <span>{config.description}</span>
         </div>
-        <aside><small>الحساب الحالي</small><strong>{viewer}</strong></aside>
+        {providerHome ? <Link className="provider-home-action" href="/merchant/products/new">إضافة منتج جديد <span aria-hidden="true">＋</span></Link> : <aside><small>الحساب الحالي</small><strong>{viewer}</strong></aside>}
       </header>}
 
       {config.metrics?.length ? (
@@ -454,8 +455,8 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
           {config.metrics.map((metric) => (
             <article key={metric.label}>
               <span>{metric.label}</span>
-              <strong>{state.loading ? "…" : (state.counts[metric.label] ?? 0).toLocaleString("ar-SA")}</strong>
-              <small>حسب صلاحيات RLS</small>
+              <strong>{state.loading ? "…" : state.error && role === "provider" ? "—" : (state.counts[metric.label] ?? 0).toLocaleString("ar-SA")}</strong>
+              <small>{role === "provider" ? "الإجمالي المسجل" : "حسب صلاحيات RLS"}</small>
             </article>
           ))}
         </section>
@@ -484,7 +485,7 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
       ) : (
         <RowsTable config={config} rows={state.rows} />
       )}
-    </main>
+    </PageContainer>
   );
 }
 
@@ -507,7 +508,7 @@ function ProviderAccountOverview({
         <div>
           <small>حساب المنشأة</small>
           <h2>{companyName}</h2>
-          <p>تم ربط الحساب بالمنشأة، وصلاحية المالك فعالة تحت سياسات RLS.</p>
+          <p>بيانات منشأتك ومنتجاتك وفريق التوصيل، في مساحة عمل واحدة.</p>
         </div>
         <span className="provider-account-ready">✓ {status === "approved" ? "معتمد وجاهز" : status}</span>
       </div>
@@ -530,8 +531,8 @@ function ProviderOperationsEmpty() {
   return (
     <section className="database-state provider-operations-empty">
       <span aria-hidden>✓</span>
-      <h2>حساب المزود جاهز</h2>
-      <p>لا توجد عمليات تشغيلية بعد لأن هذا حساب جديد. ستظهر هنا أوامر التوريد بعد إضافة المنتجات واستقبال طلبات التسعير واعتماد الطلبات المدفوعة.</p>
+      <h2>مساحتك جاهزة للعمل</h2>
+      <p>لا توجد أوامر توريد لعرضها الآن. أضف منتجات منشأتك وتابع طلبات التسعير؛ ستجد أوامر التوريد هنا عند اعتمادها.</p>
       <div>
         <Link href="/merchant/products">البدء بإدارة المنتجات</Link>
         <Link href="/merchant/profile">مراجعة بيانات المنشأة</Link>

@@ -162,8 +162,8 @@ export function ProviderProductChangeRequest({ productId }: { productId: string 
   if (!product) return null;
   const delivery = product.product_delivery_configs;
 
-  return <section className="provider-page-stack">
-    <header className="provider-page-header"><div><p>مراجعة بيانات المنتج</p><h2>طلب تعديل «{product.name}»</h2><span>لن تتغير النسخة المنشورة حتى تعتمد الإدارة الطلب. ستظهر لها كل قيمة قبل التعديل وبعده.</span></div><Link className="provider-secondary" href="/merchant/products">العودة للمنتجات</Link></header>
+  return <section className={`provider-page-stack ${styles.formPage}`}>
+    <header className="provider-page-header"><div><p>مراجعة بيانات المنتج</p><h1>طلب تعديل «{product.name}»</h1><span>لن تتغير النسخة المنشورة حتى تعتمد الإدارة الطلب. ستظهر لها كل قيمة قبل التعديل وبعده.</span></div><Link className="provider-secondary" href="/merchant/products">العودة للمنتجات</Link></header>
     {pendingRequest ? <div className="provider-toast" role="status">يوجد طلب تعديل لهذا المنتج بانتظار قرار الإدارة. لا يمكن إرسال طلب ثانٍ الآن.</div> : null}
     <form className="provider-product-form" onSubmit={submit}>
       <fieldset className="provider-form-section"><legend><span>1</span> البيانات الأساسية</legend><div className="provider-form-grid">

@@ -94,7 +94,7 @@ export function ProviderDriversManager() {
 
   return <section className="provider-page-stack">
     <header className="provider-page-header">
-      <div><p>إدارة فريق التوصيل</p><h2>السائقون</h2><span>أنشئ حسابات السائقين، تابع جاهزيتها، وأوقف الوصول أو أعد تفعيله من نفس الصفحة.</span></div>
+      <div><p>إدارة فريق التوصيل</p><h1>السائقون</h1><span>أنشئ حسابات السائقين، تابع جاهزيتها، وأوقف الوصول أو أعد تفعيله من نفس الصفحة.</span></div>
       <div><Link className="provider-primary" href="/merchant/drivers/new">＋ إضافة سائق</Link></div>
     </header>
 
@@ -108,7 +108,7 @@ export function ProviderDriversManager() {
     {loading ? <div className="provider-skeleton" aria-label="جارٍ تحميل السائقين"><i /><i /></div> : drivers.length === 0 ? (
       <div className="provider-empty"><span aria-hidden>➤</span><h3>لم تُضف سائقين بعد</h3><p>أضف أول سائق وسيُنشأ له حساب دخول فعلي مرتبط بمنشأتك.</p><Link className="provider-primary" href="/merchant/drivers/new">إضافة أول سائق</Link></div>
     ) : <div className="provider-driver-grid">{drivers.map((driver) => <article className="provider-panel provider-driver-card" key={driver.id}>
-      <header><div><small>@{driver.username}</small><h3>{driver.full_name}</h3><span>{driver.mobile} · {driver.email}</span></div><span className={`provider-status ${statusClasses[driver.status]}`}>{statusLabels[driver.status]}</span></header>
+      <header><div className="provider-driver-identity"><span className="provider-driver-avatar" aria-hidden="true">{driver.full_name.slice(0,1)}</span><div><small dir="ltr">@{driver.username}</small><h3>{driver.full_name}</h3><p className="provider-driver-contact"><bdi>{driver.mobile}</bdi><span aria-hidden="true">·</span><bdi>{driver.email}</bdi></p></div></div><span className={`provider-status ${statusClasses[driver.status]}`}>{statusLabels[driver.status]}</span></header>
       <dl className="provider-info-grid">
         <div><dt>تاريخ الإضافة</dt><dd>{new Date(driver.created_at).toLocaleString("ar-SA")}</dd></div>
         <div><dt>آخر نشاط</dt><dd>{driver.last_active_at ? new Date(driver.last_active_at).toLocaleString("ar-SA") : driver.status === "must_change_password" ? "لم يكمل أول دخول بعد" : "الحساب مفعّل ولم يسجل نشاطًا حديثًا"}</dd></div>
@@ -160,7 +160,7 @@ export function ProviderDriverCreate() {
   };
 
   if (credentials) return <section className="provider-page-stack">
-    <header className="provider-page-header"><div><p>تم إنشاء الحساب</p><h2>بيانات دخول السائق</h2><span>تظهر كلمة المرور المؤقتة الآن فقط. سلّمها للسائق عبر قناة آمنة واطلب منه تغييرها خلال 72 ساعة.</span></div></header>
+    <header className="provider-page-header"><div><p>تم إنشاء الحساب</p><h1>بيانات دخول السائق</h1><span>تظهر كلمة المرور المؤقتة الآن فقط. سلّمها للسائق عبر قناة آمنة واطلب منه تغييرها خلال 72 ساعة.</span></div></header>
     <section className="provider-panel provider-driver-credentials" role="status">
       <span className="provider-status provider-status-success">تم إنشاء السائق بنجاح</span>
       <dl>
@@ -175,11 +175,11 @@ export function ProviderDriverCreate() {
   </section>;
 
   return <section className="provider-page-stack provider-driver-form">
-    <header className="provider-page-header"><div><p>إدارة فريق التوصيل</p><h2>إضافة سائق جديد</h2><span>سيُنشأ حساب دخول حقيقي للسائق، وستظهر كلمة المرور المؤقتة مرة واحدة بعد الحفظ.</span></div><div><Link className="provider-secondary" href="/merchant/drivers">العودة للسائقين</Link></div></header>
-    <form className="provider-form-section" onSubmit={submit}>
+    <header className="provider-page-header"><div><p>إدارة فريق التوصيل</p><h1>إضافة سائق جديد</h1><span>سيُنشأ حساب دخول حقيقي للسائق، وستظهر كلمة المرور المؤقتة مرة واحدة بعد الحفظ.</span></div><div><Link className="provider-secondary" href="/merchant/drivers">العودة للسائقين</Link></div></header>
+    <form className="provider-form-section" onSubmit={submit}><div className="provider-driver-form-intro"><h3>بيانات السائق</h3><p>أدخل بيانات التواصل التي سيستخدمها السائق لتسجيل الدخول واستلام مهام التوصيل.</p></div>
       <div className="provider-form-grid">
         <label><span>الاسم الكامل *</span><input name="full_name" required minLength={3} maxLength={120} autoComplete="name" /></label>
-        <label><span>رقم الجوال السعودي *</span><input name="mobile" required inputMode="tel" dir="ltr" placeholder="05xxxxxxxx" autoComplete="tel" /></label>
+        <label><span>رقم الجوال السعودي *</span><input name="mobile" required type="tel" inputMode="tel" dir="ltr" placeholder="05xxxxxxxx" autoComplete="tel" /></label>
         <label><span>البريد الإلكتروني *</span><input name="email" required type="email" dir="ltr" autoComplete="email" /></label>
         <label><span>اسم المستخدم *</span><input name="username" required minLength={4} maxLength={40} dir="ltr" autoComplete="username" pattern="\S{4,40}" /><small>من 4 إلى 40 حرفًا وبدون مسافات.</small></label>
         <label className="wide"><span>ملاحظات داخلية</span><textarea name="internal_notes" rows={4} maxLength={500} placeholder="اختياري — لا تظهر للسائق أو العميل" /></label>
