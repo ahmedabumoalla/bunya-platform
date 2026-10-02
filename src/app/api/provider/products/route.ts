@@ -2,6 +2,7 @@ import { getAuthIdentity } from "@/lib/auth/server";
 import { dispatchProductReviewNotifications } from "@/lib/notifications/product-review-dispatcher";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { productImageTone } from "@/lib/products/image-tone";
 
 export const runtime = "nodejs";
 
@@ -9,7 +10,6 @@ const IMAGE_BUCKET = "provider-product-images";
 const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const MAX_IMAGES = 6;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-const PRODUCT_TONES = new Set(["cement", "steel", "blocks", "insulation", "plumbing", "electric", "wood", "paint", "tools"]);
 
 type ProductInsert = {
   provider_id: string;
@@ -176,13 +176,13 @@ export async function POST(request: Request) {
   if (invalidImage) return Response.json({ error: `الصورة ${invalidImage.name} غير مدعومة أو أكبر من 5MB.` }, { status: 400 });
 
   const supabase = await createClient();
-  let categorySlug = "tools";
+  let categoryTone = "tools";
   if (!usesCustomCategory) {
     const categoryResult = await supabase.from("product_categories").select("slug").eq("id", categoryId).eq("is_active", true).maybeSingle();
-    categorySlug = String(categoryResult.data?.slug ?? "");
-    if (categoryResult.error || !PRODUCT_TONES.has(categorySlug)) {
+    if (categoryResult.error || !categoryResult.data) {
       return Response.json({ error: "التصنيف المحدد غير متاح." }, { status: 400 });
     }
+    categoryTone = productImageTone(categoryResult.data.slug);
   }
 
   const requiredDelivery = ["lead_time_label", "delivery_window", "delivery_notes"];
@@ -294,7 +294,7 @@ export async function POST(request: Request) {
         product_id: productId,
         label: `${name} - صورة ${index + 1}`,
         alt_text: `صورة المنتج ${name}`,
-        tone: categorySlug,
+        tone: categoryTone,
         storage_path: path,
         file_name: image.name,
         mime_type: image.type,

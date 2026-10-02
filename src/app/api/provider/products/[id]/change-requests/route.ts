@@ -9,12 +9,12 @@ import {
 import { assertSameOrigin, PublicJoinError } from "@/lib/join/security";
 import { dispatchNotificationEvent } from "@/lib/notifications/dispatcher";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { PRODUCT_IMAGE_TONES, productImageTone } from "@/lib/products/image-tone";
 
 export const runtime = "nodejs";
 
 const IMAGE_BUCKET = "provider-product-images";
 const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
-const PRODUCT_TONES = new Set(["cement", "steel", "blocks", "insulation", "plumbing", "electric", "wood", "paint", "tools"]);
 
 type ExistingImage = {
   id: string;
@@ -115,8 +115,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     if (categoryId) {
       const categoryResult = await admin.from("product_categories").select("slug").eq("id", categoryId).eq("is_active", true).maybeSingle();
       if (categoryResult.error || !categoryResult.data) throw new PublicJoinError("التصنيف المحدد غير متاح.", 400);
-      categoryTone = String(categoryResult.data.slug || "tools");
-      if (!PRODUCT_TONES.has(categoryTone)) categoryTone = "tools";
+      categoryTone = productImageTone(categoryResult.data.slug);
     }
 
     const measurementValues = [...new Set(array(form, "measurements").map((value) => String(value).trim()).filter(Boolean))].slice(0, 40);
@@ -179,7 +178,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     proposedImages.forEach((image, index) => {
       image.is_primary = index === 0;
       image.sort_order = index;
-      image.tone = PRODUCT_TONES.has(String(image.tone)) ? image.tone : categoryTone;
+      image.tone = PRODUCT_IMAGE_TONES.has(String(image.tone)) ? image.tone : categoryTone;
     });
 
     const availabilityRegions = array(form, "availability_regions").map((value) => {
