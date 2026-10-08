@@ -7,6 +7,7 @@ import { BunyaLogo } from "@/components/brand/BunyaLogo";
 import { MobileHeaderLanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
 import { publicAccountFor, type PublicAccount } from "@/lib/auth/public-account";
 import styles from "./PublicAccountHeader.module.css";
+import { PublicAccountLink } from "./PublicAccountLink";
 
 type ProductVisualStyle = CSSProperties & {
   "--product-tone"?: string;
@@ -102,12 +103,12 @@ export function StoreHeader({ compact, menuOpen, quoteCount, quoteOpen, onMenuTo
         </nav>
 
         <nav className="store-desktop-portals" aria-label="بوابات بُنية">
-          <Link className="store-portal-link store-portal-link-primary" href={account.href}>{account.signedIn ? "حسابي" : "لوحة التحكم"}</Link>
+          {account.signedIn ? <PublicAccountLink account={account} /> : <Link className="store-portal-link store-portal-link-primary" href={account.href}>لوحة التحكم</Link>}
           {account.canApplyProvider ? <Link className="store-portal-link" href="/providers/join">المزودون</Link> : null}
           {account.canApplyContractor ? <Link className="store-portal-link" href="/contractors/join">المقاولون</Link> : null}
         </nav>
 
-        <div className={styles.mobileActions}>{account.signedIn ? <Link className={styles.accountLink} href={account.href}>حسابي</Link> : null}<MobileHeaderLanguageSwitcher /></div>
+        <div className={styles.mobileActions}>{account.signedIn ? <PublicAccountLink account={account} /> : null}<MobileHeaderLanguageSwitcher /></div>
         <button aria-controls="store-quote-drawer" aria-expanded={quoteOpen} className="store-icon-button store-header-quote" aria-label={quoteLabel} onClick={onQuoteOpen} type="button">
           <Icon name="quote" /><span className="store-count">{quoteCount.toLocaleString("ar-SA")}</span>
         </button>
@@ -118,7 +119,7 @@ export function StoreHeader({ compact, menuOpen, quoteCount, quoteOpen, onMenuTo
         <a href="#products" onClick={onNavigate}>المنتجات</a>
         <a href="#latest" onClick={onNavigate}>أحدث المنتجات</a>
         <Link href="/contractors">ابحث عن مقاول</Link>
-        <Link href={account.href}>{account.signedIn ? "حسابي" : "لوحة التحكم"}</Link>
+        <Link href={account.href} onClick={onNavigate}>{account.signedIn ? "ملفي الشخصي" : "لوحة التحكم"}</Link>
         {account.canApplyProvider ? <Link href="/providers/join">بوابة المزودين</Link> : null}
         {account.canApplyContractor ? <Link href="/contractors/join">بوابة المقاولين</Link> : null}
       </nav>

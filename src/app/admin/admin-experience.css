@@ -13,7 +13,9 @@
   border-inline-end: 1px solid #254c3d !important; backdrop-filter: none;
 }
 .admin-app .admin-sidebar :is(strong,b) { color: inherit !important; }
-.admin-app .admin-brand { padding: 24px 22px; min-height: 90px; }
+.admin-app .admin-brand { padding: 24px 22px; min-height: 90px; text-decoration: none; border-radius: 12px; }
+.admin-app .admin-brand:hover { background: rgb(255 255 255 / 5%); }
+.admin-app .admin-brand:focus-visible { outline: 2px solid #d5b484; outline-offset: -5px; }
 .admin-app .admin-brand > span { border-radius: 12px; background: #d5b484; color: #17392e; box-shadow: none; }
 .admin-app .admin-brand small, .admin-app .admin-system-status small { color: #b9c9bf !important; }
 .admin-app .admin-system-status { background: #204336; border-color: #365749; margin: 12px; }

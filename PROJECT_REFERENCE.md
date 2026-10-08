@@ -1,8 +1,19 @@
 # Bunya Platform — Project Reference
 
+## 2026-10-08 — Homepage return and role-aware profile entry
+
+- Admin and provider sidebar brands now link to the public homepage (contractor already did). Signed-in homepage headers replace dashboard/apply links with a round initials/profile-icon control labelled ملفي الشخصي and the primary role; desktop capsule sits on the left, mobile uses a 44px compact control. Server-derived identity retains existing role routes and password-change/login fallback; no auth/API/database changes. Guest links remain available; signed-in join promotions are suppressed in public navigation.
+- Fresh public-account-navigation SSR/route tests passed for five roles, guest/password states, initials/icon fallback and admin/provider homepage links; TypeScript and affected ESLint passed. Local GET / returned 200, guest login link retained; diff check passed. Responsive/focus/reduced-motion reviewed from source without browser inspection. Changes are local, not deployed.
+
+## 2026-10-08 — Admin product visibility controls
+
+- Added hide/show actions and visibility badges to approved product cards in AdminProductReview, plus published/hidden filters. Uses existing is_published with reviews.manage RLS and the product mutation guard; preserves approval, product data and existing orders. Matches updated_at to reject stale edits and handles duplicate clicks, save failures and list refresh. No migration or deployment required for local use.
+- Fresh checks: node tests/admin-product-visibility.mjs passed; node tests/provider-product-correction-sql.mjs passed all 28 scenarios, including actual PostgreSQL hide/show, public read exclusion and provider/foreign-user mutation denial. npx tsc --noEmit, affected ESLint and git diff --check passed. Responsive/focus/loading/error states reviewed in source. No browser or live product mutation; production deployment not performed. Current evidence: docs/task-state.md.
+
 ## 2026-10-03 — Contractor sidebar logo links to public homepage
 
 - Changed only the shared contractor sidebar brand link from /contractor to /, with an explicit accessible label for the website homepage. It applies across contractor sidebar pages; the dashboard navigation destination remains intact. Reviewed the diff, existing navigation assertions and registered public homepage destination. No database/auth change, browser check, new test or redundant local build needed for this existing-link edit. Release evidence follows.
+- Release4ada103 built and deployed successfully: https://vercel.com/ahmedabumoallas-projects/bunya-platform/Fi7KL65AiNFa9pjmkKcf3ArcNvpT. This final deployment evidence is documentation only.
 
 ## 2026-10-03 — Free contractor listing, sequential project search and dual customer accounts
 
@@ -1352,3 +1363,7 @@
 - استمرار المستطيل الأسود بعد التنقل أو تغيير خيارات الكتالوج لم يكن تلفًا في صورة المنتج ولا خطأ Runtime؛ كان مسار Flutter Web ما يزال يفك الصورة داخل سطح الرسم/الكاش الرسومي، ولذلك لم يمنع تغيير مفتاح الكاش وحده عودة الـtexture السوداء عند إعادة بناء الواجهة.
 - أصبح `FastProductImage` على Flutter Web يستخدم `Image.network` باستراتيجية `WebHtmlElementStrategy.prefer` لعرض الصورة عبر عنصر المتصفح وإخراج دورة رسمها من الكاش الرسومي المسبب للمشكلة. بقي `CachedNetworkImage` على Android وiOS، وبقي الرجوع التبادلي بين رابط الأصل والصورة المصغرة وحالة الخطأ الرملية.
 - نجح `flutter analyze` وثلاثة اختبارات Widget. بعد hot restart وإعادة تحميل الواجهة ظهر مكان الصورة بلون التحميل الرملي ثم ظهرت صورة «بلك احمر هوردي» سليمة، وتكرر ذلك بعد إعادة الدخول دون مستطيل أسود أو أخطاء Runtime. لم يُبن APK جديد.
+
+## 2026-10-08 — Local development server started
+
+- Started Next.js dev on http://localhost:3000 in a hidden background process (PID 31068). Verified GET / returned HTTP 200. Logs: tmp/next-dev.stdout.log and tmp/next-dev.stderr.log.

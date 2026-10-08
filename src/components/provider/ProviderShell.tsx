@@ -90,7 +90,7 @@ export function ProviderShell({ children }: { children: ReactNode }) {
     <a className="provider-skip-link" href="#provider-content" inert={mobile && drawerOpen}>انتقل إلى المحتوى</a>
     <button className="provider-drawer-backdrop" aria-label="إغلاق القائمة" tabIndex={-1} type="button" data-open={drawerOpen} onClick={() => setDrawerOpen(false)} />
     <aside ref={sidebar} id="provider-navigation" className="provider-sidebar" data-open={drawerOpen} inert={mobile && !drawerOpen} aria-label="مساحة المزود">
-      <div className="provider-sidebar-brand"><Link href="/merchant" aria-label="بُنية — الرئيسية"><BunyaLogo variant="white" sizes="120px" /></Link><span>مساحة المزود</span></div>
+      <div className="provider-sidebar-brand"><Link href="/" aria-label="بُنية — الصفحة الرئيسية للموقع"><BunyaLogo variant="white" sizes="120px" /></Link><span>مساحة المزود</span></div>
       <button className="provider-collapse" type="button" onClick={toggleCollapsed} aria-label={collapsed ? "توسيع القائمة" : "تصغير القائمة"} aria-expanded={!collapsed}><Icon name="arrow" size={17} /></button>
       <button className="provider-drawer-close" type="button" onClick={() => setDrawerOpen(false)} aria-label="إغلاق القائمة"><Icon name="close" /></button>
       <Link className="provider-company-card" href="/merchant/profile" onClick={() => setDrawerOpen(false)} aria-label={`ملف المنشأة: ${companyName}`}>

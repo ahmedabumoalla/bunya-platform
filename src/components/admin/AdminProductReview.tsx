@@ -3,7 +3,7 @@
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { isProductVideo, signProductImageMap } from "@/lib/products/image-urls";
 import { createClient } from "@/lib/supabase/client";
 import { useDialogFocus } from "./useDialogFocus";
@@ -124,6 +124,8 @@ export function AdminProductReview({ initialProductId }: { initialProductId?: st
   const [categorySaving, setCategorySaving] = useState(false);
   const [categoryDraft, setCategoryDraft] = useState("");
   const [refreshVersion, setRefreshVersion] = useState(0);
+  const [visibilitySaving, setVisibilitySaving] = useState<string | null>(null);
+  const visibilityLock = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -216,8 +218,42 @@ export function AdminProductReview({ initialProductId }: { initialProductId?: st
   );
   const filtered = useMemo(() => {
     const clean = query.trim().toLocaleLowerCase("ar");
-    return products.filter((item) => (status === "all" || item.review_status === status) && (provider === "all" || item.providers?.company_name === provider) && (!clean || [item.name, item.sku, item.providers?.company_name, item.product_categories?.name, item.custom_category].some((value) => value?.toLocaleLowerCase("ar").includes(clean))));
+    return products.filter((item) => (status === "all" || (status === "published" ? item.is_published : status === "hidden" ? item.review_status === "approved" && !item.is_published : item.review_status === status)) && (provider === "all" || item.providers?.company_name === provider) && (!clean || [item.name, item.sku, item.providers?.company_name, item.product_categories?.name, item.custom_category].some((value) => value?.toLocaleLowerCase("ar").includes(clean))));
   }, [products, provider, query, status]);
+
+  async function changeVisibility(product: Product) {
+    if (visibilityLock.current || product.review_status !== "approved") return;
+    visibilityLock.current = true;
+    setVisibilitySaving(product.id);
+    setError("");
+    setFeedback("");
+    try {
+      // Existing reviews.manage RLS and the product mutation guard authorize this write.
+      // Match the loaded revision to avoid overwriting another administrator's change.
+      const { data, error: updateError } = await createClient()
+        .from("products")
+        .update({ is_published: !product.is_published })
+        .eq("id", product.id)
+        .eq("review_status", "approved")
+        .eq("updated_at", product.updated_at)
+        .select("id,is_published,updated_at")
+        .single();
+      if (updateError || !data) {
+        setError("تعذر تغيير ظهور المنتج. تحقق من صلاحية مراجعة المنتجات وحدّث القائمة ثم أعد المحاولة.");
+        return;
+      }
+      const update = (item: Product): Product => item.id === data.id ? { ...item, ...data } : item;
+      setProducts((current) => current.map(update));
+      setSelected((current) => current ? update(current) : current);
+      setFeedback(data.is_published ? `تم إظهار «${product.name}» في المنصة.` : `تم إخفاء «${product.name}» من المنصة. بياناته وطلباته السابقة محفوظة.`);
+      router.refresh();
+    } catch {
+      setError("تعذر الاتصال لحفظ ظهور المنتج. حدّث القائمة للتحقق من حالته ثم أعد المحاولة.");
+    } finally {
+      visibilityLock.current = false;
+      setVisibilitySaving(null);
+    }
+  }
 
   function closeDialog() {
     if (saving) return;
@@ -316,7 +352,7 @@ export function AdminProductReview({ initialProductId }: { initialProductId?: st
         <div>
           <p>إدارة الكتالوج</p>
           <h1>مراجعة المنتجات</h1>
-          <span>افحص المنتج كاملًا، ثم اعتمده وانشره أو أعده للمزوّد مع ملاحظات واضحة.</span>
+          <span>راجع المنتجات واعتمدها، وتحكم في إظهار المنتجات المعتمدة أو إخفائها من المنصة.</span>
         </div>
         <aside>
           <div className={styles.metric}>
@@ -339,11 +375,13 @@ export function AdminProductReview({ initialProductId }: { initialProductId?: st
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="اسم المنتج، رمزه، المنشأة أو التصنيف" />
         </label>
         <label>
-          حالة المراجعة
+          حالة المنتج
           <select value={status} onChange={(event) => setStatus(event.target.value)}>
             <option value="all">جميع الحالات</option>
             <option value="pending_review">بانتظار المراجعة</option>
             <option value="approved">معتمد</option>
+            <option value="published">ظاهر في المنصة</option>
+            <option value="hidden">معتمد ومخفي من المنصة</option>
             <option value="needs_changes">يحتاج تعديلات</option>
             <option value="rejected">مرفوض</option>
             <option value="draft">مسودة</option>
@@ -363,7 +401,7 @@ export function AdminProductReview({ initialProductId }: { initialProductId?: st
         </label>
       </section>
       {feedback ? <div className={styles.feedback} role="status">{feedback}</div> : null}
-      {error && !selected ? <div className={styles.error} role="alert">{error}</div> : null}
+      {error && !selected ? <div className={styles.error} role="alert">{error}<button className={styles.button} type="button" disabled={visibilitySaving !== null} onClick={() => { setError(""); setLoading(true); setRefreshVersion((current) => current + 1); }}>تحديث القائمة</button></div> : null}
       {loading ? (
         <div className={styles.loading}>جارٍ تحميل صور المنتجات وتفاصيلها…</div>
       ) : filtered.length ? (
@@ -392,7 +430,10 @@ export function AdminProductReview({ initialProductId }: { initialProductId?: st
                       </small>
                       <h2>{product.name}</h2>
                     </div>
-                    <span className={`${styles.badge} ${badgeTone(product.review_status)}`}>{label(product.review_status)}</span>
+                    <div className={styles.badges}>
+                      <span className={`${styles.badge} ${badgeTone(product.review_status)}`}>{label(product.review_status)}</span>
+                      {product.review_status === "approved" ? <span className={`${styles.badge} ${product.is_published ? styles.success : styles.warning}`}>{product.is_published ? "ظاهر في المنصة" : "مخفي من المنصة"}</span> : null}
+                    </div>
                   </header>
                   <dl className={styles.facts}>
                     <Fact name="السعر" value="يُحدد عند طلب عرض السعر" />
@@ -404,9 +445,14 @@ export function AdminProductReview({ initialProductId }: { initialProductId?: st
                   {product.review_status === "pending_review" ? <ReviewButtons onChoose={(decision) => open(product, decision)} /> : null}
                   <footer className={styles.footer}>
                     <span>آخر تحديث: {date(product.updated_at)}</span>
-                    <button className={styles.button} type="button" onClick={() => open(product)}>
-                      عرض جميع التفاصيل
-                    </button>
+                    <div className={styles.cardActions}>
+                      {product.review_status === "approved" ? <button className={styles.visibilityButton} type="button" disabled={visibilitySaving !== null} aria-label={`${product.is_published ? "إخفاء" : "إظهار"} ${product.name} ${product.is_published ? "من" : "في"} المنصة`} aria-busy={visibilitySaving === product.id} onClick={() => void changeVisibility(product)}>
+                        {visibilitySaving === product.id ? "جارٍ الحفظ…" : product.is_published ? "إخفاء من المنصة" : "إظهار في المنصة"}
+                      </button> : null}
+                      <button className={styles.button} type="button" disabled={visibilitySaving !== null} onClick={() => open(product)}>
+                        عرض جميع التفاصيل
+                      </button>
+                    </div>
                   </footer>
                 </div>
               </article>

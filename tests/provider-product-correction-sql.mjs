@@ -198,5 +198,27 @@ await test('changed base unit is synchronized during atomic correction',async()=
 await test('internal snapshot/media helpers cannot be called by authenticated or anonymous clients',async()=>{
  for(const role of ['authenticated','anon']) {await db.exec(`set local role ${role}`); await rejected(()=>db.query("select apply_product_catalog_snapshot($1,'{}',$1)",[product]),/permission denied/); await rejected(()=>db.query("select normalize_product_catalog_media('[]')"),/permission denied/); await db.exec('reset role');}
 });
+await test('admin visibility changes preserve approval/data and control public RLS reads',async()=>{
+ await db.exec(base.match(/create policy products_public_read[^;]+;/)[0]);
+ await db.exec(base.match(/create policy products_admin_manage[^;]+;/)[0]);
+ await db.exec(base.match(/alter policy products_admin_manage[^;]+;/)[0]);
+ await db.exec('grant select on products to anon; grant usage on schema auth to anon');
+ const before=await row();
+ await login(admin); await asClient();
+ assert.equal((await db.query("update products set is_published=false where id=$1 and review_status='approved' returning id",[product])).rows.length,1);
+ await db.exec('reset role');
+ const after=await row(); assert.equal(after.is_published,false);
+ assert.deepEqual({...after,is_published:true},before,'only publication changes');
+ await login(null); await db.exec('set local role anon');
+ assert.equal((await db.query('select id from products where id=$1',[product])).rows.length,0);
+ await db.exec('reset role'); await login(owner); await asClient();
+ await rejected(()=>db.query('update products set is_published=true where id=$1',[product]),/authorized command/);
+ await db.exec('reset role'); await login(stranger); await asClient();
+ assert.equal((await db.query('update products set is_published=true where id=$1 returning id',[product])).rows.length,0);
+ await db.exec('reset role'); await login(admin); await asClient();
+ assert.equal((await db.query("update products set is_published=true where id=$1 and review_status='approved' returning id",[product])).rows.length,1);
+ await db.exec('reset role'); await login(null); await db.exec('set local role anon');
+ assert.equal((await db.query('select id from products where id=$1',[product])).rows.length,1);
+});
 console.log(`${passed} product correction and media SQL regression checks passed.`);
 await db.close();
