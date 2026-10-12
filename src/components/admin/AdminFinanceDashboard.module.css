@@ -1,41 +1,41 @@
 .page {
   display: grid;
   gap: 18px;
-  color: #18231f;
+  color: #414747;
 }
 
 .hero {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 300px;
   align-items: end;
-  gap: 28px;
-  padding: 30px;
-  color: #fffaf3;
-  background: #123f33;
-  border-inline-start: 7px solid #c56a43;
-  border-radius: 18px;
-  box-shadow: 0 18px 50px rgba(18, 63, 51, 0.14);
+  gap: 16px;
+  padding: 20px;
+  color: #414747;
+  background: #fff;
+  border: 1px solid #e3e2df;
+  border-radius: 12px;
+  box-shadow: none;
 }
 
 .eyebrow,
 .ledgerHeader p {
   margin: 0 0 7px;
-  color: #d8b29e;
+  color: #ad512c;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 600;
   letter-spacing: 0.04em;
 }
 
 .hero h1 {
   margin: 0;
-  font-size: clamp(28px, 4vw, 46px);
+  font-size: clamp(22px, 2vw, 26px);
   line-height: 1.12;
 }
 
 .hero > div > p:last-child {
   max-width: 720px;
   margin: 12px 0 0;
-  color: #d9e5df;
+  color: #e3e2df;
   line-height: 1.9;
 }
 
@@ -47,29 +47,29 @@
 .heroProfit span,
 .heroProfit small {
   display: block;
-  color: #d9e5df;
+  color: #e3e2df;
 }
 
 .heroProfit strong {
   display: block;
   margin: 8px 0 4px;
   color: #fff;
-  font-size: 31px;
+  font-size: 30px;
 }
 
 .summary {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   overflow: hidden;
-  background: #fffdf9;
-  border: 1px solid #e7dcd0;
-  border-radius: 16px;
+  background: #f7f7f5;
+  border: 1px solid #e3e2df;
+  border-radius: 12px;
 }
 
 .summary article {
   min-width: 0;
   padding: 21px 22px;
-  border-inline-end: 1px solid #eee4da;
+  border-inline-end: 1px solid #e3e2df;
 }
 
 .summary article:last-child {
@@ -79,7 +79,7 @@
 .summary span,
 .summary small {
   display: block;
-  color: #776b63;
+  color: #6b706e;
   font-size: 12px;
   font-weight: 700;
 }
@@ -87,7 +87,7 @@
 .summary strong {
   display: block;
   margin: 7px 0 4px;
-  color: #123f33;
+  color: #414747;
   font-size: clamp(20px, 2vw, 27px);
 }
 
@@ -96,7 +96,7 @@
   padding: 13px 16px;
   border-inline-start: 4px solid;
   background: #fff;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .error {
@@ -111,9 +111,9 @@
 
 .ledger {
   overflow: hidden;
-  background: #fffdf9;
-  border: 1px solid #e7dcd0;
-  border-radius: 16px;
+  background: #f7f7f5;
+  border: 1px solid #e3e2df;
+  border-radius: 12px;
 }
 
 .ledgerHeader {
@@ -121,12 +121,12 @@
   align-items: end;
   justify-content: space-between;
   gap: 20px;
-  padding: 22px 24px;
-  border-bottom: 1px solid #e7dcd0;
+  padding: 22px 20px;
+  border-bottom: 1px solid #e3e2df;
 }
 
 .ledgerHeader p {
-  color: #b7603b;
+  color: #ad512c;
 }
 
 .ledgerHeader h2 {
@@ -143,18 +143,18 @@
 .tools label span {
   display: block;
   margin-bottom: 4px;
-  color: #776b63;
-  font-size: 10px;
-  font-weight: 800;
+  color: #6b706e;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .tools input,
 .rateControl input {
-  min-height: 42px;
+  min-height: 44px;
   box-sizing: border-box;
-  color: #18231f;
+  color: #414747;
   background: #fff;
-  border: 1px solid #d9cbbd;
+  border: 1px solid #e3e2df;
   outline: none;
 }
 
@@ -166,21 +166,21 @@
 
 .tools input:focus,
 .rateControl input:focus {
-  border-color: #b7603b;
-  box-shadow: 0 0 0 3px rgba(183, 96, 59, 0.12);
+  border-color: #ad512c;
+  box-shadow: none;
 }
 
 .tools button,
 .rateControl button {
-  min-height: 42px;
+  min-height: 44px;
   padding: 0 16px;
   color: #fff;
-  background: #123f33;
+  background: #414747;
   border: 0;
   border-radius: 9px;
   font: inherit;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 600;
   cursor: pointer;
 }
 
@@ -204,25 +204,25 @@
 .tableWrap td {
   padding: 16px 17px;
   text-align: right;
-  border-bottom: 1px solid #eee4da;
+  border-bottom: 1px solid #e3e2df;
   vertical-align: middle;
 }
 
 .tableWrap th {
-  color: #776b63;
-  background: #f8f3ec;
-  font-size: 11px;
-  font-weight: 900;
+  color: #6b706e;
+  background: #f7f7f5;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .tableWrap tbody tr:hover {
-  background: #fcf8f2;
+  background: #f7f7f5;
 }
 
 .tableWrap td {
   white-space: nowrap;
   font-size: 13px;
-  font-weight: 750;
+  font-weight: 600;
 }
 
 .tableWrap td:first-child {
@@ -237,13 +237,13 @@
 
 .tableWrap td small {
   margin-top: 4px;
-  color: #776b63;
-  font-size: 10px;
+  color: #6b706e;
+  font-size: 12px;
   font-weight: 650;
 }
 
 .profit {
-  color: #a64f2f;
+  color: #ad512c;
 }
 
 .rateControl {
@@ -261,7 +261,7 @@
   padding: 0 10px 0 25px;
   border-radius: 9px;
   font: inherit;
-  font-weight: 850;
+  font-weight: 600;
 }
 
 .rateControl label span {
@@ -269,19 +269,19 @@
   inset-inline-end: auto;
   inset-inline-start: 9px;
   top: 10px;
-  color: #776b63;
+  color: #6b706e;
 }
 
 .rateControl button {
   color: #fff;
-  background: #b7603b;
+  background: #ad512c;
 }
 
 .state {
   padding: 56px 20px;
-  color: #776b63;
+  color: #6b706e;
   text-align: center;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 @media (max-width: 1050px) {
@@ -294,7 +294,7 @@
   }
 
   .summary article:nth-child(-n + 2) {
-    border-bottom: 1px solid #eee4da;
+    border-bottom: 1px solid #e3e2df;
   }
 }
 
@@ -317,7 +317,7 @@
   .summary article,
   .summary article:nth-child(2) {
     border-inline-end: 0;
-    border-bottom: 1px solid #eee4da;
+    border-bottom: 1px solid #e3e2df;
   }
 
   .summary article:last-child {
@@ -336,7 +336,11 @@
   }
 }
 
-.hero { --bunya-text-primary: #fffaf3; --bunya-text-secondary: #d9e5df; }
-.hero :is(h1,strong) { color: #fffaf3 !important; }
-.hero :is(p,small) { color: #d9e5df !important; }
-.hero h1 { font-size: clamp(26px, 2.5vw, 36px); line-height: 1.5; font-weight: 600; }
+.hero { --bunya-text-primary: #414747; --bunya-text-secondary: #6b706e; }
+.hero :is(h1,strong) { color: #414747; }
+.hero :is(p,small,span) { color: #6b706e; }
+.hero h1 { font-size: clamp(22px, 2vw, 26px); line-height: 1.5; font-weight: 600; }
+.heroProfit { border-color: #e3e2df; }
+.heroProfit strong { color: #414747; font-size: 26px; }
+.heroProfit span, .heroProfit small { color: #6b706e; }
+.hero > div > p:last-child { color: #6b706e; }

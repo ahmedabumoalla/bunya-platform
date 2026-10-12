@@ -115,6 +115,7 @@ export function ContractorConversations({ admin = false }: { admin?: boolean }) 
       const result = await createClient().rpc("contractor_chat_command", { p_action: action, p_conversation: conversationId || null, p_payload: payload, p_key: retry.current.key });
       if (result.error) throw result.error;
       retry.current = null;
+      if (admin) window.dispatchEvent(new Event("bunya:admin-data-changed"));
       setNotice(result.data?.moderation === "blocked" ? "حُجبت الرسالة ولم تصل للطرف الآخر." : result.data?.moderation === "pending" ? "حُفظت للمراجعة قبل تسليمها." : "تم توثيق الإجراء.");
       try { await Promise.all([loadList(), ...(selectedId ? [loadThread()] : [])]); }
       catch { setError("تم حفظ الإجراء، لكن تعذر تحديث العرض. اضغط تحديث لعرض النتيجة."); }

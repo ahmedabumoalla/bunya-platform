@@ -465,6 +465,7 @@ export function AdminJoinRequests({ kind }: { kind: "provider" | "contractor" })
       }
 
       const message = actionSuccessMessage(pending.action, body.delivery);
+      window.dispatchEvent(new Event("bunya:admin-data-changed"));
       setDecisionSuccess(message);
       setToast(message);
       await Promise.all([

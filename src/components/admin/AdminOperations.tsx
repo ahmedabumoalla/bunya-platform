@@ -31,6 +31,7 @@ export function AdminOperations() {
     try {
       const response = await fetch(`/api/admin/notifications/${encodeURIComponent(id)}/retry`, { method: "POST" });
       if (!response.ok) throw new Error();
+      window.dispatchEvent(new Event("bunya:admin-data-changed"));
       await load(); setMessage("أُرسلت العملية لإعادة المحاولة. حدّث القائمة لاحقًا لمتابعة النتيجة.");
     } catch { setError("تعذرت إعادة المحاولة. تحقق من صلاحياتك أو حاول لاحقًا."); }
     finally { setBusy(null); }

@@ -37,6 +37,7 @@ export function AdminSettlements() {
     try {
       const result = await createClient().rpc("transition_contractor_settlement", { p_id: pending.row.id, p_action: pending.action, p_reason: reason, p_reference: reference, p_idempotency_key: crypto.randomUUID() });
       if (result.error) throw result.error;
+      window.dispatchEvent(new Event("bunya:admin-data-changed"));
       setPending(null); setMessage("تم تحديث طلب التصفية."); await load();
     } catch { setDecisionError("تعذر تنفيذ القرار. تحقق من صلاحيتك وحالة الطلب وبيانات التحويل."); }
     finally { setBusy(false); }

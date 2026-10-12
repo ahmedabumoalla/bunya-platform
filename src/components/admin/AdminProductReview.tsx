@@ -327,6 +327,7 @@ export function AdminProductReview({ initialProductId }: { initialProductId?: st
       return;
     }
     const decisionLabel = reviewDecision === "approved" ? "اعتماد المنتج ونشره" : reviewDecision === "needs_changes" ? "إرسال المنتج للتعديل" : "رفض المنتج";
+    window.dispatchEvent(new Event("bunya:admin-data-changed"));
     const nextStatus = reviewDecision;
     setProducts((current) =>
       current.map((product) =>

@@ -9,3 +9,7 @@ supabase/migrations/090_provider_catalog_without_prices.sql text eol=lf
 supabase/migrations/091_provider_product_correction_resubmission.sql text eol=lf
 supabase/migrations/092_contractor_sequential_project_search.sql text eol=lf
 supabase/migrations/093_professional_customer_accounts.sql text eol=lf
+# Preserve 094's already-recorded CRLF byte hash on every checkout.
+supabase/migrations/094_contractor_platform_conversations.sql text eol=crlf
+supabase/migrations/095_restrict_conversation_helpers.sql text eol=lf
+supabase/migrations/096_admin_attention_counts.sql text eol=lf

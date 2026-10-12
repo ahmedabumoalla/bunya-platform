@@ -1,0 +1,28 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {createRequire} from 'node:module';
+import vm from 'node:vm';
+import ts from 'typescript';
+import React from 'react';
+const require=createRequire(import.meta.url);
+const state=[],effects=[],queries=[],events=[];let cursor=0,tree;
+const rows=Array.from({length:121},(_,i)=>({id:`notification-${i}`,profile_id:'admin-a',title:`Notice ${i}`,read_at:i<100?'2026-01-01':null}));
+rows.push({id:'other-user',profile_id:'admin-b',read_at:null});
+const hooks={...React,useState(initial){const i=cursor++;if(!(i in state))state[i]=initial;return[state[i],v=>{state[i]=typeof v==='function'?v(state[i]):v;}];},useCallback(fn,deps){const i=cursor++;if(!state[i]||deps.some((v,j)=>!Object.is(v,state[i].deps[j])))state[i]={fn,deps};return state[i].fn;},useEffect(fn,deps){const i=cursor++;if(!state[i]||deps.some((v,j)=>!Object.is(v,state[i][j]))){state[i]=deps;effects.push(fn);}}};
+const client={from(table){assert.equal(table,'notifications');const operations=[];queries.push(operations);let patch,filtered=[...rows];const chain={select(){return chain;},eq(key,value){operations.push(['eq',key,value]);filtered=filtered.filter(row=>row[key]===value);return chain;},or(value){operations.push(['or',value]);return chain;},is(key,value){operations.push(['is',key,value]);filtered=filtered.filter(row=>row[key]===value);return chain;},order(){return chain;},range(start,end){operations.push(['range',start,end]);return Promise.resolve({data:filtered.slice(start,end+1)});},update(value){patch=value;return chain;},single(){assert.equal(filtered.length,1);Object.assign(filtered[0],patch);return Promise.resolve({data:{id:filtered[0].id}});}};return chain;}};
+const mocks={react:hooks,'next/link':{default:'a'},'@/lib/supabase/client':{createClient:()=>client},'@/components/auth/AuthIdentityProvider':{useAuthIdentity:()=>({userId:'admin-a'})},'@/lib/admin/records':{formatRecordField:()=>'',readableText:v=>v},'./AdminIcon':{AdminIcon:()=>null},'./AdminRecords.module.css':{default:{}}};
+const exports={};vm.runInNewContext(ts.transpileModule(readFileSync('src/components/admin/AdminNotifications.tsx','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX,target:ts.ScriptTarget.ES2022}}).outputText,{exports,require:id=>mocks[id]??require(id),Date,Event,window:{dispatchEvent:event=>events.push(event.type)}});
+const render=()=>{cursor=0;tree=exports.AdminNotifications();return tree;};
+const settle=async()=>{render();effects.splice(0).forEach(fn=>fn());await new Promise(r=>setImmediate(r));return render();};
+const nodes=(node,predicate)=>{if(!node||typeof node!=='object')return [];const children=React.Children.toArray(node.props?.children);return [...(predicate(node)?[node]:[]),...children.flatMap(child=>nodes(child,predicate))];};
+await settle();assert.equal(state[0].length,50);
+for(let i=0;i<2;i++){nodes(tree,node=>node.type==='button'&&node.props.children==='التالي')[0].props.onClick();await settle();}
+assert.equal(state[0][0].id,'notification-100','old notifications remain reachable beyond the old latest-100 cap');
+nodes(tree,node=>node.type==='select')[0].props.onChange({target:{value:'unread'}});await settle();
+assert.equal(state[0].length,21,'unread is filtered on the server across all pages');assert.equal(state[4],0);
+nodes(tree,node=>node.type==='button'&&node.props.children==='تعليم كمقروء')[0].props.onClick();await new Promise(r=>setImmediate(r));render();
+assert.equal(state[0].length,20,'reading refills the unread page');assert.equal(events.at(-1),'bunya:notifications-read');
+assert.ok(queries.every(query=>query.some(op=>op[0]==='eq'&&op[1]==='profile_id'&&op[2]==='admin-a')),'all reads and writes explicitly belong to the current admin');
+assert.ok(queries.filter(query=>query.some(op=>op[0]==='range')).every(query=>query.some(op=>op[0]==='or'&&op[1].startsWith('expires_at.is.null,expires_at.gt.'))));
+assert.ok(queries.some(query=>query.some(op=>op[0]==='range'&&op[1]===100)));
+console.log('PASS admin notifications: own-account reads/writes, unexpired filter, older-page access, server unread filter and refill after read. Isolated fixtures only.');

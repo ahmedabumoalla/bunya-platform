@@ -1,4 +1,4 @@
-.page { --chat-ink:#414747; --chat-muted:#6d706d; --chat-copper:#ad512c; --chat-line:#e3e2df; --chat-sand:#f6ede6; width:100%; min-width:0; color:var(--chat-ink); font-family:var(--font-salma),sans-serif; font-size:14px; }
+.page { --chat-ink:#414747; --chat-muted:#6d706d; --chat-copper:#ad512c; --chat-line:#e3e2df; --chat-sand:#f6ede6; width:100%; min-width:0; color:var(--chat-ink); font-family:var(--font-salma-arabic),sans-serif; font-size:14px; }
 .page *, .page *::before, .page *::after { box-sizing:border-box; }
 .page h1,.page h2,.page h3,.page p { margin:0; }
 .page h1 { font-size:24px; font-weight:700; }.page h2 { font-size:18px; }.page h3 { font-size:16px; }

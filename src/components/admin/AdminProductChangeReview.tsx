@@ -172,6 +172,7 @@ export function AdminProductChangeReview({ initialRequestId }: { initialRequestI
       });
       const payload = await response.json() as { error?: string };
       if (!response.ok) throw new Error(payload.error || "تعذر حفظ قرار المراجعة.");
+      window.dispatchEvent(new Event("bunya:admin-data-changed"));
       setSelected((current) => current ? { ...current, status: decision, review_reason: cleanReason, reviewed_at: new Date().toISOString() } : current);
       setFeedback(decision === "approved" ? "تم اعتماد التعديلات وتحديث المنتج المنشور، وأُرسل القرار إلى المزود." : "تم رفض الطلب وبقي المنتج المنشور دون تغيير، وأُرسل السبب إلى المزود.");
       setReason("");
