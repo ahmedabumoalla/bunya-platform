@@ -1223,14 +1223,14 @@ export function CustomerSavedContractors() {
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const state = useCustomerRows(
-    () =>
-      db
-        .from("saved_contractors")
-        .select(
-          "contractor_profile_id,contact_requested_at,saved_at,contractor_profiles(id,display_name,commercial_name,city,badge,average_rating,availability)",
-        )
-        .eq("customer_profile_id", identity.userId)
-        .order("saved_at", { ascending: false }),
+    async () => {
+      const [saved, directory] = await Promise.all([
+        db.from("saved_contractors").select("contractor_profile_id,contact_requested_at,saved_at").eq("customer_profile_id", identity.userId).order("saved_at", { ascending: false }),
+        db.rpc("contractor_directory_cards"),
+      ]);
+      const cards = new Map((directory.data ?? []).map((card: { id: string }) => [card.id, card]));
+      return { data: (saved.data ?? []).map(row => ({ ...row, contractor_profiles: cards.get(row.contractor_profile_id) ?? null })), error: saved.error || directory.error };
+    },
     `contractors:${identity.userId}`,
   );
   const remove = async (id: string) => {
@@ -1285,23 +1285,17 @@ export function CustomerSavedContractors() {
                     <dd>{contractor.city || "—"}</dd>
                   </div>
                   <div>
-                    <dt>التقييم</dt>
-                    <dd>
-                      {contractor.average_rating != null && Number(contractor.average_rating) > 0 ? `${Number(contractor.average_rating).toLocaleString("ar-SA")} / 5` : "لا توجد تقييمات بعد"}
-                    </dd>
-                  </div>
-                  <div>
                     <dt>تاريخ الحفظ</dt>
                     <dd>{date(row.saved_at)}</dd>
                   </div>
                   <div>
-                    <dt>طلب التواصل</dt>
-                    <dd>{row.contact_requested_at ? date(row.contact_requested_at) : "لم تطلب التواصل بعد"}</dd>
+                    <dt>التواصل</dt>
+                    <dd>داخل المنصة</dd>
                   </div>
                 </dl>
                 <div className="customer-card-buttons">
-                  <Link className="customer-card-action" href="/contractors">
-                    عرض الدليل
+                  <Link className="customer-card-action" href={`/customer/conversations?contractor=${row.contractor_profile_id}`}>
+                    فتح دردشة
                   </Link>
                   <button
                     className="customer-secondary-button"

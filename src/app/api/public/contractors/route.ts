@@ -9,7 +9,7 @@ const localAppOrigins = new Set(["http://127.0.0.1:8090", "http://localhost:8090
 function responseHeaders(request: NextRequest): Record<string, string> {
   const origin = request.headers.get("origin");
   const headers: Record<string, string> = {
-    "Cache-Control": "public, max-age=60, stale-while-revalidate=300",
+    "Cache-Control": "no-store",
   };
 
   if (origin && localAppOrigins.has(origin)) {

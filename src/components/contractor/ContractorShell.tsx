@@ -15,6 +15,7 @@ import { ContractorStatus } from "./ContractorUI";
 const sidebarPreferenceKey = "bunya-contractor-sidebar-state";
 const navigation = [
   ["الرئيسية", "/contractor", "home"],
+  ["المحادثات والعروض", "/contractor/conversations", "support"],
   ["فرص المشاريع", "/contractor/opportunities", "search"],
   ["تعليقات المشاريع", "/contractor/project-comments", "document"],
   ["العروض المقدمة", "/contractor/proposals", "check"],

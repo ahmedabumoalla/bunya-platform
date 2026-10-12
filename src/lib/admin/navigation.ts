@@ -1,6 +1,7 @@
 type AdminNavItem = readonly [label: string, href: string, icon: string];
 type AdminNavGroup = readonly [label: string, items: readonly AdminNavItem[]];
 export const adminGroups: readonly AdminNavGroup[] = [
+  ["المحادثات والصفقات", [["أرشيف المحادثات", "/admin/conversations", "support"]]],
   ["القيادة والتشغيل", [["مركز القيادة", "/admin", "home"], ["مركز العمليات", "/admin/operations", "flow"], ["التنبيهات الحرجة", "/admin/alerts", "alert"]]],
   ["المستخدمون والانضمام", [["المستخدمون", "/admin/users", "users"], ["طلبات المزودين", "/admin/join-requests/providers", "grid"], ["طلبات المقاولين", "/admin/join-requests/contractors", "document"], ["السائقون", "/admin/drivers", "truck"], ["المدراء والصلاحيات", "/admin/admins", "shield"]]],
   ["المنتجات والتوريد", [["التصنيفات والمنتجات", "/admin/catalog", "grid"], ["مراجعة المنتجات", "/admin/products/review", "check"], ["الأسعار والتوفر", "/admin/pricing", "money"], ["محرك التوريد", "/admin/sourcing", "flow"], ["عروض بُنية", "/admin/bunya-quotes", "document"]]],

@@ -11,6 +11,7 @@ export function resolveSafeReturnTo(role: AppRole, value?: string | null) {
 }
 
 export function quoteReturnToQuery(value?: string | null) {
+  if (value && /^\/customer\/conversations(?:\?contractor=[0-9a-f-]{36})?$/.test(value)) return `?returnTo=${encodeURIComponent(value)}`;
   return value === STOREFRONT_QUOTE_RETURN_TO
     ? `?returnTo=${encodeURIComponent(STOREFRONT_QUOTE_RETURN_TO)}`
     : "";

@@ -173,10 +173,6 @@ export type ContractorProfile = {
   yearsExperience: number;
   summary: string;
   workItems: Array<{ title: string; mediaUrl: string | null; mimeType: string | null }>;
-  phone: string;
-  email: string;
-  mapsUrl: string | null;
-  averageRating: number;
   projectsCount: number;
   availability: string;
   subscriptionActive: boolean;

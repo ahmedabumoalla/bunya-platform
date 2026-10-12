@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 const groups = [
   { title: "المشتريات والمشاريع", links: [
     ["الرئيسية", "/customer", "home"], ["طلب عرض سعر", "/customer/quote-request/new", "plus"],
+    ["المحادثات والعروض", "/customer/conversations", "quote"],
     ["طلبات عروض الأسعار", "/customer/quote-requests", "list"], ["عروض بُنية", "/customer/quotes", "quote"],
     ["الطلبات", "/customer/orders", "box"], ["متابعة التوصيل", "/customer/deliveries", "truck"],
     ["طلبات المشاريع", "/customer/project-requests", "building"], ["المقاولون المحفوظون", "/customer/contractors", "bookmark"],

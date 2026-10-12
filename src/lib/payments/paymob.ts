@@ -122,7 +122,7 @@ export async function createPaymobIntention(input: {
   if (!response.ok || !data?.id || !data.client_secret) {
     throw new Error(`Paymob intention failed with status ${response.status}.`);
   }
-  return { intentionId: String(data.id), clientSecret: data.client_secret };
+  return { intentionId: String(data.id), clientSecret: data.client_secret, orderId: data.intention_order_id == null ? null : String(data.intention_order_id) };
 }
 
 export function serializePaymobSession(session: StoredPaymobSession) {

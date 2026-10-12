@@ -6,6 +6,8 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useAuthIdentity } from "@/components/auth/AuthIdentityProvider";
 import type { AppRole } from "@/lib/auth/types";
 import { createClient } from "@/lib/supabase/client";
+import { ContractorConversations } from "@/components/conversations/ContractorConversations";
+import { ProjectConversationBoundary } from "@/components/conversations/ProjectConversationBoundary";
 import {AdminDeliveryCode,AdminQuoteAssembly,CustomerQuoteDecision,CustomerRfqForm,DriverDeliveryWorkflow,ProviderFulfillmentWorkflow} from "@/components/commerce/CommerceActions";
 import {ProviderRfqResponse} from "@/components/commerce/ProviderRfqResponse";
 import {AdminJoinRequests} from "@/components/admin/AdminJoinRequests";
@@ -314,6 +316,7 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
   const adminProductChangeMatch = pathname.match(/^\/admin\/products\/changes\/([^/]+)$/);
 
   useEffect(() => {
+    if (pathname.endsWith("/conversations")) return;
     if (pathname === "/driver/change-password") return;
     // Dedicated customer views own their session-scoped queries and states.
     if (role === "customer") return;
@@ -391,6 +394,7 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
   if(role==="provider"&&providerProductChangeMatch)return <ProviderProductChangeRequest productId={decodeURIComponent(providerProductChangeMatch[1])}/>;
   if(role==="provider"&&pathname==="/merchant/drivers")return <ProviderDriversManager/>;
   if(role==="provider"&&pathname==="/merchant/drivers/new")return <ProviderDriverCreate/>;
+  if(["customer","contractor","admin"].includes(role)&&pathname.endsWith("/conversations"))return <ContractorConversations admin={role==="admin"}/>;
   if(role==="provider"&&pathname.startsWith("/merchant/orders/")&&detailId)return <ProviderFulfillmentWorkflow id={detailId}/>;
   if(role==="provider"&&pathname==="/merchant/quote-requests")return <ProviderQuoteRequests/>;
   if(role==="provider"&&pathname==="/merchant/quotes")return <ProviderQuotes/>;
@@ -416,7 +420,7 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
   if(role==="contractor"&&pathname==="/contractor/opportunities")return <ContractorOpportunities/>;
   if(role==="contractor"&&pathname.startsWith("/contractor/opportunities/")&&detailId)return <OpportunityProposal id={detailId}/>;
   if(role==="contractor"&&pathname==="/contractor/projects")return <ContractorProjects/>;
-  if(role==="contractor"&&pathname.startsWith("/contractor/projects/")&&detailId)return <ContractorProjectDetail id={detailId}/>;
+  if(role==="contractor"&&pathname.startsWith("/contractor/projects/")&&detailId)return <ProjectConversationBoundary key={detailId} projectId={detailId}><ContractorProjectDetail id={detailId}/></ProjectConversationBoundary>;
   if(role==="contractor"&&pathname==="/contractor/proposals")return <ContractorProposals/>;
   if(role==="contractor"&&pathname.startsWith("/contractor/proposals/")&&detailId)return <ContractorProposalDetail id={detailId}/>;
   if(role==="contractor"&&pathname==="/contractor/project-comments")return <ContractorProjectComments/>;

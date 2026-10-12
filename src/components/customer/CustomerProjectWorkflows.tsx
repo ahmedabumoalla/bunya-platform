@@ -8,7 +8,7 @@ import { customerReadableText } from "@/lib/customer/presentation";
 import styles from "./CustomerProjectWorkflows.module.css";
 
 export const customerProjectSelect = "id,request_code,title,project_type,description,scope,city,region,estimated_budget_min,estimated_budget_max,expected_start_at,estimated_duration,proposal_deadline_at,minimum_rating,budget_negotiable,lifecycle_status,project_request_specialties(specialty_name)";
-export const customerProposalSelect = "id,proposal_code,amount,vat_inclusive,execution_duration,proposed_start_at,scope_details,includes,excludes,valid_until,warranty,team,notes,status,submitted_at,rejection_reason,change_request,contractor:contractor_profiles(display_name,commercial_name),contractor_opportunities!inner(project_request_id),contractor_proposal_stages(name,description,duration,value_percentage,expected_at,sort_order)";
+export const customerProposalSelect = "id,proposal_code,amount,vat_inclusive,execution_duration,proposed_start_at,scope_details,includes,excludes,valid_until,warranty,team,notes,status,submitted_at,rejection_reason,change_request,contractor_profile_id,contractor_opportunities!inner(project_request_id),contractor_proposal_stages(name,description,duration,value_percentage,expected_at,sort_order)";
 
 type Project = {
   id: string; request_code: string; title: string; project_type: string; description: string;
@@ -149,7 +149,6 @@ export function ProjectRequestForm() {
           <legend>المواعيد وتفضيلات المقاول</legend><div className={styles.fields}>
             <Field label="تاريخ البدء المتوقع"><input name="expected_start_at" type="date" required /></Field>
             <Field label="المدة التقديرية"><input name="estimated_duration" required placeholder="مثال: ٣ أشهر" /></Field>
-            <Field label="الحد الأدنى لتقييم المقاول — اختياري"><select name="minimum_rating" defaultValue=""><option value="">جميع التقييمات</option><option value="3">٣ من ٥ فأعلى</option><option value="3.5">٣٫٥ من ٥ فأعلى</option><option value="4">٤ من ٥ فأعلى</option><option value="4.5">٤٫٥ من ٥ فأعلى</option><option value="5">٥ من ٥</option></select></Field>
           </div>
         </fieldset>
         <div className={styles.submitArea}>{error ? <p className={styles.error} role="alert">{error}</p> : null}<p>نطلب عرضًا من مقاول مناسب يخدم موقع مشروعك، ونمنحه يومَي عمل للرد. إذا لم يرد أو رفضت عرضه، ننتقل للمقاول التالي حتى تقبل عرضًا أو توقف البحث من تفاصيل المشروع.</p><div className={styles.actions}><button className={styles.primary} type="submit" disabled={busy}>{busy ? "جارٍ نشر المشروع…" : "نشر المشروع والبحث عن مقاول"}</button><Link href="/customer/project-requests" className={styles.secondary}>العودة إلى مشاريعي</Link></div></div>
@@ -189,10 +188,12 @@ export function ProjectProposalDecisions({ id }: { id: string }) {
       client.from("project_requests").select(customerProjectSelect).eq("id", id).maybeSingle(),
       client.from("contractor_proposals").select(customerProposalSelect).eq("contractor_opportunities.project_request_id", id).neq("status", "draft").order("submitted_at", { ascending: false }),
       client.rpc("get_customer_project_search", { p_project_id: id }),
-    ]).then(([requestResult, proposalResult, searchResult]) => {
+      client.rpc("contractor_directory_cards"),
+    ]).then(([requestResult, proposalResult, searchResult, directory]) => {
       if (cancelled) return;
       setProject(requestResult.data as unknown as Project | null);
-      setProposals((proposalResult.data ?? []) as unknown as Proposal[]);
+      const cards = new Map((directory.data ?? []).map((card: { id: string }) => [card.id, card]));
+      setProposals((proposalResult.data ?? []).map(row => ({ ...row, contractor: cards.get(row.contractor_profile_id) ?? null })) as unknown as Proposal[]);
       setSearch(searchResult.error ? null : searchResult.data as ProjectSearch | null);
       setSearchError(searchResult.error || !searchResult.data ? "تعذر تحميل حالة البحث. حدّث الصفحة قبل اتخاذ أي إجراء." : "");
       setLoadError(requestResult.error || proposalResult.error ? "تعذر تحميل تفاصيل المشروع أو عروضه. أعد المحاولة." : "");
@@ -264,7 +265,7 @@ export function ProjectProposalDecisions({ id }: { id: string }) {
 
   return <main className={styles.page}>
     <PageHeading title={customerReadableText(project.title)} description={`${customerReadableText(project.project_type)} · ${customerReadableText(project.city)} · ${customerReadableText(project.region)}`} />
-    <section className={styles.projectSummary} aria-label="ملخص المشروع"><div className={styles.summaryTop}><span className={styles.reference}>طلب <bdi>{project.request_code}</bdi></span><Status value={project.lifecycle_status} /></div><dl className={styles.summaryFacts}><div><dt>الميزانية التقديرية</dt><dd>{project.estimated_budget_min !== null ? `${money(project.estimated_budget_min)} — ` : "حتى "}{money(project.estimated_budget_max)}</dd><small>{project.budget_negotiable ? "قابلة للتفاوض" : "حسب الميزانية المحددة"}</small></div><div><dt>تاريخ البدء المتوقع</dt><dd>{dateLabel(project.expected_start_at)}</dd><small>مدة التنفيذ: {customerReadableText(project.estimated_duration)}</small></div><div><dt>مهلة رد كل مقاول</dt><dd>يومَا عمل</dd><small>بتوقيت الرياض، باستثناء الجمعة والسبت</small></div></dl><details className={styles.projectBrief}><summary>تفاصيل الطلب ونطاق العمل</summary><div className={styles.briefGrid}><div><h3>وصف المشروع</h3><p>{customerReadableText(project.description)}</p></div><div><h3>نطاق العمل</h3><p>{customerReadableText(project.scope)}</p></div></div><div className={styles.tags}>{project.project_request_specialties?.map(item => <span key={item.specialty_name}>{customerReadableText(item.specialty_name)}</span>)}</div>{project.minimum_rating !== null ? <p className={styles.muted}>الحد الأدنى لتقييم المقاول: {project.minimum_rating} من ٥</p> : null}</details></section>
+    <section className={styles.projectSummary} aria-label="ملخص المشروع"><div className={styles.summaryTop}><span className={styles.reference}>طلب <bdi>{project.request_code}</bdi></span><Status value={project.lifecycle_status} /></div><dl className={styles.summaryFacts}><div><dt>الميزانية التقديرية</dt><dd>{project.estimated_budget_min !== null ? `${money(project.estimated_budget_min)} — ` : "حتى "}{money(project.estimated_budget_max)}</dd><small>{project.budget_negotiable ? "قابلة للتفاوض" : "حسب الميزانية المحددة"}</small></div><div><dt>تاريخ البدء المتوقع</dt><dd>{dateLabel(project.expected_start_at)}</dd><small>مدة التنفيذ: {customerReadableText(project.estimated_duration)}</small></div><div><dt>مهلة رد كل مقاول</dt><dd>يومَا عمل</dd><small>بتوقيت الرياض، باستثناء الجمعة والسبت</small></div></dl><details className={styles.projectBrief}><summary>تفاصيل الطلب ونطاق العمل</summary><div className={styles.briefGrid}><div><h3>وصف المشروع</h3><p>{customerReadableText(project.description)}</p></div><div><h3>نطاق العمل</h3><p>{customerReadableText(project.scope)}</p></div></div><div className={styles.tags}>{project.project_request_specialties?.map(item => <span key={item.specialty_name}>{customerReadableText(item.specialty_name)}</span>)}</div></details></section>
     <section className={styles.searchPanel} aria-label="متابعة البحث عن مقاول" aria-busy={busy || loading}>
       <div className={styles.sectionHeading}><div><span className={styles.eyebrow}>متابعة البحث</span><h2>{search ? searchLabels[search.status] : "جارٍ تحديث حالة البحث"}</h2><p>{search?.status === "awaiting_customer" ? "وصل عرض المقاول. راجعه ثم اقبله، اطلب تعديله، أو ارفضه للانتقال إلى المقاول التالي." : search?.status === "stopped" ? "البحث متوقف بطلبك، والعروض السابقة محفوظة للاطلاع. استأنفه للمتابعة." : search?.status === "exhausted" ? "لا يوجد مقاول إضافي مطابق حاليًا. يبقى الطلب محفوظًا وسنبحث عند توفر مقاول مناسب، أو يمكنك إيقاف البحث." : search?.status === "awarded" ? "اختير المقاول بعد موافقتك، وانتهى البحث لهذا المشروع." : "نتواصل مع مقاول واحد في كل مرة ممن يخدمون موقع مشروعك ويطابقون التخصص المطلوب. إذا لم يرسل عرضًا خلال يومَي عمل، ننتقل تلقائيًا إلى التالي."}</p></div></div>
       {search ? <dl className={styles.searchFacts}>
