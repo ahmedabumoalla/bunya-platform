@@ -93,6 +93,8 @@ export function StoreHeader({ compact, quoteCount, quoteOpen, hasLatestProducts 
           <BunyaLogo priority sizes="(max-width: 700px) 128px, 152px" />
         </a>
 
+        <JoinLinks account={account} />
+
         <nav className="sf-desktop-nav" aria-label="روابط المتجر">
           <a className="sf-nav-link" href="#products"><Icon name="grid" />المنتجات</a>
           {hasLatestProducts ? <a className="sf-nav-link" href="#latest"><Icon name="spark" />الأحدث</a> : null}
@@ -111,6 +113,24 @@ export function StoreHeader({ compact, quoteCount, quoteOpen, hasLatestProducts 
 
     </header>
   );
+}
+
+export function JoinLinks({ account = publicAccountFor(null) }: { account?: PublicAccount }) {
+  if (!account.canApplyProvider && !account.canApplyContractor) return null;
+  return <nav className="sf-join-links" aria-label="الانضمام إلى بُنية">
+    {account.canApplyProvider ? <Link href="/providers/join" aria-label="انضم كمزود" title="انضم كمزود"><Icon name="box" /><span>مزود</span></Link> : null}
+    {account.canApplyContractor ? <Link href="/contractors/join" aria-label="انضم كمقاول" title="انضم كمقاول"><Icon name="helmet" /><span>مقاول</span></Link> : null}
+  </nav>;
+}
+
+export function PublicMobileNav({ active = "home", quoteCount = 0, onQuoteOpen }: { active?: "home" | "contractors"; quoteCount?: number; onQuoteOpen?: () => void }) {
+  return <nav aria-label="التنقل الرئيسي" className="sf-mobile-tabs">
+    <Link aria-current={active === "home" ? "page" : undefined} href={active === "home" ? "#top" : "/"}><Icon name="spark" /><span>الرئيسية</span></Link>
+    <Link href={active === "home" ? "#products" : "/#products"}><Icon name="grid" /><span>المنتجات</span></Link>
+    {onQuoteOpen ? <button aria-label="فتح طلب عرض السعر" onClick={onQuoteOpen} type="button"><span className="sf-mobile-tabs-quote"><Icon name="quote" />{quoteCount ? <b>{quoteCount.toLocaleString("ar-SA")}</b> : null}</span><span>طلب السعر</span></button>
+      : <Link href="/?quote=review"><Icon name="quote" /><span>طلب السعر</span></Link>}
+    <Link aria-current={active === "contractors" ? "page" : undefined} href="/contractors"><Icon name="search" /><span>المقاولون</span></Link>
+  </nav>;
 }
 
 export function StoreQuickLinks({ account = publicAccountFor(null) }: { account?: PublicAccount }) {

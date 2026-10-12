@@ -40,6 +40,10 @@ for(const [role,href] of Object.entries(types.ROLE_ROUTES)) {
 const guest=publicAccountFor(null);assert.equal(guest.signedIn,false);assert.equal(guest.href,'/login');assert.equal(guest.canApplyProvider,true);
 const guestHtml=renderToStaticMarkup(React.createElement(StoreHeader,{account:guest,quoteCount:0}));
 assert.ok(guestHtml.includes('href="/login"'));
+for (const [href,label] of [['/providers/join','انضم كمزود'],['/contractors/join','انضم كمقاول']]) {
+  assert.ok(guestHtml.includes(`href="${href}"`));
+  assert.ok(guestHtml.includes(`aria-label="${label}"`));
+}
 assert.ok(renderToStaticMarkup(React.createElement(StoreQuickLinks,{account:guest})).includes('href="/login"'));
 assert.equal(guestHtml.includes('class="accountLink"'),false);
 const named=publicAccountFor({...identity('admin'),profile:{fullName:'  أحمد محمد  '}});

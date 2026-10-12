@@ -25,6 +25,7 @@ import {
   LatestProductCard,
   ProductArtwork,
   ProductCard,
+  PublicMobileNav,
   StoreHeader,
   StoreQuickLinks,
 } from "./home/HomeStorefrontUi";
@@ -277,6 +278,8 @@ export function HomeStorefront({
 
   useEffect(() => {
     void (async () => {
+      const reviewRequested = new URLSearchParams(window.location.search).get("quote") === "review";
+      if (reviewRequested) setQuoteDrawerOpen(true);
       const response = await fetch("/api/public/quote-draft", {
         cache: "no-store",
       }).catch(() => null);
@@ -289,10 +292,7 @@ export function HomeStorefront({
       setQuoteItems(draft.items);
       setQuoteDetails(draft.details);
       setQuoteSubmissionKey(draft.idempotencyKey);
-      if (
-        new URLSearchParams(window.location.search).get("quote") === "review"
-      ) {
-        setQuoteDrawerOpen(true);
+      if (reviewRequested) {
         const supabase = createClient();
         const { data } = await supabase.auth.getUser();
         if (data.user) {
@@ -993,33 +993,7 @@ export function HomeStorefront({
         </nav>
       ) : null}
 
-      <nav aria-label="التنقل الرئيسي" className="sf-mobile-tabs">
-        <a aria-current="page" href="#top">
-          <Icon name="spark" />
-          <span>الرئيسية</span>
-        </a>
-        <a href="#products">
-          <Icon name="grid" />
-          <span>المنتجات</span>
-        </a>
-        <button
-          aria-label="فتح طلب عرض السعر"
-          onClick={() => void openQuoteDrawer()}
-          type="button"
-        >
-          <span className="sf-mobile-tabs-quote">
-            <Icon name="quote" />
-            {quoteItems.length ? (
-              <b>{quoteItems.length.toLocaleString("ar-SA")}</b>
-            ) : null}
-          </span>
-          <span>طلب السعر</span>
-        </button>
-        <Link href="/contractors">
-          <Icon name="search" />
-          <span>المقاولون</span>
-        </Link>
-      </nav>
+      <PublicMobileNav quoteCount={quoteItems.length} onQuoteOpen={() => void openQuoteDrawer()} />
 
       {catalogFiltersOpen ? (
         <dialog
@@ -1091,25 +1065,22 @@ export function HomeStorefront({
 
       {quoteDrawerOpen ? (
         <div
-          className="store-quote-drawer-backdrop"
+          className="sf-rfq-drawer-backdrop"
           onMouseDown={() => setQuoteDrawerOpen(false)}
         >
           <aside
             aria-labelledby="store-quote-drawer-title"
             aria-modal="true"
-            className="store-quote-drawer"
+            className="sf-rfq-drawer"
+            data-empty={quoteItems.length === 0}
             id="store-quote-drawer"
             onMouseDown={(event) => event.stopPropagation()}
             role="dialog"
           >
-            <header className="store-quote-drawer-header">
+            <header className="sf-rfq-drawer-header">
               <div>
-                <p>طلب عرض السعر</p>
-                <h2 id="store-quote-drawer-title">راجع طلبك قبل الاعتماد</h2>
-                <span>
-                  {quoteItems.length.toLocaleString("ar-SA")} منتج في الطلب
-                  الحالي
-                </span>
+                <h2 id="store-quote-drawer-title">طلب عرض سعر</h2>
+                {quoteItems.length ? <span>{quoteItems.length.toLocaleString("ar-SA")} منتج · راجع التفاصيل وأكمل الطلب</span> : null}
               </div>
               <button
                 aria-label="إغلاق قائمة طلب عرض السعر"
@@ -1120,25 +1091,22 @@ export function HomeStorefront({
               </button>
             </header>
 
-            <div className="store-quote-drawer-content">
-              <section className="store-quote-drawer-section">
-                <div className="store-quote-drawer-section-heading">
-                  <h3>المنتجات المطلوبة</h3>
-                  <span>{quoteItems.length.toLocaleString("ar-SA")}</span>
-                </div>
+            <div className="sf-rfq-drawer-content">
+              <section className="sf-rfq-drawer-section">
+                {quoteItems.length ? <div className="sf-rfq-drawer-section-heading"><h3>المنتجات</h3></div> : null}
                 {quoteItems.length ? (
-                  <div className="store-quote-drawer-items">
+                  <div className="sf-rfq-drawer-items">
                     {quoteItems.map((item) => {
                       const product = products.find(
                         (candidate) => candidate.id === item.productId,
                       );
                       return (
                         <article
-                          className="store-quote-drawer-item"
+                          className="sf-rfq-drawer-item"
                           key={item.id}
                         >
                           <ProductArtwork image={product?.images[0]} />
-                          <div className="store-quote-drawer-item-copy">
+                          <div className="sf-rfq-drawer-item-copy">
                             <div>
                               <h4>{item.productName}</h4>
                               <button
@@ -1194,21 +1162,22 @@ export function HomeStorefront({
                     })}
                   </div>
                 ) : (
-                  <div className="store-quote-drawer-empty">
+                  <div className="sf-rfq-drawer-empty">
                     <Icon name="quote" />
                     <h3>الطلب فارغ</h3>
-                    <p>أغلق القائمة واختر منتجًا ثم أضفه إلى طلب عرض السعر.</p>
+                    <p>أضف المنتجات التي تحتاجها لمشروعك.</p>
+                    <a href="#products" onClick={() => setQuoteDrawerOpen(false)}>تصفح المنتجات <Icon name="box" /></a>
                   </div>
                 )}
               </section>
 
               {quoteItems.length ? (
-                <section className="store-quote-drawer-section">
-                  <div className="store-quote-drawer-section-heading">
+                <section className="sf-rfq-drawer-section">
+                  <div className="sf-rfq-drawer-section-heading">
                     <h3>بيانات الطلب والتسليم</h3>
                     <span>مطلوبة للاعتماد</span>
                   </div>
-                  <div className="store-quote-map-card">
+                  <div className="sf-rfq-map-card">
                     <div>
                       <Icon name="quote" />
                       <span>
@@ -1220,8 +1189,8 @@ export function HomeStorefront({
                       </span>
                     </div>
                   </div>
-                  <div className="store-quote-drawer-form">
-                    <div className="store-quote-map-card store-quote-drawer-wide">
+                  <div className="sf-rfq-drawer-form">
+                    <div className="sf-rfq-map-card sf-rfq-drawer-wide">
                       <div>
                         <Icon name="pin" />
                         <span>
@@ -1278,7 +1247,7 @@ export function HomeStorefront({
                         <option value="pickup">استلام من المزود</option>
                       </select>
                     </label>
-                    <label className="store-quote-drawer-wide">
+                    <label className="sf-rfq-drawer-wide">
                       <span>وصف مكان التسليم</span>
                       <input
                         onChange={(event) =>
@@ -1288,9 +1257,9 @@ export function HomeStorefront({
                         value={quoteDetails.locationHint}
                       />
                     </label>
-                    <section className="store-quote-schedule store-quote-drawer-wide">
+                    <section className="sf-rfq-schedule sf-rfq-drawer-wide">
                       <header>
-                        <span className="store-quote-schedule-icon">
+                        <span className="sf-rfq-schedule-icon">
                           <Icon name="calendar" />
                         </span>
                         <span>
@@ -1298,7 +1267,7 @@ export function HomeStorefront({
                           <small>اختر اليوم والساعة بدقة</small>
                         </span>
                       </header>
-                      <div className="store-quote-schedule-grid">
+                      <div className="sf-rfq-schedule-grid">
                         <label>
                           <span>التاريخ</span>
                           <input
@@ -1328,14 +1297,14 @@ export function HomeStorefront({
                           />
                         </label>
                       </div>
-                      <output className="store-quote-schedule-summary">
+                      <output className="sf-rfq-schedule-summary">
                         <Icon name="clock" />
                         {receiptScheduleSummary(quoteDetails.desiredReceiptAt)}
                       </output>
                     </section>
-                    <section className="store-quote-schedule store-quote-drawer-wide">
+                    <section className="sf-rfq-schedule sf-rfq-drawer-wide">
                       <header>
-                        <span className="store-quote-schedule-icon">
+                        <span className="sf-rfq-schedule-icon">
                           <Icon name="clock" />
                         </span>
                         <span>
@@ -1343,7 +1312,7 @@ export function HomeStorefront({
                           <small>حدد بداية ونهاية وقت الاستلام</small>
                         </span>
                       </header>
-                      <div className="store-quote-schedule-grid">
+                      <div className="sf-rfq-schedule-grid">
                         <label>
                           <span>من الساعة</span>
                           <input
@@ -1373,7 +1342,7 @@ export function HomeStorefront({
                           />
                         </label>
                       </div>
-                      <output className="store-quote-schedule-summary">
+                      <output className="sf-rfq-schedule-summary">
                         <Icon name="clock" />
                         استقبال الموقع {quoteDetails.workingHours}
                       </output>
@@ -1532,7 +1501,7 @@ export function HomeStorefront({
                         </option>
                       </select>
                     </label>
-                    <label className="store-quote-drawer-wide">
+                    <label className="sf-rfq-drawer-wide">
                       <span>تعليمات الوصول والبوابة</span>
                       <textarea
                         onChange={(event) =>
@@ -1546,7 +1515,7 @@ export function HomeStorefront({
                         value={quoteDetails.accessInstructions}
                       />
                     </label>
-                    <label className="store-quote-drawer-wide">
+                    <label className="sf-rfq-drawer-wide">
                       <span>ملاحظات عامة</span>
                       <textarea
                         onChange={(event) =>
@@ -1556,7 +1525,7 @@ export function HomeStorefront({
                         value={quoteDetails.notes}
                       />
                     </label>
-                    <fieldset className="store-quote-acknowledgements store-quote-drawer-wide">
+                    <fieldset className="sf-rfq-acknowledgements sf-rfq-drawer-wide">
                       <legend>إقرارات العميل قبل اعتماد الطلب</legend>
                       <label>
                         <input
@@ -1600,25 +1569,24 @@ export function HomeStorefront({
               ) : null}
             </div>
 
-            <footer className="store-quote-drawer-footer">
+            {quoteItems.length ? <footer className="sf-rfq-drawer-footer">
               {quoteDrawerFeedback ? (
                 <p role="alert">{quoteDrawerFeedback}</p>
               ) : null}
               <button
-                className="store-quote-approve"
+                className="sf-rfq-approve"
                 disabled={quoteDrawerBusy || quoteItems.length === 0}
                 onClick={() => void approveQuoteRequest()}
                 type="button"
               >
                 {quoteDrawerBusy
                   ? "جارٍ تجهيز الطلب..."
-                  : "اعتماد طلب عرض السعر"}
+                  : "اعتماد الطلب"}
               </button>
               <small>
-                إذا لم تكن مسجلًا سنحفظ الطلب مؤقتًا، ثم نعيدك إلى هذه القائمة
-                بعد تسجيل الدخول.
+                يُحفظ طلبك لاستكماله بعد تسجيل الدخول.
               </small>
-            </footer>
+            </footer> : null}
           </aside>
         </div>
       ) : null}

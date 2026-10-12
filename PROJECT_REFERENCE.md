@@ -1,10 +1,19 @@
 # Bunya Platform — Project Reference
 
-## 2026-10-12 — Production release preparation
+## 2026-10-12 — RFQ, directory and shared public navigation
+
+- Brought RFQ review and contractor directory into the new Salma/charcoal/copper style. Empty RFQ is a compact dialog with a browse-products action; populated review retains all fields, validation, quantity/removal and acknowledgement behavior. Directory uses isolated CSS, real logo, shorter content, compact filters and responsive cards instead of construction/glass legacy styling.
+- Added labelled provider/contractor join icons beside the logo on public home/directory headers, preserving account eligibility. Extracted shared mobile navigation; it stays fixed in contractor search with Contractors active, home/products links and quote review link. The review URL now opens the request even when no saved draft exists. Signed-in directory account link stays accessible on mobile.
+- Fresh TypeScript, scoped ESLint, expanded storefront/RFQ/directory filter tests, account navigation tests, operational-mock guard and local HTTP/CSS checks passed ~23:32-23:35 Asia/Riyadh; diff/source responsive/a11y review passed. Real data sources/auth remain unchanged; no database writes, browser inspection or native builds. Follow-up publication in progress under the user's release authorization.
+
+## 2026-10-12 — Released storefront and login redesign (5def079)
+
+- Published 5def07977ce2097c0c50a20f4ac15d1e607e4e1b to origin/main (remote SHA verified). Vercel Git integration built that commit successfully, including TypeScript, and deployment dpl_7sCoY9gHgSfw5NwXCr8HEEYmSoVK reached READY at 20:26:14 UTC, aliased to https://www.buniahksa.com. Inspector: https://vercel.com/ahmedabumoallas-projects/bunya-platform/7sCoY9gHgSfw5NwXCr8HEEYmSoVK.
+- Fresh production check `node tmp/release-5def079-check.mjs` passed ~23:27 Asia/Riyadh: homepage and login 200, Arabic RTL despite saved English cookie, released markup/CSS/local font/filter dialog, catalog without load-error fallback and anonymous admin redirect to login. Read-only HTTP; no browser, credentials, seed or production data mutation. These final evidence notes are local documentation after release.
 
 - User authorized publishing the storefront/login redesign with real data. Public catalog still reads published Supabase records, never substitutes fixture products; test fixtures remain isolated to tests. No seed or database mutation performed.
 - Fixed catalog server locale selection to honor disabled language switching even with a saved English cookie; tested actual loader using an isolated query stub. Operational-mock guard first flagged an upload comment mentioning browser storage; clarified the comment without changing executable code or weakening the guard, then it passed.
-- Fresh release checks at 23:24-23:25 Asia/Riyadh: operational-mock guard, storefront/login/login-error/account-navigation regressions, TypeScript, scoped ESLint and diff check all passed on Node20.20.2 / Next16.3.4. Remote main matches base 27288ca; production deployment pending, Vercel project uses Node24.x. No browser or native build.
+- Fresh release checks at 23:24-23:25 Asia/Riyadh: operational-mock guard, storefront/login/login-error/account-navigation regressions, TypeScript, scoped ESLint and diff check all passed on Node20.20.2 / Next16.3.4. Vercel project configured Node24.x; production build also passed. No browser or native build.
 
 ## 2026-10-12 — Login aligned with the new storefront
 

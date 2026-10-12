@@ -8,13 +8,15 @@ import { renderToStaticMarkup } from 'react-dom/server';
 
 const require = createRequire(import.meta.url);
 const documentStub = { documentElement: {}, body: { dataset: {}, style: { overflow: 'auto' } } };
+const windowStub = { matchMedia: () => ({ matches: true }), location: { search: '' } };
 function load(file, mocks = {}) {
   const exports = {};
   const code = ts.transpileModule(readFileSync(file, 'utf8'), { compilerOptions: {
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX,
   } }).outputText;
   vm.runInNewContext(code, { exports, require: name => Object.hasOwn(mocks, name) ? mocks[name] : require(name),
-    console, URL, document: documentStub, window: { matchMedia: () => ({ matches: true }) } });
+    console, URL, URLSearchParams, document: documentStub, window: windowStub,
+    fetch: async () => ({ ok: true, json: async () => ({ draft: null }) }) });
   return exports;
 }
 let state = [], cursor = 0, effects = [], refreshes = 0;
@@ -34,7 +36,7 @@ const ui = load('src/components/home/HomeStorefrontUi.tsx', {
 const { HomeStorefront } = load('src/components/HomeStorefront.tsx', {
   react: hooks, 'next/link': link, 'next/navigation': { useRouter: () => ({ refresh() { refreshes++; } }) },
   '@/lib/quotes/pending-draft': load('src/lib/quotes/pending-draft.ts'),
-  '@/lib/supabase/client': { createClient() { throw Error('No live data calls allowed in this test'); } },
+  '@/lib/supabase/client': { createClient: () => ({ auth: { getUser: async () => ({ data: { user: null } }) } }) },
   './home/BunyaHomeMotion': { BunyaHomeMotion: () => null }, './home/HomeStorefrontUi': ui,
 });
 const base = { sku: 'sku', unit: 'كيس', units: ['كيس'], description: 'مواد بناء', shortDescription: '',
@@ -139,6 +141,64 @@ const closedHeader = renderToStaticMarkup(React.createElement(ui.StoreHeader, { 
 assert.ok(!closedHeader.includes('sf-mobile-menu'));
 assert.ok(!closedHeader.includes('href="#latest"'));
 
+// The shared mobile bar preserves routes and the RFQ handler; deep links open even an empty request.
+const contractorNav = renderToStaticMarkup(React.createElement(ui.PublicMobileNav, { active: 'contractors' }));
+assert.ok(contractorNav.includes('aria-current="page" href="/contractors"'));
+for (const href of ['/', '/#products', '/?quote=review']) assert.ok(contractorNav.includes(`href="${href}"`));
+state = []; tree = render();
+windowStub.location.search = '?quote=review';
+effects[3]();
+await new Promise(resolve => setImmediate(resolve));
+tree = render();
+let quoteDrawer = find(tree, n => n.props?.id === 'store-quote-drawer');
+assert.equal(quoteDrawer.props['data-empty'], true);
+assert.ok(!nodes(quoteDrawer).some(n => n.props?.className === 'sf-rfq-approve'));
+find(quoteDrawer, n => n.type === 'a' && n.props.href === '#products').props.onClick();
+tree = render(); assert.ok(!nodes(tree).some(n => n.props?.id === 'store-quote-drawer'));
+windowStub.location.search = '';
+find(tree, n => n.type === ui.ProductCard).props.onOpen(products[0], { style: {} });
+tree = render();
+find(tree, n => n.type === 'form').props.onSubmit({ preventDefault() {} });
+tree = render();
+assert.equal(find(tree, n => n.type === ui.PublicMobileNav).props.quoteCount, 1);
+find(tree, n => n.type === ui.PublicMobileNav).props.onQuoteOpen();
+await new Promise(resolve => setImmediate(resolve));
+tree = render(); quoteDrawer = find(tree, n => n.props?.id === 'store-quote-drawer');
+assert.equal(quoteDrawer.props['data-empty'], false);
+assert.ok(nodes(quoteDrawer).some(n => n.props?.className === 'sf-rfq-approve'));
+const quantity = find(quoteDrawer, n => n.type === 'input' && n.props.type === 'number');
+quantity.props.onChange({ target: { value: '3' } });
+tree = render(); assert.equal(find(tree, n => n.type === 'input' && n.props.type === 'number').props.value, 3);
+find(tree, n => n.type === 'button' && buttonText(n) === 'حذف').props.onClick();
+tree = render(); assert.equal(find(tree, n => n.props?.id === 'store-quote-drawer').props['data-empty'], true);
+
+// Directory filters still operate on supplied approved records, and share the mobile navigation.
+const directoryStyles = new Proxy({}, { get: (_, key) => key });
+const { ContractorsDirectory } = load('src/components/ContractorsDirectory.tsx', {
+  react: hooks, 'next/link': link, './ContractorsDirectory.module.css': { default: directoryStyles },
+  './home/HomeStorefrontUi': ui, './brand/BunyaLogo': { BunyaLogo: () => null },
+  '@/lib/auth/public-account': account,
+  '@/lib/supabase/client': { createClient() { throw Error('Directory data access not expected in filter tests'); } },
+});
+const contractorBase = { approvalStatus: 'approved', displayName: 'مقاول', city: 'الرياض', workRegions: ['الرياض'], serviceTypes: ['تشطيبات'], summary: '', badge: '', yearsExperience: 2, averageRating: 4, projectsCount: 3, availability: 'available', workItems: [], phone: '', email: '' };
+const contractorRecords = [{ ...contractorBase, id: 'one', commercialName: 'المقاول الأول' }, { ...contractorBase, id: 'two', commercialName: 'المقاول الثاني', city: 'جدة', workRegions: ['جدة'], serviceTypes: ['عظم'] }, { ...contractorBase, id: 'hidden', commercialName: 'غير معتمد', approvalStatus: 'pending' }];
+function directory(overrides = {}) { cursor = 0; effects = []; return ContractorsDirectory({ contractors: contractorRecords, ...overrides }); }
+function directoryCount(node) { return nodes(node).filter(n => n.type === 'article').length; }
+state = []; tree = directory(); assert.equal(directoryCount(tree), 2);
+assert.equal(find(tree, n => n.type === ui.PublicMobileNav).props.active, 'contractors');
+find(tree, n => n.type === 'input').props.onChange({ target: { value: 'الأول' } });
+tree = directory(); assert.equal(directoryCount(tree), 1);
+find(tree, n => n.type === 'input').props.onChange({ target: { value: '' } });
+tree = directory(); nodes(tree).filter(n => n.type === 'select')[0].props.onChange({ target: { value: 'جدة' } });
+tree = directory(); assert.equal(directoryCount(tree), 1);
+nodes(tree).filter(n => n.type === 'select')[1].props.onChange({ target: { value: 'تشطيبات' } });
+tree = directory(); assert.equal(directoryCount(tree), 0);
+find(tree, n => n.type === 'button' && buttonText(n) === 'إعادة الضبط').props.onClick();
+tree = directory(); assert.equal(directoryCount(tree), 2);
+assert.ok(renderToStaticMarkup(directory({ contractors: [] })).includes('لا يوجد مقاولون متاحون حاليًا'));
+tree = directory({ dataError: 'تعذر الاتصال' });
+assert.equal(directoryCount(tree), 0); assert.ok(nodes(tree).some(n => n.props?.role === 'alert'));
+
 // A saved foreign locale must not mount translation observers or read/update profile preferences.
 state = []; cursor = 0; effects = [];
 const config = load('src/lib/i18n/config.ts');
@@ -183,4 +243,4 @@ const catalog = await loadPublicCatalog();
 assert.equal(catalog.products[0].name, 'منتج مسجل');
 assert.equal(queriedLocales.length, 4);
 assert.ok(queriedLocales.every(locale => locale === 'ar'));
-console.log('PASS storefront search, category/region/delivery filtering, reset, list view, product details, empty/error states, menu semantics and paused translation with saved English preference. No browser or live mutations.');
+console.log('PASS storefront filters, RFQ empty/deep-link/add/quantity/remove flows, directory search/region/specialty/reset/error states, shared mobile navigation and paused client/server translation. No browser or live mutations.');
