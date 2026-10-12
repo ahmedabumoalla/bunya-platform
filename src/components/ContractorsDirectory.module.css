@@ -83,6 +83,7 @@
   .nav a { width: 44px; border: 1px solid var(--sf-line); border-radius: 9px; }
   .nav a:last-child,.nav a > span { display: none; }
   .headerInner :global(.sf-join-links) { margin-inline-start: auto; }
+  .headerInner :global(.sf-join-links) + .nav { display: none; }
   .hero,.content { width: calc(100% - 40px); }
   .hero { align-items: start; padding-block: 24px 18px; gap: 8px; }
   .hero h1 { font-size: 24px; }

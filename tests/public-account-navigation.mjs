@@ -33,6 +33,7 @@ for(const [role,href] of Object.entries(types.ROLE_ROUTES)) {
   assert.match(html,new RegExp(`class="sf-mobile-account"><a[^>]*href="${href}"`),'Account link exists outside mobile drawer on first render');
   assert.equal(html.includes('href="/providers/join"'),false);
   assert.equal(html.includes('href="/contractors/join"'),false);
+  assert.equal(html.includes('href="/join"'),false);
   assert.equal(html.includes('لوحة التحكم'),false);
   assert.match(html,/class="avatar" aria-hidden="true"/);
   assert.ok(html.includes(account.roleLabel));
@@ -40,10 +41,10 @@ for(const [role,href] of Object.entries(types.ROLE_ROUTES)) {
 const guest=publicAccountFor(null);assert.equal(guest.signedIn,false);assert.equal(guest.href,'/login');assert.equal(guest.canApplyProvider,true);
 const guestHtml=renderToStaticMarkup(React.createElement(StoreHeader,{account:guest,quoteCount:0}));
 assert.ok(guestHtml.includes('href="/login"'));
-for (const [href,label] of [['/providers/join','انضم كمزود'],['/contractors/join','انضم كمقاول']]) {
-  assert.ok(guestHtml.includes(`href="${href}"`));
-  assert.ok(guestHtml.includes(`aria-label="${label}"`));
-}
+assert.equal((guestHtml.match(/href="\/join"/g) ?? []).length, 1);
+assert.ok(guestHtml.includes('طلب انضمام'));
+assert.ok(!guestHtml.includes('href="/providers/join"'));
+assert.ok(!guestHtml.includes('href="/contractors/join"'));
 assert.ok(renderToStaticMarkup(React.createElement(StoreQuickLinks,{account:guest})).includes('href="/login"'));
 assert.equal(guestHtml.includes('class="accountLink"'),false);
 const named=publicAccountFor({...identity('admin'),profile:{fullName:'  أحمد محمد  '}});

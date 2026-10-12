@@ -1,10 +1,17 @@
 # Bunya Platform — Project Reference
 
+## 2026-10-12 — Single join request entry and role choice
+
+- Replaced the two small header role icons with one readable "طلب انضمام" icon/text link opposite the logo on mobile. Shared across homepage and contractor directory; existing guest eligibility and bottom navigation preserved.
+- New /join server page offers "مقاول" -> /contractors/join and "مورد" -> /providers/join; selecting goes directly to the existing real application form. Isolated responsive Salma/charcoal/copper styles, visible keyboard focus, no extra client state or backend change; /join/revise remains intact.
+- Fresh TypeScript, scoped ESLint, navigation/storefront regressions and local HTTP checks for all five routes passed ~23:39-23:40 Asia/Riyadh. New page CSS compiled/parsed; both application forms available. No browser, submissions or database mutations. Publishing this follow-up under existing release authorization.
+
 ## 2026-10-12 — RFQ, directory and shared public navigation
 
+- Released 9ff610ae2d52377cecc04d8b9b270c66fd1751ac to origin/main and Vercel production. Deployment dpl_ENK4nrfhdZeJDLHmKPV4Uf557ZHu READY at 20:35:52 UTC; build and TypeScript passed; aliased to https://www.buniahksa.com. Fresh `node tmp/public-design-check.mjs https://www.buniahksa.com` passed ~23:36 Asia/Riyadh for homepage/directory loading, Arabic, join links, active mobile tabs, quote link and deployed CSS. Inspector: https://vercel.com/ahmedabumoallas-projects/bunya-platform/ENK4nrfhdZeJDLHmKPV4Uf557ZHu. No browser/live mutations; these final evidence notes are local documentation.
 - Brought RFQ review and contractor directory into the new Salma/charcoal/copper style. Empty RFQ is a compact dialog with a browse-products action; populated review retains all fields, validation, quantity/removal and acknowledgement behavior. Directory uses isolated CSS, real logo, shorter content, compact filters and responsive cards instead of construction/glass legacy styling.
 - Added labelled provider/contractor join icons beside the logo on public home/directory headers, preserving account eligibility. Extracted shared mobile navigation; it stays fixed in contractor search with Contractors active, home/products links and quote review link. The review URL now opens the request even when no saved draft exists. Signed-in directory account link stays accessible on mobile.
-- Fresh TypeScript, scoped ESLint, expanded storefront/RFQ/directory filter tests, account navigation tests, operational-mock guard and local HTTP/CSS checks passed ~23:32-23:35 Asia/Riyadh; diff/source responsive/a11y review passed. Real data sources/auth remain unchanged; no database writes, browser inspection or native builds. Follow-up publication in progress under the user's release authorization.
+- Fresh TypeScript, scoped ESLint, expanded storefront/RFQ/directory filter tests, account navigation tests, operational-mock guard and local HTTP/CSS checks passed ~23:32-23:35 Asia/Riyadh; diff/source responsive/a11y review passed. Real data sources/auth remain unchanged; no database writes, browser inspection or native builds.
 
 ## 2026-10-12 — Released storefront and login redesign (5def079)
 

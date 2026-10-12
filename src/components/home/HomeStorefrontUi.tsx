@@ -24,8 +24,9 @@ const visualTone: Record<ProductImage["tone"], { tone: string; ink: string }> = 
   tools: { tone: "#c6d3e4", ink: "#172554" },
 };
 
-export function Icon({ name }: { name: "search" | "grid" | "list" | "filter" | "spark" | "quote" | "close" | "plus" | "check" | "menu" | "box" | "truck" | "shield" | "tag" | "pin" | "calendar" | "clock" | "user" | "helmet" }) {
+export function Icon({ name }: { name: "search" | "grid" | "list" | "filter" | "spark" | "quote" | "close" | "plus" | "check" | "menu" | "box" | "truck" | "shield" | "tag" | "pin" | "calendar" | "clock" | "user" | "userPlus" | "helmet" }) {
   const paths = {
+    userPlus: <><circle cx="9" cy="7" r="3" /><path d="M3 21v-3a6 6 0 0 1 12 0v3M19 8v6M16 11h6" /></>,
     user: <><circle cx="12" cy="8" r="3.5" /><path d="M5 21v-2a7 7 0 0 1 14 0v2" /></>,
     helmet: <><path d="M4 16v-3a8 8 0 0 1 16 0v3M3 16h18v4H3zM9 5v6M15 5v6" /></>,
     search: <><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></>,
@@ -93,13 +94,13 @@ export function StoreHeader({ compact, quoteCount, quoteOpen, hasLatestProducts 
           <BunyaLogo priority sizes="(max-width: 700px) 128px, 152px" />
         </a>
 
-        <JoinLinks account={account} />
-
         <nav className="sf-desktop-nav" aria-label="روابط المتجر">
           <a className="sf-nav-link" href="#products"><Icon name="grid" />المنتجات</a>
           {hasLatestProducts ? <a className="sf-nav-link" href="#latest"><Icon name="spark" />الأحدث</a> : null}
           <Link className="sf-nav-link sf-nav-contractor" href="/contractors"><Icon name="search" />ابحث عن مقاول</Link>
         </nav>
+
+        <JoinLinks account={account} />
 
         <nav className="sf-desktop-portals" aria-label="حساب بُنية">
           {account.signedIn ? <PublicAccountLink account={account} /> : <Link className="sf-portal-link sf-portal-link-primary" href={account.href}>تسجيل الدخول</Link>}
@@ -118,8 +119,7 @@ export function StoreHeader({ compact, quoteCount, quoteOpen, hasLatestProducts 
 export function JoinLinks({ account = publicAccountFor(null) }: { account?: PublicAccount }) {
   if (!account.canApplyProvider && !account.canApplyContractor) return null;
   return <nav className="sf-join-links" aria-label="الانضمام إلى بُنية">
-    {account.canApplyProvider ? <Link href="/providers/join" aria-label="انضم كمزود" title="انضم كمزود"><Icon name="box" /><span>مزود</span></Link> : null}
-    {account.canApplyContractor ? <Link href="/contractors/join" aria-label="انضم كمقاول" title="انضم كمقاول"><Icon name="helmet" /><span>مقاول</span></Link> : null}
+    <Link href="/join"><Icon name="userPlus" /><span>طلب انضمام</span></Link>
   </nav>;
 }
 
