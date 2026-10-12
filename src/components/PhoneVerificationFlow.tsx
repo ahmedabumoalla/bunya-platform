@@ -138,15 +138,17 @@ export function PhoneVerificationFlow({ returnTo }: { returnTo?: string }) {
                 dir="ltr"
                 placeholder="05xxxxxxxx"
                 value={phone}
+                aria-invalid={Boolean(error)}
+                aria-describedby={error ? "phone-verification-error phone-verification-hint" : "phone-verification-hint"}
                 onChange={(event) => { setPhone(event.target.value); setError(""); }}
               />
-              <small>تأكد أن الرقم مفعّل على واتساب ويمكنك الوصول إليه الآن.</small>
+              <small id="phone-verification-hint">تأكد أن الرقم مفعّل على واتساب ويمكنك الوصول إليه الآن.</small>
             </div>
             <button className="portal-primary-button" disabled={busy} type="submit">
               {busy ? "جارٍ التحقق والإرسال..." : "إرسال رمز التحقق"}
             </button>
-            {error ? <p className="portal-form-message portal-form-error" role="alert">{error}</p> : null}
-            <button disabled={busy} onClick={() => void signOut()} type="button">تسجيل الخروج</button>
+            {error ? <p id="phone-verification-error" className="portal-form-message portal-form-error" role="alert">{error}</p> : null}
+            <button className="portal-secondary-button" disabled={busy} onClick={() => void signOut()} type="button">تسجيل الخروج</button>
           </form>
         ) : (
           <form className="portal-form" onSubmit={verify} noValidate>
@@ -157,6 +159,9 @@ export function PhoneVerificationFlow({ returnTo }: { returnTo?: string }) {
                 inputMode="numeric"
                 autoComplete="one-time-code"
                 maxLength={6}
+                dir="ltr"
+                aria-invalid={Boolean(error)}
+                aria-describedby={error ? "phone-verification-error" : undefined}
                 value={otp}
                 onChange={(event) => { setOtp(event.target.value.replace(/\D/g, "")); setError(""); }}
               />
@@ -164,11 +169,11 @@ export function PhoneVerificationFlow({ returnTo }: { returnTo?: string }) {
             <button className="portal-primary-button" disabled={busy} type="submit">
               {busy ? "جارٍ التحقق..." : "تحقق وادخل إلى الحساب"}
             </button>
-            <button disabled={busy} onClick={() => void requestCode()} type="button">إعادة إرسال الرمز</button>
-            <button disabled={busy} onClick={editPhone} type="button">تعديل رقم الجوال</button>
-            {message ? <p className="portal-form-message">{message}</p> : null}
-            {error ? <p className="portal-form-message portal-form-error" role="alert">{error}</p> : null}
-            <button disabled={busy} onClick={() => void signOut()} type="button">تسجيل الخروج</button>
+            <div className="portal-secondary-actions"><button className="portal-secondary-button" disabled={busy} onClick={() => void requestCode()} type="button">إعادة إرسال الرمز</button>
+            <button className="portal-secondary-button" disabled={busy} onClick={editPhone} type="button">تعديل رقم الجوال</button></div>
+            {message ? <p className="portal-form-message" role="status">{message}</p> : null}
+            {error ? <p id="phone-verification-error" className="portal-form-message portal-form-error" role="alert">{error}</p> : null}
+            <button className="portal-secondary-button" disabled={busy} onClick={() => void signOut()} type="button">تسجيل الخروج</button>
           </form>
         )}
       </AuthCard>

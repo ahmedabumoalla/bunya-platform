@@ -1,0 +1,24 @@
+/* Finishing states shared by account forms and application revisions. */
+.portal-secondary-button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 44px; min-width: 0; padding: 9px 14px; border: 1px solid #e3e2df;
+  border-radius: 8px; background: #fff; color: #414747; font: inherit; font-size: 14px;
+  font-weight: 500; cursor: pointer;
+}
+.portal-secondary-button:hover:not(:disabled) { background: #f7f7f5; }
+.portal-secondary-button:disabled { opacity: .55; cursor: not-allowed; }
+.portal-secondary-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.portal-secondary-actions > button { flex: 1 1 140px; }
+.portal-field .visibility-check { min-height: 44px; gap: 8px; }
+.portal-field .visibility-check input { width: 18px; height: 18px; min-height: 18px; padding: 0; flex: 0 0 18px; margin: 0; }
+.portal-page .binary-choice { flex-wrap: wrap; }
+.portal-page .binary-choice label { min-height: 44px; min-width: 0; padding: 8px 12px; border-color: #e3e2df; background: #fff; color: #414747; font-size: 14px; font-weight: 500; }
+.portal-page .binary-choice label.active,.portal-page .choice-card-active { border-color: #ad512c; background: #f6ede6; color: #ad512c; }
+.portal-page .choice-card { min-width: 0; overflow-wrap: anywhere; }
+.portal-chip { min-width: 0; max-width: 100%; overflow-wrap: anywhere; font-weight: 500; }
+.portal-chip button { flex: 0 0 44px; min-width: 44px; min-height: 44px; display: inline-grid; place-items: center; border-radius: 6px; }
+.portal-chip button:hover { background: #e8d5c9; }
+.success-state > p { color: #285f49; font-weight: 500; }
+.success-state h1 { font-size: clamp(22px,4vw,28px); font-weight: 700; }
+.success-state > span:not(.success-mark) { font-weight: 400; }
+.portal-page .map-result-short-link { background: #fff6e5; border-color: #e8dfc6; color: #79520f; }

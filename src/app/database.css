@@ -1088,18 +1088,18 @@
   align-items: center;
   justify-content: center;
   gap: 0.45rem;
-  min-height: 2.85rem;
-  border: 1px solid rgb(180 35 24 / 0.24);
-  border-radius: 0.75rem;
+  min-height: 44px;
+  border: 1px solid #e3e2df;
+  border-radius: 10px;
   background: #fff;
-  color: var(--bunya-danger);
+  color: #414747;
   padding: 0.65rem 1rem;
   font: inherit;
-  font-weight: 900;
+  font-weight: 700;
   cursor: pointer;
 }
 .driver-workflow-logout:hover {
-  background: var(--bunya-danger-bg);
+  background: #f7f7f5;
 }
 .driver-workflow-logout:disabled {
   cursor: wait;
@@ -1109,6 +1109,7 @@
   display: flex;
   align-items: center;
   gap: 0.65rem;
+  flex-wrap: wrap;
 }
 .driver-archive-button {
   position: relative;
@@ -1118,7 +1119,7 @@
   flex: 0 0 auto;
   place-items: center;
   border: 1px solid var(--bunya-border);
-  border-radius: 0.78rem;
+  border-radius: 10px;
   background: #fff;
   color: var(--bunya-text-primary);
   cursor: pointer;
@@ -1126,7 +1127,7 @@
 .driver-archive-button:hover,
 .driver-archive-button[aria-expanded="true"] {
   border-color: var(--bunya-accent);
-  background: #fff7f1;
+  background: #f6ede6;
   color: var(--bunya-accent-hover);
 }
 .driver-archive-button .driver-detail-icon {
@@ -1145,8 +1146,8 @@
   background: var(--bunya-accent);
   color: #fff;
   padding-inline: 0.2rem;
-  font-size: 0.64rem;
-  font-weight: 900;
+  font-size: 12px;
+  font-weight: 700;
 }
 .driver-task-list.database-panel {
   width: min(100%, 46rem);
@@ -1160,19 +1161,20 @@
   width: 100%;
   margin: 0 0 0.7rem;
   border: 1px solid var(--bunya-border);
-  border-radius: 1rem;
+  border-radius: 10px;
   background: #fff;
-  box-shadow: 0 7px 20px rgb(52 38 28 / 0.055);
+  box-shadow: none;
   overflow: hidden;
+  min-width: 0;
 }
 .driver-delivery-heading {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.8rem;
-  min-height: 5.25rem;
+  min-height: 76px;
   padding: 0.85rem 1rem;
-  background: #fffdf9;
+  background: #f7f7f5;
   cursor: pointer;
   list-style: none;
 }
@@ -1181,16 +1183,16 @@
 }
 .driver-delivery-detail[open] .driver-delivery-heading {
   border-bottom: 1px solid var(--bunya-border);
-  background: #fffaf4;
+  background: #f7f7f5;
 }
 .driver-task-icon {
   display: grid;
   width: 2.65rem;
   height: 2.65rem;
   place-items: center;
-  border-radius: 50%;
-  background: var(--bunya-success-bg);
-  color: var(--bunya-success);
+  border-radius: 10px;
+  background: #f6ede6;
+  color: #ad512c;
 }
 .driver-task-icon .driver-detail-icon {
   color: currentColor;
@@ -1200,24 +1202,24 @@
 }
 .driver-delivery-heading small {
   color: var(--bunya-text-muted);
-  font-size: 0.7rem;
-  font-weight: 850;
-  letter-spacing: 0.035em;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: normal;
 }
 .driver-delivery-heading h2 {
   margin: 0.2rem 0 0;
   direction: ltr;
   unicode-bidi: isolate;
-  font-size: 1.15rem;
-  line-height: 1.25;
+  font-size: 18px;
+  line-height: 1.5;
   text-align: start;
   overflow-wrap: anywhere;
 }
 .driver-delivery-heading p {
   margin: 0.28rem 0 0;
   color: var(--bunya-text-muted);
-  font-size: 0.72rem;
-  font-weight: 750;
+  font-size: 12px;
+  font-weight: 700;
   line-height: 1.35;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1229,8 +1231,8 @@
   background: var(--bunya-success-bg);
   color: var(--bunya-success);
   padding: 0.38rem 0.68rem;
-  font-size: 0.7rem;
-  font-weight: 900;
+  font-size: 12px;
+  font-weight: 700;
 }
 .driver-completed-panel {
   position: fixed;
@@ -1241,11 +1243,12 @@
   width: min(26rem, calc(100vw - 2rem));
   max-height: min(70vh, 42rem);
   border: 1px solid var(--bunya-border);
-  border-radius: 1.1rem;
-  background: #fffaf4;
-  box-shadow: 0 24px 70px rgb(34 25 19 / 0.22);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 16px 60px rgb(35 39 39 / 18%);
   overflow: hidden;
   animation: driverArchiveIn 0.18s ease-out;
+  grid-template-rows: auto minmax(0,1fr);
 }
 .driver-completed-panel > header {
   display: flex;
@@ -1261,7 +1264,7 @@
 }
 .driver-completed-panel header small {
   color: var(--bunya-text-muted);
-  font-weight: 850;
+  font-weight: 700;
 }
 .driver-completed-panel header > button {
   display: grid;
@@ -1286,6 +1289,8 @@
   gap: 0.6rem;
   overflow-y: auto;
   padding: 0.8rem;
+  min-height: 0;
+  overscroll-behavior: contain;
 }
 .driver-completed-list article {
   display: grid;
@@ -1293,7 +1298,7 @@
   align-items: center;
   gap: 0.7rem;
   border: 1px solid var(--bunya-border);
-  border-radius: 0.85rem;
+  border-radius: 10px;
   background: #fff;
   padding: 0.78rem;
 }
@@ -1319,8 +1324,8 @@
   margin-top: 0.2rem;
   overflow: hidden;
   color: var(--bunya-text-muted);
-  font-size: 0.7rem;
-  font-weight: 750;
+  font-size: 12px;
+  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1329,7 +1334,7 @@
   background: var(--bunya-success-bg);
   color: var(--bunya-success);
   padding: 0.3rem 0.5rem;
-  font-size: 0.65rem;
+  font-size: 12px;
   white-space: nowrap;
 }
 @keyframes driverArchiveIn {
@@ -1342,6 +1347,7 @@
   display: grid;
   gap: 1.1rem;
   padding: 1.2rem;
+  min-width: 0;
 }
 .driver-detail-section {
   display: grid;
@@ -1353,8 +1359,8 @@
   gap: 0.5rem;
   margin: 0;
   color: var(--bunya-text-primary);
-  font-size: 0.86rem;
-  font-weight: 900;
+  font-size: 14px;
+  font-weight: 700;
 }
 .driver-detail-icon {
   width: 1.15rem;
@@ -1366,8 +1372,8 @@
 .driver-operation-list,
 .driver-order-list {
   border: 1px solid var(--bunya-border);
-  border-radius: 0.9rem;
-  background: #fbf8f3;
+  border-radius: 10px;
+  background: #f7f7f5;
   overflow: hidden;
 }
 .driver-contact-list {
@@ -1392,18 +1398,18 @@
 .driver-contact-row small,
 .driver-operation-list dt {
   color: var(--bunya-text-muted);
-  font-size: 0.67rem;
-  font-weight: 800;
+  font-size: 12px;
+  font-weight: 700;
 }
 .driver-contact-row strong {
   overflow-wrap: anywhere;
-  font-size: 0.86rem;
+  font-size: 14px;
 }
 .driver-contact-row span {
   width: fit-content;
   color: var(--bunya-text-muted);
-  font-size: 0.76rem;
-  font-weight: 750;
+  font-size: 13px;
+  font-weight: 700;
 }
 .driver-contact-row > a {
   display: grid;
@@ -1423,14 +1429,14 @@
 }
 .driver-contact-row > a:hover {
   border-color: var(--bunya-accent);
-  background: #fff3eb;
+  background: #f6ede6;
   color: var(--bunya-accent-hover);
 }
 .driver-contact-row > a:focus-visible,
 .driver-map-action:focus-visible,
 .driver-primary-action:focus-visible,
 .driver-failure-action:focus-visible {
-  outline: 3px solid rgb(183 96 59 / 0.28);
+  outline: 2px solid #ad512c;
   outline-offset: 2px;
 }
 .driver-contact-row > a .driver-detail-icon {
@@ -1470,8 +1476,8 @@
 .driver-operation-list dd {
   margin: 0.15rem 0 0;
   overflow-wrap: anywhere;
-  font-size: 0.82rem;
-  font-weight: 850;
+  font-size: 13px;
+  font-weight: 700;
   line-height: 1.55;
 }
 .driver-operation-row {
@@ -1506,25 +1512,27 @@
   justify-content: space-between;
   gap: 1rem;
   padding: 0.75rem 0.9rem;
+  flex-wrap: wrap;
 }
 .driver-order-list > div + div {
   border-top: 1px solid var(--bunya-border);
 }
 .driver-order-list strong {
   overflow-wrap: anywhere;
-  font-size: 0.84rem;
+  font-size: 14px;
+  min-width: 0;
 }
 .driver-order-list span {
   direction: ltr;
   unicode-bidi: isolate;
   white-space: nowrap;
   color: var(--bunya-text-muted);
-  font-size: 0.78rem;
-  font-weight: 850;
+  font-size: 13px;
+  font-weight: 700;
 }
 .driver-delivery-actions {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  grid-template-columns: repeat(auto-fit,minmax(min(180px,100%),1fr));
   gap: 0.7rem;
 }
 .driver-map-action,
@@ -1533,12 +1541,12 @@
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  min-height: 3rem;
-  border-radius: 0.78rem;
+  min-height: 44px;
+  border-radius: 10px;
   padding: 0.65rem 1rem;
   font: inherit;
-  font-size: 0.82rem;
-  font-weight: 900;
+  font-size: 13px;
+  font-weight: 700;
   cursor: pointer;
   text-decoration: none;
 }
@@ -1548,18 +1556,18 @@
   color: var(--bunya-accent-hover);
 }
 .driver-map-action:hover {
-  background: #fff7f1;
+  background: #f6ede6;
 }
 .driver-map-action .driver-detail-icon {
   color: currentColor;
 }
 .driver-primary-action {
-  border: 1px solid var(--bunya-accent);
-  background: var(--bunya-accent);
+  border: 1px solid #414747;
+  background: #414747;
   color: #fff;
 }
 .driver-primary-action:hover {
-  background: var(--bunya-accent-hover);
+  background: #303636;
 }
 .driver-primary-action:disabled,
 .driver-failure-action:disabled {
@@ -1568,14 +1576,14 @@
 }
 .driver-failure-action {
   justify-self: center;
-  min-height: 2.75rem;
+  min-height: 44px;
   border: 0;
   background: transparent;
   color: var(--bunya-danger);
   padding: 0.5rem 1rem;
   font: inherit;
-  font-size: 0.78rem;
-  font-weight: 850;
+  font-size: 13px;
+  font-weight: 700;
   cursor: pointer;
 }
 .driver-failure-action:hover {
@@ -1619,10 +1627,12 @@
   .driver-delivery-detail {
     width: 100%;
     margin: 0 0 0.65rem;
+    min-width: 0;
   }
   .driver-delivery-heading {
     grid-template-columns: auto minmax(0, 1fr);
     padding: 0.8rem;
+    min-height: 76px;
   }
   .driver-delivery-heading > span:not(.driver-task-icon) {
     grid-column: 2;
@@ -1630,16 +1640,20 @@
   }
   .driver-workflow-actions {
     justify-content: space-between;
+    flex-wrap: wrap;
   }
   .driver-completed-panel {
     inset: auto 0 0;
     width: 100%;
     max-height: 78dvh;
-    border-radius: 1.25rem 1.25rem 0 0;
+    border-radius: 12px 12px 0 0;
+    grid-template-rows: auto minmax(0,1fr);
+    background: #fff;
   }
   .driver-delivery-body {
     gap: 1rem;
     padding: 1rem;
+    min-width: 0;
   }
   .driver-contact-list,
   .driver-operation-metrics {
@@ -1658,5 +1672,7 @@
 @media (prefers-reduced-motion: reduce) {
   .driver-completed-panel {
     animation: none;
+    grid-template-rows: auto minmax(0,1fr);
+    background: #fff;
   }
 }

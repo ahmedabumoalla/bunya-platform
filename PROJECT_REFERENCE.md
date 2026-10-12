@@ -1,9 +1,15 @@
 # Bunya Platform — Project Reference
 
+## 2026-10-13 - Unified platform presentation
+
+- All web role shells/modules and shared public/account/commerce/support/legal/payment/driver surfaces now follow Salma, charcoal/copper/white and compact responsive sizing. Global platform-theme.css replaces imported legacy glass/design-system layers; necessary admin preview/feedback styles migrated separately. See task-state for63-source-file scope and exact checks.
+- Customer/support filters use shared compact modal, supplier terminology standardized, logos restored, form/error associations and OTP actions improved, hidden inputs protected, search-specificity conflict fixed, native-web clipping removed. New branded404/error states; working subscription join links. Auth/data/payment/business handlers preserved, no schema/API changes or fake operational data.
+- Fresh16 regression scripts, TypeScript, scoped ESLint,37 CSS parses, color/mock guards and production build passed02:15-02:24. Local necessary browser checks of real public pages and isolated role shells covered320/375/768/1280; no overflow in measured cases. Authenticated full workflows not browser-tested. Temporary preview removed; no native build. Deployment pending; details in docs/task-state.md.
+
 ## 2026-10-13 - Shared compact admin filters
 
 - Users, operations, records, settlements, notifications, join requests and catalog now share one search/filter bar. All filter options are in a compact modal with draft/apply/reset/cancel behavior, active count, focus restoration and scroll lock. Search icon occupies its own space. Existing backend queries/actions remain intact.
-- Fresh targeted component/users/notifications tests, TypeScript, ESLint, CSS parse and production build passed at01:58. Necessary local browser measurement with real shared/admin CSS confirmed320/375/1280 widths, no horizontal overflow and visible dialog footer; temporary preview removed. Authenticated full-page check unavailable. Details/limits in docs/task-state.md. Deployment pending.
+- Fresh targeted component/users/notifications tests, TypeScript, ESLint, CSS parse and production build passed at01:58. Necessary local browser measurement with real shared/admin CSS confirmed320/375/1280 widths, no horizontal overflow and visible dialog footer; temporary preview removed. Authenticated full-page check unavailable. Published cac9c283c505ff45939d3a34c8eb4dfeaf9506c4 at01:59; Vercel dpl_Dr5ob8gL7J7xqNQuv8RUdWCFZg2U READY, exact commit/domain verified. Production protected routes redirect correctly and temporary preview returns404. Details/limits in docs/task-state.md; final release evidence is local documentation.
 
 ## 2026-10-13 - Compact notifications and request references
 

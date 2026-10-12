@@ -65,7 +65,7 @@ const route = (
   title: string,
   table: string,
   fields: string[],
-  description = "بيانات حقيقية مقروءة مباشرة من Supabase وفق صلاحيات الحساب.",
+  description = "تابع السجلات والإجراءات المرتبطة بحسابك.",
   detail = true,
 ): RouteConfig => ({ path, title, table, fields, description, detail });
 
@@ -358,7 +358,7 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
             loading: false,
             rows: [],
             counts: {},
-            error: "تعذر تحميل البيانات الحقيقية من Supabase. لم يتم عرض أي بيانات بديلة أو وهمية.",
+            error: "لم تكتمل المزامنة. تحقق من الاتصال ثم أعد المحاولة.",
           });
         }
       }
@@ -447,7 +447,7 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
     <PageContainer className="database-page" data-role={role}>
       {pathname !== "/admin/catalog" && <header className="database-page-header">
         <div>
-          <p>{role === "provider" ? "مساحة أعمالك في بُنية" : config.table === "admin_users" ? "إدارة الحسابات" : "Supabase · Live Data"}</p>
+          <p>{role === "provider" ? "مساحة أعمالك في بُنية" : config.table === "admin_users" ? "إدارة الحسابات" : "مساحة العمل"}</p>
           <h1>{providerHome ? `مرحبًا، ${viewer.split(" ")[0]}` : detailId ? `تفاصيل ${config.title}` : config.title}</h1>
           <span>{config.description}</span>
         </div>
@@ -460,7 +460,7 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
             <article key={metric.label}>
               <span>{metric.label}</span>
               <strong>{state.loading ? "…" : state.error && role === "provider" ? "—" : (state.counts[metric.label] ?? 0).toLocaleString("ar-SA")}</strong>
-              <small>{role === "provider" ? "الإجمالي المسجل" : "حسب صلاحيات RLS"}</small>
+              <small>الإجمالي المسجل</small>
             </article>
           ))}
         </section>
@@ -480,7 +480,7 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
         providerAccount ? (
           <ProviderOperationsEmpty />
         ) : (
-          <EmptyState message={config.empty ?? "لا توجد بيانات حقيقية مسجلة في هذا القسم حتى الآن."} />
+          <EmptyState message={config.empty ?? "ستظهر السجلات هنا عند إضافتها."} />
         )
       ) : detailId ? (
         <DetailView row={config.table === "admin_users" ? Object.fromEntries(Object.entries(state.rows[0]).filter(([key]) => key !== "id")) : state.rows[0]} adminAccount={config.table === "admin_users"} />
@@ -566,14 +566,14 @@ function RowsTable({ config, rows }: { config: RouteConfig; rows: DataRow[] }) {
 function DetailView({ row, adminAccount = false }: { row: DataRow; adminAccount?: boolean }) {
   return (
     <section className="database-panel database-detail">
-      <div className="database-panel-heading"><div><h2>{adminAccount ? "بيانات المدير وصلاحياته" : "بيانات السجل"}</h2><p>{adminAccount ? "بيانات التواصل والدور الإداري وحالة الحساب." : "القيم المسموح بها لهذا الحساب عبر RLS."}</p></div><span>{adminAccount ? "حساب إداري" : "DB"}</span></div>
+      <div className="database-panel-heading"><div><h2>{adminAccount ? "بيانات المدير وصلاحياته" : "بيانات السجل"}</h2><p>{adminAccount ? "بيانات التواصل والدور الإداري وحالة الحساب." : "تفاصيل السجل المرتبط بحسابك."}</p></div><span>{adminAccount ? "حساب إداري" : "التفاصيل"}</span></div>
       <dl>{Object.entries(row).map(([key, value]) => <div key={key}><dt>{fieldLabels[key] ?? humanize(key)}</dt><dd>{formatValue(value)}</dd></div>)}</dl>
     </section>
   );
 }
 
 function LoadingState() {
-  return <section className="database-state" aria-live="polite"><span className="database-spinner" /><h2>جارٍ تحميل البيانات الحقيقية</h2><p>يتم التحقق من الجلسة وسياسات الوصول.</p></section>;
+  return <section className="database-state" aria-live="polite"><span className="database-spinner" /><h2>جارٍ التحميل…</h2></section>;
 }
 
 function EmptyState({ message }: { message: string }) {

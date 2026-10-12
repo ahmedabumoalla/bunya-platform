@@ -211,7 +211,7 @@ export function ProviderQuoteRequests() {
                   </div>
                   <RequestedProductDetails snapshot={row} />
                   <div className={styles.priceSignal}>
-                    <span>{answered ? "سعر وحدتك المحفوظ" : "أقل سعر وحدة من مزود آخر حتى الآن"}</span>
+                    <span>{answered ? "سعر وحدتك المحفوظ" : "أقل سعر وحدة من مورد آخر حتى الآن"}</span>
                     <strong>
                       {answered
                         ? money(row.existing_unit_price)
@@ -220,7 +220,7 @@ export function ProviderQuoteRequests() {
                         : money(row.current_lowest_unit_price)}
                     </strong>
                   </div>
-                  {answered && row.current_lowest_unit_price != null ? <p className={styles.itemOnly}>أقل سعر وحدة من مزود آخر: <b>{money(row.current_lowest_unit_price)}</b>{row.can_revise ? " · يمكنك تخفيض عرضك الآن." : ""}</p> : null}
+                  {answered && row.current_lowest_unit_price != null ? <p className={styles.itemOnly}>أقل سعر وحدة من مورد آخر: <b>{money(row.current_lowest_unit_price)}</b>{row.can_revise ? " · يمكنك تخفيض عرضك الآن." : ""}</p> : null}
                   <p className={styles.itemOnly}>
                     سعّر هذا المنتج فقط إذا كان متوفرًا لديك؛ لا يلزم توفير كامل
                     منتجات طلب العميل.

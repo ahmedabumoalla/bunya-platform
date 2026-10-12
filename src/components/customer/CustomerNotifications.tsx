@@ -1,4 +1,5 @@
 "use client";
+import { AdminFilterBar } from "@/components/admin/AdminFilterBar";
 
 import { compactText, notificationPreview } from "@/lib/notifications/compact";
 import { useEffect, useState } from "react";
@@ -159,13 +160,7 @@ export function CustomerNotifications() {
         </div>
       </header>
       <section className={styles.inbox} aria-label="صندوق الإشعارات" aria-busy={loading || !!busy}>
-        <div className={styles.toolbar}>
-          <div className={styles.filters} aria-label="تصفية الإشعارات">
-            <button aria-pressed={filter === "all"} disabled={!!busy} onClick={() => changeFilter("all")}>جميع الإشعارات</button>
-            <button aria-pressed={filter === "unread"} disabled={!!busy} onClick={() => changeFilter("unread")}>غير المقروءة{snapshot.scope === scope ? <span>{unread}</span> : null}</button>
-          </div>
-          <p className={styles.listHint}>{loading && !rows.length ? "نحمّل آخر التحديثات…" : `${total} إشعار${filter === "unread" ? " غير مقروء" : ""}`}</p>
-        </div>
+        <fieldset className={styles.filterFieldset} disabled={!!busy}><AdminFilterBar filters={[{ key: "read", label: "حالة القراءة", value: filter, defaultValue: "all", options: [{ value: "all", label: "جميع الإشعارات" }, { value: "unread", label: "غير المقروءة" }] }]} onApply={(values) => { if (!busy) changeFilter(values.read as "all" | "unread"); }} resultText={loading && !rows.length ? "نحمّل آخر التحديثات…" : `${total} إشعار${filter === "unread" ? " غير مقروء" : ""}`} /></fieldset>
         {error ? <div className={styles.error} role="alert"><span>{error}</span><button onClick={refresh} disabled={loading || !!busy}>إعادة المحاولة</button></div> : null}
         {feedback ? <p className={styles.feedback} role="status">{feedback}</p> : null}
         {loading && !rows.length ? <div className={styles.empty} role="status"><span className={styles.emptyIcon}><NotificationIcon /></span><h2>جارٍ تحميل الإشعارات…</h2><p>ستظهر مستجدات حسابك هنا.</p></div> : rows.length ? (

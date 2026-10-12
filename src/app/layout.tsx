@@ -1,13 +1,13 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
-import "./bunya-design-system.css";
-import "./glass-theme.css";
 import "./brand-experience.css";
 import "./database.css";
 import "./marketplace-catalog.css";
 import "./native-mobile.css";
 import "./storefront.css";
+import "./platform-theme.css";
+import "./account-details.css";
 import {LegacyPwaCleanup} from "@/components/LegacyPwaCleanup";
 import {NativePushRuntime} from "@/components/NativePushRuntime";
 import {BunyaVisualRuntime} from "@/components/BunyaVisualRuntime";
@@ -48,7 +48,7 @@ export const metadata: Metadata = {
     "منصة عربية لإدارة طلبات مواد البناء، جمع عروض التجار، اعتماد السعر الأرخص المؤهل، وإدارة التوصيل بكود المصافحة الرقمية.",
 };
 
-export const viewport:Viewport={themeColor:"#b97149",colorScheme:"light"};
+export const viewport:Viewport={themeColor:"#ffffff",colorScheme:"light"};
 
 export default async function RootLayout({
   children,

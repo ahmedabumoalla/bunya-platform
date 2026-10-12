@@ -1,4 +1,4 @@
-﻿/* eslint-disable react-hooks/set-state-in-effect */
+/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -83,20 +83,20 @@ export function ProviderShell({ children }: { children: ReactNode }) {
     try { window.localStorage.setItem(sidebarPreferenceKey, next ? "collapsed" : "expanded"); } catch { /* Keep the current-session preference. */ }
     return next;
   });
-  const currentLabel = navigation.find(([, href]) => href === "/merchant" ? pathname === href : pathname.startsWith(href + "/") || pathname === href)?.[0] ?? "لوحة المزود";
+  const currentLabel = navigation.find(([, href]) => href === "/merchant" ? pathname === href : pathname.startsWith(href + "/") || pathname === href)?.[0] ?? "لوحة المورد";
   const companyName = identity.details.provider?.companyName ?? "منشأة بُنية";
 
   return <div className={`provider-app ${collapsed ? "provider-app-collapsed" : ""}`} data-provider-design="refined" dir="rtl">
     <a className="provider-skip-link" href="#provider-content" inert={mobile && drawerOpen}>انتقل إلى المحتوى</a>
     <button className="provider-drawer-backdrop" aria-label="إغلاق القائمة" tabIndex={-1} type="button" data-open={drawerOpen} onClick={() => setDrawerOpen(false)} />
-    <aside ref={sidebar} id="provider-navigation" className="provider-sidebar" data-open={drawerOpen} inert={mobile && !drawerOpen} aria-label="مساحة المزود">
-      <div className="provider-sidebar-brand"><Link href="/" aria-label="بُنية — الصفحة الرئيسية للموقع"><BunyaLogo variant="white" sizes="120px" /></Link><span>مساحة المزود</span></div>
+    <aside ref={sidebar} id="provider-navigation" className="provider-sidebar" data-open={drawerOpen} inert={mobile && !drawerOpen} aria-label="مساحة المورد">
+      <div className="provider-sidebar-brand"><Link href="/" aria-label="بُنية — الصفحة الرئيسية للموقع"><BunyaLogo variant="color" sizes="120px" /></Link><span>مساحة المورد</span></div>
       <button className="provider-collapse" type="button" onClick={toggleCollapsed} aria-label={collapsed ? "توسيع القائمة" : "تصغير القائمة"} aria-expanded={!collapsed}><Icon name="arrow" size={17} /></button>
       <button className="provider-drawer-close" type="button" onClick={() => setDrawerOpen(false)} aria-label="إغلاق القائمة"><Icon name="close" /></button>
       <Link className="provider-company-card" href="/merchant/profile" onClick={() => setDrawerOpen(false)} aria-label={`ملف المنشأة: ${companyName}`}>
         <span className="provider-company-initial" aria-hidden="true">{companyName.slice(0, 1)}</span><div><strong>{companyName}</strong><small>إدارة المنشأة والتوريد</small></div>
       </Link>
-      <nav aria-label="تنقل لوحة المزود">{navigation.map(([label, href, icon], index) => {
+      <nav aria-label="تنقل لوحة المورد">{navigation.map(([label, href, icon], index) => {
         const active = href === "/merchant" ? pathname === href : pathname === href || pathname.startsWith(href + "/");
         return <div className="provider-nav-item" key={href}>
           {(index === 0 || index === 7) && <p className="provider-nav-label">{index === 0 ? "إدارة الأعمال" : "المنشأة والمساعدة"}</p>}
@@ -107,10 +107,10 @@ export function ProviderShell({ children }: { children: ReactNode }) {
     </aside>
     <section className="provider-workspace" inert={mobile && drawerOpen}>
       <header className="provider-topbar">
-        <div className="provider-topbar-context"><button ref={menuButton} className="provider-mobile-menu" type="button" onClick={() => setDrawerOpen(true)} aria-label="فتح القائمة" aria-expanded={drawerOpen} aria-controls="provider-navigation"><Icon name="menu" /></button><div><p>لوحة المزود</p><strong>{companyName}</strong></div></div>
+        <div className="provider-topbar-context"><button ref={menuButton} className="provider-mobile-menu" type="button" onClick={() => setDrawerOpen(true)} aria-label="فتح القائمة" aria-expanded={drawerOpen} aria-controls="provider-navigation"><Icon name="menu" /></button><div><p>لوحة المورد</p><strong>{companyName}</strong></div></div>
         <div className="provider-top-actions"><time>{dateLabel}</time><Link href="/merchant/notifications" aria-label={`الإشعارات غير المقروءة ${unread}`}><Icon name="bell" />{unread ? <em>{unread > 99 ? "99+" : unread}</em> : null}</Link><Link href="/merchant/profile" className="provider-account" aria-label="ملف المنشأة">{companyName.slice(0, 1)}</Link></div>
       </header>
-      <nav className="provider-breadcrumb" aria-label="مسار الصفحة"><Link href="/merchant"><Icon name="home" size={15} /><span>لوحة المزود</span></Link><span aria-hidden="true">/</span><strong>{currentLabel}</strong></nav>
+      <nav className="provider-breadcrumb" aria-label="مسار الصفحة"><Link href="/merchant"><Icon name="home" size={15} /><span>لوحة المورد</span></Link><span aria-hidden="true">/</span><strong>{currentLabel}</strong></nav>
       <main className="provider-main" id="provider-content" tabIndex={-1}>{children}</main>
     </section>
   </div>;

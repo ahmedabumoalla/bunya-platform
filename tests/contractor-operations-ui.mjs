@@ -24,6 +24,7 @@ function setup(name,pathname,initial,fixtures={},props={}) {
     '@/lib/supabase/client':{createClient:()=>db},
     '@/lib/admin/records':{stateLabels:{completed:'مكتمل',requested:'مطلوب',open:'مفتوح',normal:'عادية'},readableText:value=>String(value??'')},
     '@/lib/uploads/client':{optimizeUploadFile:async file=>file},
+    '@/components/admin/AdminFilterBar':{AdminFilterBar:props=>React.createElement('div',{'data-support-filters':true},props.resultText)},
   };
   const exports={};vm.runInNewContext(code,{exports,require:id=>Object.hasOwn(mocks,id)?mocks[id]:require(id),crypto:{randomUUID:()=> 'request-id'},console});
   const render=()=>{index=0;tree=exports[name](props);return renderToStaticMarkup(tree);};
@@ -63,4 +64,30 @@ const supportHtml=support.render();
 assert.match(supportHtml,/كيف نقدر نساعدك/);
 assert.match(supportHtml,/اختر تذكرة/);
 assert.doesNotMatch(supportHtml,/Supabase|روابط موقعة/);
+const customerSupport=setup('SupportCenter','/customer/support',['','all',[],null,false,'']);
+assert.doesNotMatch(customerSupport.render(),/Supabase|Live Data|روابط موقعة|خمس دقائق/);
+const tickets=[
+  {id:'ticket-open',ticket_code:'T-100',subject:'طلب توريد',status:'open',priority:'normal',escalation_level:0},
+  {id:'ticket-closed',ticket_code:'T-200',subject:'طلب توريد سابق',status:'closed',priority:'normal',escalation_level:0},
+];
+const adminSupport=setup('SupportCenter','/admin/support',['','all',tickets,null,false,''],{}, {admin:true});
+adminSupport.render();
+const filter=()=>nodes(adminSupport.tree,node=>Array.isArray(node.props?.filters))[0];
+assert.equal(filter().props.resultText,'2 تذكرة مطابقة');
+assert.equal(filter().props.filters[0].defaultValue,'all');
+assert.equal(JSON.stringify(filter().props.filters[0].options.map(option=>option.value)),JSON.stringify(['all','open','closed']));
+filter().props.onApply({status:'open'});
+assert.match(adminSupport.render(),/T-100/);
+assert.doesNotMatch(adminSupport.render(),/T-200/);
+filter().props.onQueryChange('200');
+assert.match(adminSupport.render(),/لا توجد تذاكر تطابق البحث/);
+assert.equal(filter().props.resultText,'0 تذكرة مطابقة');
+filter().props.onApply({status:'all'});
+assert.match(adminSupport.render(),/T-200/);
+assert.doesNotMatch(adminSupport.render(),/T-100/);
+nodes(adminSupport.tree,node=>node.type==='button'&&node.props['aria-pressed']===false)[0].props.onClick();
+assert.equal(adminSupport.state[3].id,'ticket-closed','filtering retains the canonical ticket selection');
+filter().props.onQueryChange('');
+assert.match(adminSupport.render(),/2 تذكرة مطابقة/);
 console.log('PASS contractor operations: preserved balance and bank/settlement handlers, notification owner table/action/read, empty finance/support and localized presentation.');
+console.log('PASS admin support: shared filter options, combined search/status, empty result recovery and original ticket selection.');

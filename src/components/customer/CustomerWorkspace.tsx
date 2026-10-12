@@ -24,6 +24,7 @@ import { copy as paymentCopy } from "@/components/payments/PaymobCheckout";
 import { CustomerProductImage } from "@/components/customer/CustomerProductImage";
 import { RequestedProductDetails } from "@/components/commerce/RequestedProductDetails";
 import styles from "./CustomerWorkspace.module.css";
+import { AdminFilterBar } from "@/components/admin/AdminFilterBar";
 import { customerMapUrl } from "@/lib/customer/presentation";
 
 type Row = Record<string, any>;
@@ -132,11 +133,7 @@ function RecordList({ rows, title, searchKeys, statusKey = "status", children }:
         <div><p>سجل حسابك</p><h2>{title} <span>{rows.length.toLocaleString("ar-SA")}</span></h2></div>
         <span className={styles.listHint}>تفاصيل واضحة لكل خطوة</span>
       </div>
-      <div className={styles.toolbar}>
-        <label><span>البحث في {title}</span><input type="search" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="اكتب الاسم أو الرقم…" /></label>
-        {states.length > 1 ? <label><span>الحالة</span><select value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}><option value="">كل الحالات</option>{states.map((value) => <option key={value} value={value}>{label(value)}</option>)}</select></label> : null}
-        <span className={styles.resultCount} role="status">{filtered.length.toLocaleString("ar-SA")} من {rows.length.toLocaleString("ar-SA")}</span>
-      </div>
+      <AdminFilterBar query={search} onQueryChange={(value) => { setSearch(value); setPage(1); }} searchLabel={`البحث في ${title}`} placeholder="الاسم أو الرقم…" resultText={`${filtered.length.toLocaleString("ar-SA")} من ${rows.length.toLocaleString("ar-SA")}`} filters={[{ key: "status", label: "الحالة", value: status, defaultValue: "", options: [{ value: "", label: "كل الحالات" }, ...states.map((value) => ({ value, label: label(value) }))] }]} onApply={(values) => { setStatus(values.status); setPage(1); }} />
       {filtered.length ? children(visible) : <Empty text="لم نعثر على نتائج تطابق بحثك. جرّب اسمًا أو رقمًا آخر أو أعد عرض السجل كاملًا." action={<button type="button" className="customer-secondary-button" onClick={() => { setSearch(""); setStatus(""); setPage(1); }}>مسح البحث والفلاتر</button>} />}
       {pageCount > 1 ? <nav className={styles.pagination} aria-label={`صفحات ${title}`}><button type="button" className="customer-secondary-button" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>السابق</button><span role="status">صفحة {currentPage.toLocaleString("ar-SA")} من {pageCount.toLocaleString("ar-SA")}</span><button type="button" className="customer-secondary-button" disabled={currentPage === pageCount} onClick={() => setPage(currentPage + 1)}>التالي</button></nav> : null}
     </section>
@@ -507,7 +504,7 @@ export function CustomerQuoteRequests() {
       }
     >
       <Summary entries={[{ label: "طلبات المواد", value: state.rows.length }, { label: "قيد التسعير", value: state.rows.filter((row) => ["submitted", "sourcing", "verifying"].includes(row.status)).length }, { label: "جاهزة للمراجعة", value: state.rows.filter((row) => ["quote_ready", "customer_review", "quoted"].includes(row.status)).length }]} />
-      <details className={styles.explainer}><summary>متى يصلني عرض السعر؟</summary><p>تستمر منافسة المزودين 3 ساعات. الطلب بين 8 ص و4 م يبدأ فورًا؛ والطلب خارج هذه الفترة يُفتح للمعاينة من 6 ص ويبدأ عداده 8 ص بتوقيت الرياض.</p></details>
+      <details className={styles.explainer}><summary>متى يصلني عرض السعر؟</summary><p>تستمر منافسة الموردين 3 ساعات. الطلب بين 8 ص و4 م يبدأ فورًا؛ والطلب خارج هذه الفترة يُفتح للمعاينة من 6 ص ويبدأ عداده 8 ص بتوقيت الرياض.</p></details>
       {state.rows.length ? (
         <RecordList rows={state.rows} title="طلبات عرض السعر" searchKeys={["request_code", "project_name"]}>{(rows) => <div className="customer-cards">
           {rows.map((row) => (
@@ -767,7 +764,7 @@ export function CustomerQuoteRequestDetail({ id }: { id: string }) {
                 <dt>طريقة الاستلام</dt>
                 <dd>
                   {request.delivery_mode === "pickup"
-                    ? "استلام من المزود"
+                    ? "استلام من المورد"
                     : "توصيل إلى الموقع"}
                 </dd>
               </div>
@@ -872,7 +869,7 @@ export function CustomerQuoteRequestDetail({ id }: { id: string }) {
                 <dd>{date(request.created_at)}</dd>
               </div>
               <div>
-                <dt>{quote ? "نتيجة التسعير" : "مدة منافسة المزودين"}</dt>
+                <dt>{quote ? "نتيجة التسعير" : "مدة منافسة الموردين"}</dt>
                 <dd>
                   {quote
                     ? "أُغلقت المنافسة واعتمد العرض النهائي"
@@ -893,7 +890,7 @@ export function CustomerQuoteRequestDetail({ id }: { id: string }) {
                 />
                 <p className="customer-rfq-wait">
                   إذا أُرسل الطلب خارج 8 ص–4 م، يبدأ عداد الثلاث ساعات الساعة 8
-                  صباحًا ويُتاح للمزودين الاطلاع من 6 صباحًا.
+                  صباحًا ويُتاح للموردين الاطلاع من 6 صباحًا.
                 </p>
               </>
             ) : null}
@@ -1095,7 +1092,7 @@ export function CustomerDeliveries() {
       onRetry={() => void state.load()}
     >
       <Summary entries={[{ label: "سجل التوصيلات", value: state.rows.length }, { label: "بانتظار الاستلام", value: state.rows.filter((row) => !row.confirmed_at && !["cancelled", "delivered", "completed"].includes(row.delivery_status)).length }, { label: "تم استلامها", value: state.rows.filter((row) => row.confirmed_at || row.delivered_at).length }]} />
-      <details className={styles.explainer}><summary>استلام الطلب وتأكيد التسليم</summary><p>راجع المواد والكميات عند وصول السائق، ثم سلّمه رمز التسليم بعد استلام كامل البضاعة. يدخله السائق أو المزود لإثبات التسليم.</p></details>
+      <details className={styles.explainer}><summary>استلام الطلب وتأكيد التسليم</summary><p>راجع المواد والكميات عند وصول السائق، ثم سلّمه رمز التسليم بعد استلام كامل البضاعة. يدخله السائق أو المورد لإثبات التسليم.</p></details>
       {state.rows.length ? (
         <RecordList rows={state.rows} title="التوصيلات" searchKeys={["order_code", "driver_name"]} statusKey="delivery_status">{(rows) => <div className="customer-cards">
           {rows.map((row) => (

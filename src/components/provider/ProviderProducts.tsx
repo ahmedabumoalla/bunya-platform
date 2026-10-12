@@ -164,7 +164,7 @@ export function ProviderProductsList() {
     const load = async () => {
       if (!providerId) {
         if (active) {
-          setError("تعذر تحديد منشأة المزود المرتبطة بالحساب.");
+          setError("تعذر تحديد منشأة المورد المرتبطة بالحساب.");
           setLoading(false);
         }
         return;
@@ -232,7 +232,7 @@ export function ProviderProductsList() {
     setActiveImage(0);
 
     if (!providerId) {
-      setDetailsError("تعذر تحديد منشأة المزود المرتبطة بالحساب.");
+      setDetailsError("تعذر تحديد منشأة المورد المرتبطة بالحساب.");
       setDetailsLoading(false);
       return;
     }
@@ -298,7 +298,7 @@ export function ProviderProductsList() {
 
       <div className="provider-filters">
         <label className="provider-search">
-          <span aria-hidden>⌕</span>
+          <span aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg></span>
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="ابحث بالاسم أو رمز SKU" aria-label="البحث في المنتجات" />
         </label>
         {!loading && !error ? <span className={styles.resultCount} role="status">{filtered.length.toLocaleString("ar-SA")} منتج{query.trim() ? " مطابق للبحث" : " في القائمة"}</span> : null}
@@ -654,7 +654,7 @@ export function ProviderProductCreate() {
     if (busy) return;
     setError("");
     if (!providerId) {
-      setError("تعذر تحديد منشأة المزود المرتبطة بالحساب.");
+      setError("تعذر تحديد منشأة المورد المرتبطة بالحساب.");
       return;
     }
 

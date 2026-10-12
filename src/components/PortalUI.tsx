@@ -1,7 +1,7 @@
 "use client";
 
 import type { ChangeEvent, ReactNode } from "react";
-import { useState } from "react";
+import { useId, useState } from "react";
 import Link from "next/link";
 import type { UploadedDocumentMetadata } from "@/lib/bunya-types";
 import { createLocalId, normalizeValue } from "@/lib/bunya-local";
@@ -10,8 +10,6 @@ import { BunyaLogo } from "@/components/brand/BunyaLogo";
 export function PortalShell({ children }: { children: ReactNode }) {
   return (
     <main className="portal-page">
-      <div className="portal-orb portal-orb-one" />
-      <div className="portal-orb portal-orb-two" />
       <div className="portal-container">
         <Link className="portal-brand" href="/" aria-label="العودة إلى بُنية">
           <BunyaLogo priority />
@@ -57,17 +55,18 @@ export function PasswordFieldWithVisibilityCheckbox({
   return (
     <div className="portal-field">
       <label htmlFor={id}>{label}</label>
-      <input id={id} name={name} autoComplete={confirm ? "new-password" : "current-password"} type={visible ? "text" : "password"} value={value} onChange={(event) => onChange(event.target.value)} />
+      <input id={id} name={name} autoComplete={confirm ? "new-password" : "current-password"} type={visible ? "text" : "password"} value={value} onChange={(event) => onChange(event.target.value)} aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined} />
       <label className="visibility-check">
         <input type="checkbox" checked={visible} onChange={(event) => setVisible(event.target.checked)} />
         {confirm ? "إظهار تأكيد كلمة المرور" : "إظهار كلمة المرور"}
       </label>
-      {error ? <small className="portal-error">{error}</small> : null}
+      {error ? <small id={`${id}-error`} className="portal-error" role="alert">{error}</small> : null}
     </div>
   );
 }
 
 export function MultiValueInput({ label, placeholder, values, onChange, error, forbiddenValues = [] }: { label: string; placeholder: string; values: string[]; onChange: (values: string[]) => void; error?: string; forbiddenValues?: string[] }) {
+  const id = useId();
   const [draft, setDraft] = useState("");
   const [localError, setLocalError] = useState("");
   const addValue = () => {
@@ -80,9 +79,9 @@ export function MultiValueInput({ label, placeholder, values, onChange, error, f
   };
   return (
     <div className="portal-field">
-      <label>{label}</label>
+      <label htmlFor={id}>{label}</label>
       <div className="multi-value-row">
-        <input value={draft} placeholder={placeholder} onChange={(event) => { setDraft(event.target.value); setLocalError(""); }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addValue(); } }} />
+        <input id={id} value={draft} placeholder={placeholder} aria-invalid={Boolean(localError || error)} aria-describedby={localError || error ? `${id}-error` : undefined} onChange={(event) => { setDraft(event.target.value); setLocalError(""); }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addValue(); } }} />
         <button type="button" onClick={addValue} aria-label={`إضافة ${label}`}>✓</button>
       </div>
       {values.length ? (
@@ -92,7 +91,7 @@ export function MultiValueInput({ label, placeholder, values, onChange, error, f
           ))}
         </div>
       ) : null}
-      {localError || error ? <small className="portal-error">{localError || error}</small> : null}
+      {localError || error ? <small id={`${id}-error`} className="portal-error" role="alert">{localError || error}</small> : null}
     </div>
   );
 }

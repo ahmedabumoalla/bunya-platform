@@ -1,3 +1,6 @@
+import Link from "next/link";
+import { BunyaLogo } from "@/components/brand/BunyaLogo";
+
 export default function MaintenanceExpired() {
-  return <main style={{ maxWidth: 680, margin: "60px auto", padding: 24, direction: "rtl" }}><h1>جلسة الدخول بالنيابة متوقفة</h1><p>انتهت المدة أو تغيّرت صلاحية الحساب. استخدم زر الرجوع إلى الإدارة في الشريط أعلى الصفحة.</p></main>;
+  return <main className="system-state-page"><BunyaLogo/><h1>انتهت جلسة الدخول بالنيابة</h1><p>انتهت المدة أو تغيّرت صلاحية الحساب. يمكنك الرجوع إلى الإدارة من الشريط أعلى الصفحة.</p><Link href="/">الصفحة الرئيسية</Link></main>;
 }

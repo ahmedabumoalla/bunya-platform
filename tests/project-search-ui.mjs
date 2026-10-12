@@ -18,6 +18,7 @@ function harness(name,{search={...activeSearch},searchFailure=false,decisionFail
   const hooks={...React,useState(initial){const i=cursor++;if(!(i in state))state[i]=initial;return [state[i],value=>{state[i]=typeof value==='function'?value(state[i]):value;}];},useRef(initial){const i=cursor++;if(!(i in state))state[i]={current:initial};return state[i];},useEffect(fn,deps){const i=cursor++;if(!state[i]||deps.some((v,index)=>!Object.is(v,state[i][index]))){state[i]=deps;effects.push(fn);}}};
   class Values{constructor(form){this.fields=form.fields;}get(key){return this.fields[key]??null;}}
   const mocks={react:hooks,'next/link':{default:({children,...props})=>React.createElement('a',props,children)},'next/navigation':{useRouter:()=>({push:value=>{pushed=value;}})},'@/lib/supabase/client':{createClient:()=>client},'@/lib/customer/presentation':{customerReadableText:value=>String(value??'—')},'./CustomerProjectWorkflows.module.css':{default:new Proxy({},{get:(_,key)=>key})}};
+  mocks['@/components/admin/AdminFilterBar']={AdminFilterBar:()=>null};
   const exports={};vm.runInNewContext(code,{exports,require:id=>Object.hasOwn(mocks,id)?mocks[id]:require(id),FormData:Values,crypto:{randomUUID:()=>`request-${calls.length}`},document:{getElementById:()=>null},console});
   const render=()=>{cursor=0;tree=exports[name]({id:'project'});return renderToStaticMarkup(tree);};
   const settle=async()=>{await new Promise(resolve=>setImmediate(resolve));render();for(const fn of effects.splice(0))fn();await new Promise(resolve=>setImmediate(resolve));return render();};

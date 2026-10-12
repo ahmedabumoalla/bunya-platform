@@ -1,12 +1,12 @@
 /* Provider-only presentation for shared support and fulfillment components. */
 .provider-app[data-provider-design="refined"] :is(.ops-panel, .provider-delivery-confirm) {
-  --workflow-forest: #173f32;
-  --workflow-ink: #203e32;
-  --workflow-muted: #5d7167;
-  --workflow-border: #dce5df;
-  --workflow-canvas: #f3f6f3;
+  --workflow-forest: #414747;
+  --workflow-ink: #414747;
+  --workflow-muted: #69706c;
+  --workflow-border: #e3e2df;
+  --workflow-canvas: #f7f7f5;
   --workflow-surface: #fff;
-  --workflow-copper: #9e6444;
+  --workflow-copper: #ad512c;
   min-width: 0;
   color: var(--workflow-ink);
 }
@@ -14,11 +14,11 @@
 .provider-app[data-provider-design="refined"] .ops-panel {
   align-content: start;
   gap: 1.15rem;
-  padding: 1.5rem;
+  padding: 1.15rem;
   border: 1px solid var(--workflow-border) !important;
-  border-radius: 16px;
+  border-radius: 12px;
   background: var(--workflow-surface) !important;
-  box-shadow: 0 3px 12px rgb(23 63 53 / 3%) !important;
+  box-shadow: none !important;
   backdrop-filter: none;
 }
 
@@ -28,7 +28,7 @@
   border-bottom: 1px solid var(--workflow-border);
   color: var(--workflow-ink) !important;
   font-size: 1.04rem;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.7;
   overflow-wrap: anywhere;
 }
@@ -36,7 +36,7 @@
 .provider-app[data-provider-design="refined"] .ops-columns {
   grid-template-columns: minmax(16rem, .72fr) minmax(0, 1.28fr);
   align-items: start;
-  gap: 1.25rem;
+  gap: 1rem;
 }
 
 .provider-app[data-provider-design="refined"] .ops-form {
@@ -127,8 +127,8 @@
 }
 
 .provider-app[data-provider-design="refined"] :is(.ops-form > button, .ops-actions > button, .provider-driver-assignment-controls > button, .provider-delivery-confirm .customer-delivery-code-row > button):hover:not(:disabled) {
-  border-color: #245448 !important;
-  background: #245448 !important;
+  border-color: #414747 !important;
+  background: #414747 !important;
 }
 
 .provider-app[data-provider-design="refined"] :is(.ops-actions > button + button, .ops-actions > a, .ops-files > a) {
@@ -150,8 +150,8 @@
 
 .provider-app[data-provider-design="refined"] :is(.ops-form > button, .ops-actions > button, .provider-driver-assignment-controls > button, .provider-delivery-confirm .customer-delivery-code-row > button):disabled {
   border-color: var(--workflow-border) !important;
-  background: #e7ede8 !important;
-  color: #62746a !important;
+  background: #f6ede6 !important;
+  color: #69706c !important;
   opacity: 1 !important;
   cursor: not-allowed;
 }
@@ -177,9 +177,9 @@
 }
 
 .provider-app[data-provider-design="refined"] .ops-list > button[aria-pressed="true"] {
-  border-color: #8baa9b !important;
+  border-color: #69706c !important;
   border-inline-start: 3px solid var(--workflow-forest) !important;
-  background: #edf4ef !important;
+  background: #f7f7f5 !important;
 }
 
 .provider-app[data-provider-design="refined"] .ops-list b {
@@ -203,7 +203,7 @@
   padding: .1rem;
   padding-inline-end: .4rem;
   scrollbar-width: thin;
-  scrollbar-color: #c5d4ca transparent;
+  scrollbar-color: #e3e2df transparent;
   overscroll-behavior: contain;
 }
 
@@ -247,7 +247,7 @@
   align-content: center;
   gap: .65rem;
   min-height: 170px;
-  padding: 1.5rem;
+  padding: 1.15rem;
   border: 1px dashed var(--workflow-border) !important;
   border-radius: 11px;
   background: var(--workflow-canvas) !important;
@@ -256,7 +256,7 @@
 }
 
 .provider-app[data-provider-design="refined"] .ops-panel .database-state > span {
-  color: #8aa093;
+  color: #69706c;
   font-size: 1.8rem;
 }
 
@@ -268,11 +268,11 @@
 }
 
 .provider-app[data-provider-design="refined"] .database-panel:has(> .admin-detail-meta) {
-  padding: 1.5rem;
-  border: 1px solid #dce5df !important;
-  border-radius: 16px;
+  padding: 1.15rem;
+  border: 1px solid #e3e2df !important;
+  border-radius: 12px;
   background: #fff !important;
-  box-shadow: 0 3px 12px rgb(23 63 53 / 3%) !important;
+  box-shadow: none !important;
 }
 
 .provider-app[data-provider-design="refined"] .database-panel > .admin-detail-meta {
@@ -285,13 +285,13 @@
 .provider-app[data-provider-design="refined"] .database-panel .admin-detail-meta > div {
   min-width: 0;
   padding: .8rem 1rem;
-  border: 1px solid #dce5df !important;
+  border: 1px solid #e3e2df !important;
   border-radius: 9px;
-  background: #f3f6f3 !important;
+  background: #f7f7f5 !important;
 }
 
 .provider-app[data-provider-design="refined"] .database-panel .admin-detail-meta dt {
-  color: #5d7167 !important;
+  color: #69706c !important;
   font-size: .76rem;
   font-weight: 500;
   line-height: 1.8;
@@ -299,7 +299,7 @@
 
 .provider-app[data-provider-design="refined"] .database-panel .admin-detail-meta dd {
   margin: .4rem 0 0;
-  color: #203e32 !important;
+  color: #414747 !important;
   font-size: .9rem;
   font-weight: 700;
   line-height: 1.8;
@@ -308,7 +308,7 @@
 
 .provider-app[data-provider-design="refined"] .provider-delivery-confirm {
   display: grid;
-  gap: 1.25rem;
+  gap: 1rem;
   margin-top: 1.5rem;
   padding: 1.35rem;
   border: 1px solid var(--workflow-border) !important;
@@ -390,7 +390,7 @@
 .provider-app[data-provider-design="refined"] :is(.ops-panel, .provider-delivery-confirm) :is(input, select, textarea, button, a):focus-visible {
   outline: 2px solid var(--workflow-forest) !important;
   outline-offset: 3px !important;
-  box-shadow: 0 0 0 4px rgb(23 63 53 / 10%) !important;
+  box-shadow: 0 0 0 4px rgb(173 81 44 / 14%) !important;
 }
 
 @media (max-width: 1000px) {

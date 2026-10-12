@@ -177,7 +177,7 @@ export function CustomerRfqForm() {
           <Link href="/customer/quote-requests" className={styles.backLink}>طلبات التسعير ←</Link>
           <p className={styles.eyebrow}>من قائمة المواد إلى عرض واحد</p>
           <h1>طلب عرض سعر جديد</h1>
-          <p>حدّد احتياج مشروعك، وسنُرسل طلبك للمزودين للحصول على عرض سعر موحّد.</p>
+          <p>حدّد احتياج مشروعك، وسنُرسل طلبك للموردين للحصول على عرض سعر موحّد.</p>
         </div>
         <span className={styles.headerNote}>٤ خطوات لإكمال طلبك</span>
       </header>
@@ -233,9 +233,9 @@ export function CustomerRfqForm() {
           </RfqSection>
           <RfqSection number={2} title="الموقع وموعد التسليم" description="ثبّت الموقع ووقت الاستلام، ثم وضّح تجهيزات الموقع ومتطلبات الوصول.">
             <div className={styles.fields}>
-              <label className={styles.field}><span>طريقة الاستلام</span><select name="delivery_mode"><option value="delivery">توصيل للموقع</option><option value="pickup">استلام من المزود</option></select></label>
+              <label className={styles.field}><span>طريقة الاستلام</span><select name="delivery_mode"><option value="delivery">توصيل للموقع</option><option value="pickup">استلام من المورد</option></select></label>
               <label className={styles.field}><span>اسم المشروع <small>اختياري</small></span><input name="project_name" placeholder="اسم المشروع أو الموقع" /></label>
-              <label className={`${styles.field} ${styles.fullWidth}`}><span>رابط Google Maps <small>مطلوب</small></span><input name="google_maps_url" dir="ltr" type="url" placeholder="https://maps.app.goo.gl/..." required aria-describedby="rfq-map-help" /><small id="rfq-map-help">انسخ رابط الموقع من خرائط Google ليصل المزود إلى العنوان الصحيح.</small></label>
+              <label className={`${styles.field} ${styles.fullWidth}`}><span>رابط Google Maps <small>مطلوب</small></span><input name="google_maps_url" dir="ltr" type="url" placeholder="https://maps.app.goo.gl/..." required aria-describedby="rfq-map-help" /><small id="rfq-map-help">انسخ رابط الموقع من خرائط Google ليصل المورد إلى العنوان الصحيح.</small></label>
               <label className={styles.field}><span>وصف مكان التسليم <small>مطلوب</small></span><input name="location_hint" placeholder="اسم الموقع، البوابة أو أقرب معلم" required minLength={3} /></label>
               <label className={styles.field}><span>موعد الاستلام المطلوب <small>مطلوب</small></span><input name="desired_receipt_at" type="datetime-local" required /></label>
               <label className={styles.field}><span>بداية استقبال الموقع</span><input defaultValue="07:00" name="site_hours_start" required step="900" type="time" /></label>
@@ -244,7 +244,7 @@ export function CustomerRfqForm() {
             <div className={styles.subsection}>
               <h3>تجهيزات الموقع والوصول</h3>
               <div className={styles.fields}>
-                <label className={styles.field}><span>مسؤولية التحميل</span><select name="loading_option" required defaultValue=""><option value="" disabled>حدد الخيار</option><option>التحميل ضمن مسؤولية المزود</option><option>العميل يوفّر معدات التحميل</option><option>يلزم تنسيق رافعة أو فوركلفت</option></select></label>
+                <label className={styles.field}><span>مسؤولية التحميل</span><select name="loading_option" required defaultValue=""><option value="" disabled>حدد الخيار</option><option value="التحميل ضمن مسؤولية المزود">التحميل ضمن مسؤولية المورد</option><option>العميل يوفّر معدات التحميل</option><option>يلزم تنسيق رافعة أو فوركلفت</option></select></label>
                 <label className={styles.field}><span>خيار التنزيل</span><select name="unloading_option" required defaultValue=""><option value="" disabled>حدد الخيار</option><option>العميل يوفّر عمال التنزيل</option><option>العميل يوفّر رافعة أو فوركلفت</option><option>مطلوب تضمين التنزيل في العرض</option><option>لا يلزم تنزيل - استلام مباشر</option></select></label>
                 <label className={styles.field}><span>سهولة الطريق والوصول</span><select name="road_access" required defaultValue=""><option value="" disabled>حدد حالة الوصول</option><option>سهل ومناسب للشاحنات الكبيرة</option><option>مناسب للشاحنات الصغيرة فقط</option><option>دخول مقيد ويحتاج تنسيقًا مسبقًا</option><option>طريق غير ممهد أو تحت الإنشاء</option></select></label>
                 <label className={styles.field}><span>تعليمات الوصول والبوابة</span><input name="access_instructions" required minLength={3} placeholder="رقم البوابة أو آلية السماح بالدخول" /></label>
@@ -261,7 +261,7 @@ export function CustomerRfqForm() {
               <label className={styles.field}><span>جوال المقاول <small>اختياري</small></span><input name="contractor_mobile" type="tel" dir="ltr" placeholder="05xxxxxxxx" /></label>
             </div>
           </RfqSection>
-          <RfqSection number={4} title="مراجعة الطلب وإرساله" description="راجع المنتجات والبيانات أعلاه، وأضف ما تود أن يعرفه المزود قبل التسعير.">
+          <RfqSection number={4} title="مراجعة الطلب وإرساله" description="راجع المنتجات والبيانات أعلاه، وأضف ما تود أن يعرفه المورد قبل التسعير.">
             {selectedItems.length ? <ul className={styles.reviewList}>{selectedItems.map((item, index) => {
               const product = products.find((entry) => entry.id === item.product_id);
               const measurement = product?.product_measurements.find(entry => entry.id === item.measurement_id);
@@ -286,7 +286,7 @@ export function CustomerRfqForm() {
             <p>تُحدّد الأسعار بعد مراجعة المنتجات وكمياتها ومتطلبات التسليم.</p>
             <a href="#rfq-section-4" className={styles.secondaryButton}>مراجعة الطلب</a>
           </div>
-          <div className={styles.guide}><h2>متى يصل عرض السعر؟</h2><p>مدة التسعير 3 ساعات للطلبات المرسلة بين 8 صباحًا و4 عصرًا.</p><p>خارج هذه الفترة، يُتاح الطلب للمزودين من 6 صباحًا ويبدأ عداده الساعة 8 صباح اليوم التالي بتوقيت الرياض.</p></div>
+          <div className={styles.guide}><h2>متى يصل عرض السعر؟</h2><p>مدة التسعير 3 ساعات للطلبات المرسلة بين 8 صباحًا و4 عصرًا.</p><p>خارج هذه الفترة، يُتاح الطلب للموردين من 6 صباحًا ويبدأ عداده الساعة 8 صباح اليوم التالي بتوقيت الرياض.</p></div>
         </aside>
       </div>
     </main>
@@ -536,7 +536,7 @@ function CustomerDeliveryCode({ deliveryId }: { deliveryId: string }) {
       <div>
         <strong>رمز التسليم الخاص بك</strong>
         <small>
-          لا تسلّمه للسائق أو المزود إلا بعد استلام كامل البضاعة ومراجعتها.
+          لا تسلّمه للسائق أو المورد إلا بعد استلام كامل البضاعة ومراجعتها.
         </small>
       </div>
       {code ? (

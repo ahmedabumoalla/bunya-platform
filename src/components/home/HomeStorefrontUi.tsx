@@ -57,7 +57,7 @@ export function ProductArtwork({ image, large = false }: { image?: ProductImage;
   const video = isProductVideo({ mime_type: image?.mimeType, image_url: image?.url });
 
   if (video) return (
-    <figure className={`store-product-art ${large ? "store-product-art-large" : ""}`} style={{ ...style, display: "grid", placeItems: "center", background: "#eef2ed", color: "#203e32" }}>
+    <figure className={`store-product-art ${large ? "store-product-art-large" : ""}`} style={{ ...style, display: "grid", placeItems: "center", background: "#f7f7f5", color: "#414747" }}>
       {large && image?.url ? <video key={image.url} src={image.url} controls preload="metadata" playsInline aria-label={image.alt || image.label} style={{ width: "100%", height: "100%", objectFit: "contain", position: "relative", zIndex: 1 }}>
         <a href={image.url}>فتح فيديو المنتج</a>
       </video> : <span aria-label="فيديو المنتج" style={{ position: "relative", zIndex: 1 }}>▶ فيديو</span>}

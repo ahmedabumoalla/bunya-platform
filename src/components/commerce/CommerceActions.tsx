@@ -8,6 +8,8 @@ import { LogoutButton } from "@/components/auth/LogoutButton";
 import { createClient } from "@/lib/supabase/client";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { intlLocale } from "@/lib/i18n/config";
+import { shortReference } from "@/lib/notifications/compact";
+import { stateLabels } from "@/lib/admin/records";
 
 type Target = {
   sourcing_request_item_id: string;
@@ -349,11 +351,11 @@ export function AdminQuoteAssembly({ id }: { id: string }) {
         <div>
           <p>إجراء إداري محمي</p>
           <h1>تجميع عرض بُنية</h1>
-          <span>يختار المحرك السعر المؤهل ويضيف نسبة ربح كل مزود المعتمدة إلى سعر العميل. العروض الصادرة تحتفظ بأسعارها.</span>
+          <span>جمّع أسعار الموردين المؤهلة وأضف النسب المعتمدة. تبقى أسعار العروض الصادرة محفوظة.</span>
         </div>
       </header>
       <section className="database-panel">
-        <p>طلب التوريد: {id}</p>
+        <p>طلب التوريد: <bdi>{shortReference(id)}</bdi></p>
         {message ? <p className="portal-form-error">{message}</p> : null}
         <button
           className="portal-primary-button"
@@ -488,8 +490,8 @@ export function DriverDeliveryConfirmation() {
         {rows.length ? (
           rows.map((row) => (
             <article className="database-detail" key={String(row.id)}>
-              <p>الطلب: {String(row.order_id)}</p>
-              <p>الحالة: {String(row.status)}</p>
+              <p>الطلب: <bdi>{shortReference(String(row.order_id))}</bdi></p>
+              <p>الحالة: {stateLabels[String(row.status)] ?? "قيد المتابعة"}</p>
               {String(row.status) === "arrived" ? (
                 <div>
                   <input
@@ -549,7 +551,7 @@ export function AdminDeliveryCode({ id }: { id: string }) {
         </div>
       </header>
       <section className="database-panel">
-        <p>التوصيل: {id}</p>
+        <p>التوصيل: <bdi>{shortReference(id)}</bdi></p>
         {message ? <p>{message}</p> : null}
         <button
           className="portal-primary-button"
@@ -613,7 +615,7 @@ export function ProviderFulfillment({ id }: { id: string }) {
         <dl className="admin-detail-meta">
           <div>
             <dt>الحالة</dt>
-            <dd>{status}</dd>
+            <dd>{stateLabels[status] ?? "قيد المتابعة"}</dd>
           </div>
           <div>
             <dt>المنطقة</dt>
