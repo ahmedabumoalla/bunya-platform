@@ -10,7 +10,9 @@ for (let i = 0; i < 500; i++) assert.match(generators.generateOnboardingTemporar
 const driver = generators.generateTemporaryPassword();
 assert.equal(driver.length, 18);assert.match(driver, /[A-Z]/);assert.match(driver, /[a-z]/);assert.match(driver, /[0-9]/);assert.match(driver, /[!@#$%*\-_+]/);
 const send = {}, sent = [];
+const compact={};vm.runInNewContext(compile('../src/lib/notifications/compact.ts'),{exports:compact});
 vm.runInNewContext(compile('../src/lib/notifications/send-onboarding-credentials.ts'), { exports: send, require(name) {
+  if (name === './compact') return compact;
   if (name === './providers/green-api') return { sendGreenApiMessage: async input => { sent.push(input);return {}; }, maskWhatsAppDestination: () => 'masked' };
   if (name === './providers/resend') return { sendResendSensitiveCopy: async input => { sent.push(input);return {}; } };
   if (name === './submissions') return { recordProviderSubmission: async () => {}, maskEmail: () => 'masked' };
@@ -21,7 +23,7 @@ for (const kind of ['provider','contractor']) {
   await send.sendOnboardingCredentials({ kind, applicationId: 'test', applicantName: 'test', details: [], email: 'test@invalid.example', mobile: '0500000001', password: '12345678', idempotencyKey: kind });
 }
 assert.equal(sent.length, 4);
-for (const message of sent) { assert.ok(message.text.includes('12345678'));assert.ok(message.text.includes('24 ساعة'));assert.ok(!message.text.includes('72')); }
+for (const message of sent) { assert.ok(message.text.includes('12345678'));assert.ok(message.text.includes('24 ساعة'));assert.ok(!message.text.includes('72'));assert.ok(message.text.includes('0500000001'));assert.ok(!message.text.includes('test@invalid.example'));assert.ok(message.text.length<250); }
 
 const routeCode = compile('../src/app/api/admin/join-requests/[kind]/[id]/[action]/route.ts');
 async function resend(kind, failAt) {

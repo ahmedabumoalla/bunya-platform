@@ -1,11 +1,18 @@
 # Bunya Platform — Project Reference
 
+## 2026-10-13 - Compact notifications and request references
+
+- Join notices now contain event, short reference, applicant/company name, mobile and review link. Removed email/form data/timestamps from bodies. Decisions and onboarding are brief; retain required secure revision link and temporary-login credentials/expiry.
+- General commerce/contractor/support notifications now use short event/ref/link; product review sends one text without catalog image/details. Push body has no long URL. Existing web notices use concise previews; details remain in their pages and original records. UUID display references use8 uppercase characters while full identifiers remain authoritative for links/actions; business codes unchanged.
+- Fresh targeted delivery/privacy/idempotency/credential/UI regressions, TypeScript/lint/mock guard and local build passed01:39-01:46. No database changes, real outbound messages, browser or native builds. Final publication pending; evidence in docs/task-state.md.
+
+
 ## 2026-10-13 - Administration redesign and actionable counters
 
 - All administration shared surfaces, dashboard, dedicated modules and dialogs use the new Salma/charcoal/copper/white direction, responsive compact navigation and real Bunya logo. Search icon now occupies a separate flex item after the user reported overlapping text.
 - One RLS-preserving, permission-aware RPC supplies38 navigation counters and dashboard queues. Zero badges disappear; unavailable counts never become false zeros. Refresh on visible polling, focus, network recovery, route changes and queue actions. Own notifications paginate and filter unread on the server, including older records. Product-change requests have their own navigation entry.
 - Removed duplicate counter failure banners at user request. Confirmed their cause was migration096 not yet installed in the live database, then applied it and passed authenticated read-only assertions. No synthetic business data.
-- Fresh checks2026-10-13 01:21-01:30 Asia/Riyadh: counter/hook/SQL/notification tests, affected product/conversation tests, TypeScript/scoped ESLint, CSS parsing, SQL/hash/mock guards and final production build PASS. No browser or native builds; responsive layout reviewed in source. Advisor security findings unchanged (77), none for new invoker RPC. Details and evidence in docs/task-state.md. Release pending.
+- Fresh checks2026-10-13 01:21-01:30 Asia/Riyadh: counter/hook/SQL/notification tests, affected product/conversation tests, TypeScript/scoped ESLint, CSS parsing, SQL/hash/mock guards and final production build PASS. No browser or native builds; responsive layout reviewed in source. Advisor security findings unchanged (77), none for new invoker RPC. Published aa3828a21c22eba052bfe83ade7c150cf4989ef7 to origin/main; Vercel dpl_4kfm3R43FstdNP6GMcqFz1KfEHCU READY at01:33 and official domain alias verified. Fresh production HTTP/deployment metadata checks passed at01:35: five protected admin routes, login and published CSS assets. No authenticated production browser render. Details/evidence in docs/task-state.md; these release notes are local documentation after deployment.
 
 
 ## 2026-10-12 — Supplier form horizontal overflow correction

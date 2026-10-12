@@ -10,6 +10,8 @@ import { sendResendSensitiveCopy } from "./providers/resend";
 import { maskEmail, recordProviderSubmission } from "./submissions";
 import { sendNativePush } from "./native-push";
 import { OFFICIAL_PLATFORM_URL } from "./site-url";
+import { compactEventMessage, notificationEventTitle } from "./event-catalog";
+import { notificationPreview } from "./compact";
 
 const EVENT_TYPES = [
   "ticket.created",
@@ -97,6 +99,7 @@ type Recipient = {
   title?: string;
   actionUrl?: string;
   entityType?: string;
+  summaryContext?: string;
   text: string;
 };
 
@@ -144,16 +147,9 @@ async function dispatchClaimedEvents(
                 ? maskEmail(recipient.email)
                 : "unknown"),
           key = `outbox-${event.id}-${destination}`,
-          actionUrl =
-            recipient.actionUrl ??
-            eventActionUrl(event.event_type, event.aggregate_id),
-          title =
-            recipient.title ??
-            (event.event_type === "ticket.created"
-              ? "تذكرة دعم جديدة"
-              : event.event_type === "delivery_confirmed"
-                ? "تم تسليم الطلب بنجاح"
-                : "إشعار جديد من بُنية");
+          actionUrl = notificationActionUrl(recipient, event),
+          title = notificationEventTitle(event.event_type),
+          message = compactEventMessage(event.event_type, event.aggregate_id, actionUrl, OFFICIAL_PLATFORM_URL, recipient.summaryContext);
         if (recipient.profileId) {
           if (recipient.customerProfileId) {
             const persisted = await admin.from("customer_notifications").upsert(
@@ -161,7 +157,7 @@ async function dispatchClaimedEvents(
                 customer_profile_id: recipient.customerProfileId,
                 notification_type: event.event_type,
                 title,
-                message: recipient.text,
+                message,
                 action_url: actionUrl,
                 event_key: key,
               },
@@ -174,7 +170,7 @@ async function dispatchClaimedEvents(
                 profile_id: recipient.profileId,
                 type: event.event_type,
                 title,
-                message: recipient.text,
+                message,
                 entity_type: recipient.entityType ?? event.event_type,
                 entity_id: event.aggregate_id,
                 event_key: key,
@@ -190,7 +186,7 @@ async function dispatchClaimedEvents(
                 contractor_profile_id: recipient.contractorProfileId,
                 notification_type: contractorNotificationType(event.event_type),
                 title,
-                message: recipient.text,
+                message,
                 link: actionUrl,
                 event_key: key,
               },
@@ -200,14 +196,14 @@ async function dispatchClaimedEvents(
           }
           await sendNativePush(recipient.profileId, {
             title,
-            body: recipient.text.slice(0, 180),
+            body: notificationPreview(message),
             url: actionUrl,
           }).catch(() => undefined);
         }
         if (recipient.mobile) {
           const result = await sendGreenApiMessage({
             to: recipient.mobile,
-            text: recipient.text,
+            text: message,
             idempotencyKey: `${key}-whatsapp`,
           });
           await recordProviderSubmission({
@@ -222,8 +218,8 @@ async function dispatchClaimedEvents(
         if (recipient.email && recipient.emailSubject) {
           const result = await sendResendSensitiveCopy({
             to: recipient.email,
-            subject: recipient.emailSubject,
-            text: recipient.text,
+            subject: title,
+            text: message,
             idempotencyKey: `${key}-email`,
           });
           await recordProviderSubmission({
@@ -260,7 +256,22 @@ async function dispatchClaimedEvents(
   return { processed, failed };
 }
 
+function notificationActionUrl(recipient: Recipient, event: Outbox) {
+  // Preserve the existing recipient-specific deep link, including the canonical UUID.
+  const legacyLinks = recipient.text.replaceAll("\\n", "\n").match(/https:\/\/www\.buniahksa\.com\/[^\s]+/g) ?? [];
+  for (const candidate of [recipient.actionUrl, ...legacyLinks.reverse()]) {
+    if (!candidate || /[\\\u0000-\u0020]/.test(candidate)) continue;
+    try {
+      const url = new URL(candidate, OFFICIAL_PLATFORM_URL);
+      if (url.origin === OFFICIAL_PLATFORM_URL && url.pathname.startsWith("/")) return `${url.pathname}${url.search}${url.hash}`;
+    } catch { /* Use the registered fallback below. */ }
+  }
+  return eventActionUrl(event.event_type, event.aggregate_id);
+}
+
 function eventActionUrl(type: string, id: string) {
+  if (type.startsWith("customer.delivery_") || type === "customer.driver_arrived") return "/customer/deliveries";
+  if (type.startsWith("customer.fulfillment_")) return "/customer/orders";
   if (type === "ticket.created") return "/admin/support";
   if (type.startsWith("ticket.")) return "/support";
   if (type === "provider.rfq_responded") return "/admin/sourcing";
@@ -268,6 +279,10 @@ function eventActionUrl(type: string, id: string) {
   if (type === "admin.product_change_requested")
     return `/admin/products/changes/${id}`;
   if (type.startsWith("settlement.")) return "/contractor/finance";
+  if (type === "admin.contractor_service_submitted") return "/admin/contractor-services";
+  if (type === "admin.contractor_portfolio_submitted") return "/admin/contractor-portfolio";
+  if (type === "admin.rfq_no_providers" || type === "admin.quote_assembly_failed") return "/admin/sourcing";
+  if (type === "admin.delivery_attempts_exceeded" || type === "admin.delivery_code_delivery_failed") return "/admin/deliveries";
   if (type.startsWith("admin.")) return "/admin/operations";
   if (type.includes("service_")) return "/contractor/services";
   if (type.includes("portfolio_")) return "/contractor/portfolio";
@@ -339,6 +354,7 @@ async function resolveEvent(
         title: "طلب تعديل بيانات منتج",
         actionUrl,
         entityType: "product_change_request",
+        summaryContext: `${provider?.company_name || "المورد"} · ${product?.name || "المنتج"}`,
         text: message,
       };
     });
@@ -363,6 +379,7 @@ async function resolveEvent(
           : "تم رفض تعديلات المنتج",
         actionUrl: "/merchant/products",
         entityType: "product",
+        summaryContext: productName,
         text: `مرحبًا ${provider.data.company_name}، ${approved ? "تم اعتماد وتطبيق" : "تم رفض"} طلب تعديل المنتج «${productName}».\nملاحظة الإدارة: ${reason}\nإدارة المنتجات: ${site}/merchant/products`,
       },
     ];
@@ -394,6 +411,7 @@ async function resolveEvent(
         title,
         actionUrl: "/merchant/products",
         entityType: "product",
+        summaryContext: productName,
         text: `مرحبًا ${provider.data.company_name}، ${decision}.\nالمنتج: ${productName}\nملاحظات المراجعة: ${reason}\nإدارة المنتجات: ${site}/merchant/products`,
       },
     ];
@@ -561,6 +579,7 @@ async function resolveEvent(
             profileId: profileId || undefined,
             mobile: driver.data.mobile,
             text: `شكرًا ${driver.data.full_name}. تم إثبات تسليم الطلب ${order.data.order_code} وإغلاق المهمة بنجاح.`,
+            actionUrl: "/driver",
           });
       }
     }
@@ -1314,6 +1333,7 @@ async function resolveEvent(
       mobile: (row.profiles as unknown as { mobile: string | null } | null)
         ?.mobile,
       text: `تنبيه تشغيلي: ${event.event_type}\nالمعرف: ${event.aggregate_id}\nالمراجعة: ${site}/admin/operations`,
+      actionUrl: eventActionUrl(event.event_type, event.aggregate_id),
     }));
   }
   return [];

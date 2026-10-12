@@ -3,13 +3,11 @@ import {sendGreenApiMessage,maskWhatsAppDestination} from "./providers/green-api
 import {sendResendSensitiveCopy} from "./providers/resend";
 import {OFFICIAL_PLATFORM_URL} from "./site-url";
 import {maskEmail,recordProviderSubmission} from "./submissions";
+import {compactText,shortReference} from "./compact";
 
 export async function sendOnboardingCredentials(input:{kind:"provider"|"contractor";applicationId:string;applicantName:string;details:Array<{label:string;value:string}>;email:string;mobile:string;password:string;idempotencyKey:string}){
   const site=OFFICIAL_PLATFORM_URL;
-  const role=input.kind==="provider"?"مزود":"مقاول";
-  const portal=input.kind==="provider"?"/merchant":"/contractor";
-  const details=input.details.map(({label,value})=>`${label}: ${value||"—"}`).join("\n");
-  const text=`مرحبًا ${input.applicantName}،\nتمت الموافقة على طلب انضمامك كـ${role} في منصة بُنية.\nرقم الطلب: ${input.applicationId}\n\nبيانات الطلب:\n${details}\n\nبيانات الدخول:\nالبريد المستخدم: ${input.email}\nكلمة المرور المؤقتة: ${input.password}\nصلاحيتها 24 ساعة من إصدارها.\nالدخول إلى لوحة التحكم: ${site}/login?returnTo=${encodeURIComponent(portal)}\nغيّر كلمة المرور فور الدخول ولا تشاركها مع أي شخص.`;
+  const text=`${compactText(input.applicantName,60)}، تم قبول انضمامك #${shortReference(input.applicationId)}.\nالجوال: ${input.mobile}\nكلمة المرور المؤقتة: ${input.password}\nصالحة 24 ساعة؛ غيّرها عند الدخول ولا تشاركها.\n${site}/login`;
   const whatsapp=await sendGreenApiMessage({to:input.mobile,text,idempotencyKey:`${input.idempotencyKey}-wa`});
   await recordProviderSubmission({eventType:"onboarding.temporary_password",channel:"whatsapp",destinationMasked:maskWhatsAppDestination(input.mobile),idempotencyKey:`${input.idempotencyKey}-wa`,result:whatsapp}).catch(()=>undefined);
   const email=await sendResendSensitiveCopy({to:input.email,subject:"بيانات الدخول إلى منصة بُنية",text,idempotencyKey:`${input.idempotencyKey}-email`});

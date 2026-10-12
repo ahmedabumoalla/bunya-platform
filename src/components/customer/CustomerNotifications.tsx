@@ -1,5 +1,6 @@
 "use client";
 
+import { compactText, notificationPreview } from "@/lib/notifications/compact";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuthIdentity } from "@/components/auth/AuthIdentityProvider";
@@ -176,13 +177,13 @@ export function CustomerNotifications() {
                   <article className={`${styles.notification} ${!row.read_at ? styles.unread : ""}`}>
                     <span className={styles.icon}><NotificationIcon type={row.notification_type} /></span>
                     <div className={styles.content}>
-                      <div className={styles.rowHeader}><h2>{row.title}</h2><span className={row.read_at ? styles.readLabel : styles.unreadLabel}>{row.read_at ? "مقروء" : "جديد"}</span></div>
-                      <p>{row.message}</p>
+                      <div className={styles.rowHeader}><h2>{compactText(row.title, 60)}</h2><span className={row.read_at ? styles.readLabel : styles.unreadLabel}>{row.read_at ? "مقروء" : "جديد"}</span></div>
+                      <p>{notificationPreview(row.message)}</p>
                       <div className={styles.rowFooter}>
                         <time dateTime={row.created_at}>{date(row.created_at)} · الرياض</time>
                         <div className={styles.rowActions}>
-                          {href ? <Link href={href} aria-label={`فتح تفاصيل: ${row.title}`}>فتح التفاصيل <span aria-hidden="true">←</span></Link> : null}
-                          {!row.read_at ? <button disabled={!!busy || loading} onClick={() => void markRead(row.id)} aria-label={`تعليم كمقروء: ${row.title}`}>{busy === row.id ? "جارٍ التحديث…" : "تعليم كمقروء"}</button> : null}
+                          {href ? <Link href={href} aria-label={`فتح تفاصيل: ${compactText(row.title, 60)}`}>فتح التفاصيل <span aria-hidden="true">←</span></Link> : null}
+                          {!row.read_at ? <button disabled={!!busy || loading} onClick={() => void markRead(row.id)} aria-label={`تعليم كمقروء: ${compactText(row.title, 60)}`}>{busy === row.id ? "جارٍ التحديث…" : "تعليم كمقروء"}</button> : null}
                         </div>
                       </div>
                     </div>

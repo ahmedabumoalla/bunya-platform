@@ -1,5 +1,6 @@
 "use client";
 
+import { shortReference } from "@/lib/notifications/compact";
 import { FormEvent, useState } from "react";
 import { anonymousQuoteRequests, sentMerchantQuotes } from "@/lib/bunya-order";
 import { StatusBadge } from "./StatusBadge";
@@ -34,7 +35,7 @@ export function MerchantQuoteWorkbench() {
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="text-sm font-black text-[#b76734]">{request.id}</p>
+                <p className="text-sm font-black text-[#b76734]">{shortReference(request.id)}</p>
                 <h3 className="mt-2 text-2xl font-black">{request.product}</h3>
               </div>
               <button

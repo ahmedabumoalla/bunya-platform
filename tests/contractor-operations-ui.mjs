@@ -6,6 +6,7 @@ import ts from 'typescript';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 const require=createRequire(import.meta.url);
+const compact={};vm.runInNewContext(ts.transpileModule(readFileSync('src/lib/notifications/compact.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports:compact});
 const source=readFileSync('src/components/operations/SupportFinanceWorkflows.tsx','utf8');
 const code=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX,target:ts.ScriptTarget.ES2022}}).outputText;
 function setup(name,pathname,initial,fixtures={},props={}) {
@@ -16,6 +17,7 @@ function setup(name,pathname,initial,fixtures={},props={}) {
     return q;
   }};
   const mocks={
+    '@/lib/notifications/compact':compact,
     react:{...React,useEffect(){},useMemo:fn=>fn(),useState(value){const i=index++;if(!(i in state))state[i]=typeof value==='function'?value():value;return [state[i],value=>{state[i]=typeof value==='function'?value(state[i]):value;}];}},
     'next/navigation':{usePathname:()=>pathname},
     '@/components/auth/AuthIdentityProvider':{useAuthIdentity:()=>({userId:'owner'})},

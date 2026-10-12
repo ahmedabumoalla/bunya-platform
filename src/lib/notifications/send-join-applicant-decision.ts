@@ -3,6 +3,8 @@ import "server-only";
 import { sendGreenApiMessage, maskWhatsAppDestination } from "./providers/green-api";
 import { sendResendSensitiveCopy } from "./providers/resend";
 import { maskEmail, recordProviderSubmission } from "./submissions";
+import { compactText, shortReference } from "./compact";
+import { OFFICIAL_PLATFORM_URL } from "./site-url";
 
 type DecisionInput = {
   kind: "provider" | "contractor";
@@ -17,14 +19,13 @@ type DecisionInput = {
 };
 
 export async function sendJoinApplicantDecision(input: DecisionInput) {
-  const role = input.kind === "provider" ? "مزود" : "مقاول";
   const rejected = input.action === "rejected";
   const subject = rejected
-    ? `قرار طلب الانضمام رقم ${input.applicationId}`
-    : `طلب تعديل على طلب الانضمام رقم ${input.applicationId}`;
+    ? `لم يُقبل طلبك #${shortReference(input.applicationId)}`
+    : `طلبك يحتاج تعديلًا #${shortReference(input.applicationId)}`;
   const text = rejected
-    ? `مرحبًا ${input.applicantName}،\nتعذر اعتماد طلب انضمامك كـ${role} في منصة بُنية.\nرقم الطلب: ${input.applicationId}\nسبب الرفض: ${input.reason}\nيمكنك التواصل مع إدارة منصة بُنية عند الحاجة.`
-    : `مرحبًا ${input.applicantName}،\nطلب الانضمام رقم ${input.applicationId} يحتاج إلى تعديل.\nالتعديل المطلوب: ${input.reason}\n\nرابط تعديل الطلب: ${input.revisionUrl}\nالرابط صالح لمدة 48 ساعة ولمرة إعادة إرسال واحدة فقط، وبعد الإرسال يُلغى تلقائيًا.`;
+    ? `${compactText(input.applicantName, 60)}، ${subject}.\n${OFFICIAL_PLATFORM_URL}/support`
+    : `${compactText(input.applicantName, 60)}، ${subject}.\nالتفاصيل والتعديل خلال 48 ساعة:\n${input.revisionUrl}`;
 
   const whatsappKey = `${input.idempotencyKey}-wa`;
   const emailKey = `${input.idempotencyKey}-email`;

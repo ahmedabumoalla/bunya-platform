@@ -1,5 +1,6 @@
 "use client";
 
+import { shortReference } from "@/lib/notifications/compact";
 import type { FormEvent, ReactNode } from "react";
 import { useRef, useState } from "react";
 import type { ParsedMapLocation } from "@/lib/bunya-types";
@@ -25,7 +26,7 @@ function Field({ id, label, value, onChange, error, type = "text", placeholder }
   return <div className="portal-field"><label htmlFor={id}>{label}</label><input id={id} type={type} dir="auto" placeholder={placeholder} value={value} aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined} onChange={(event) => onChange(event.target.value)} />{error ? <small id={`${id}-error`} className="portal-error">{error}</small> : null}</div>;
 }
 function Success({ result, kind }: { result: Result; kind: "provider" | "contractor" }) {
-  return <JoinApplicationShell title={`تم استلام طلب انضمام ${kind === "provider" ? "المورد" : "المقاول"}`} description="سيصلك رد بعد مراجعة الإدارة."><dl className="join-result"><div><dt>رقم الطلب</dt><dd dir="ltr">{result.applicationId}</dd></div><div><dt>الحالة</dt><dd>{result.status === "pending" ? "قيد المراجعة" : result.status}</dd></div></dl></JoinApplicationShell>;
+  return <JoinApplicationShell title={`تم استلام طلب انضمام ${kind === "provider" ? "المورد" : "المقاول"}`} description="سيصلك رد بعد مراجعة الإدارة."><dl className="join-result"><div><dt>رقم الطلب</dt><dd dir="ltr">{shortReference(result.applicationId)}</dd></div><div><dt>الحالة</dt><dd>{result.status === "pending" ? "قيد المراجعة" : result.status}</dd></div></dl></JoinApplicationShell>;
 }
 async function analyzeGoogleMapsLink(value: string): Promise<ParsedMapLocation> {
   const parsed = parseGoogleMapsLink(value);

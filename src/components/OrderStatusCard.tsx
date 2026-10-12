@@ -1,3 +1,4 @@
+import { shortReference } from "@/lib/notifications/compact";
 import type { QuoteRequest } from "@/lib/bunya-types";
 import { StatusBadge } from "./StatusBadge";
 
@@ -27,7 +28,7 @@ export function OrderStatusCard({
     <article className="glass-card motion-card rounded-lg border border-[#5a3a1f]/15 p-5 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-black text-[#b76734]">طلب رقم {request.id}</p>
+          <p className="text-sm font-black text-[#b76734]">طلب رقم {shortReference(request.id)}</p>
           <h3 className="mt-2 text-xl font-black">{request.productName}</h3>
         </div>
         <StatusBadge tone={request.status === "delivered" ? "green" : "clay"}>

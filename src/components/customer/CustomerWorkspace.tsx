@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/set-state-in-effect */
 "use client";
 
+import { compactText, notificationPreview } from "@/lib/notifications/compact";
 import Link from "next/link";
 import {
   useCallback,
@@ -372,8 +373,8 @@ export function CustomerDashboard() {
             {recent.map((item) => (
               <article key={item.id}>
                 <div>
-                  <b>{item.title}</b>
-                  <p>{item.message}</p>
+                  <b>{compactText(item.title, 60)}</b>
+                  <p>{notificationPreview(item.message)}</p>
                   <small>{date(item.created_at)}</small>
                 </div>
                 {typeof item.action_url === "string" && item.action_url.startsWith("/") && !item.action_url.startsWith("//") && !item.action_url.includes("\\") ? (

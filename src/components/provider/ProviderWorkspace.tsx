@@ -1,6 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect, @typescript-eslint/no-explicit-any, @next/next/no-img-element */
 "use client";
 
+import { compactText, notificationPreview } from "@/lib/notifications/compact";
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useAuthIdentity } from "@/components/auth/AuthIdentityProvider";
@@ -468,12 +469,12 @@ export function ProviderNotifications() {
           {shown.map((row) => (
             <article className={styles.card} key={row.id}>
               <div className={styles.cardHead}>
-                <b>{row.title}</b>
+                <b>{compactText(row.title, 60)}</b>
                 {!row.read_at ? (
                   <span className={styles.badge}>جديد</span>
                 ) : null}
               </div>
-              <p>{row.message}</p>
+              <p>{notificationPreview(row.message)}</p>
               <div className={styles.row}>
                 <small>{date(row.created_at)}</small>
                 {row.action_url ? (

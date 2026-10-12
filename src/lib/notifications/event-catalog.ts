@@ -1,4 +1,48 @@
 import "server-only";
+import { adminEventLabels } from "@/lib/admin/event-labels";
+import { compactText, shortReference } from "./compact";
+
+const eventTitles: Record<string, string> = {
+  ...adminEventLabels,
+  "ticket.created": "تذكرة دعم جديدة", "ticket.assigned": "بدأت متابعة تذكرتك",
+  "ticket.replied": "رد جديد على التذكرة", "ticket.resolved": "تم حل التذكرة",
+  "ticket.reopened": "أعيد فتح التذكرة", "ticket.escalated": "تذكرة تحتاج متابعة",
+  "settlement.requested": "طلب تصفية جديد", "settlement.under_review": "التصفية قيد المراجعة",
+  "settlement.approved": "تم اعتماد التصفية", "settlement.rejected": "تم رفض التصفية",
+  "settlement.processing": "التصفية قيد التحويل", "settlement.paid": "تم تحويل التصفية",
+  "settlement.failed": "تعذر تحويل التصفية", "settlement.cancelled": "ألغيت التصفية",
+  "provider.rfq_new": "طلب تسعير جديد", "provider.rfq_outbid": "يمكنك تحديث عرض السعر",
+  "admin.product_pending_review": "منتج بانتظار المراجعة",
+  "admin.product_change_requested": "طلب تعديل منتج",
+  "provider.product_change_approved": "اعتمد تعديل المنتج", "provider.product_change_rejected": "رفض تعديل المنتج",
+  "customer.quote_ready": "عرض السعر جاهز", "customer.fulfillment_preparing": "بدأ تجهيز طلبك",
+  "customer.fulfillment_ready": "طلبك جاهز للتوصيل",
+  "admin.green_api_repeated_failure": "تعذر إرسال إشعارات واتساب",
+  "admin.resend_repeated_failure": "تعذر إرسال البريد",
+  "admin.contractor_service_submitted": "خدمة مقاول بانتظار المراجعة",
+  "admin.contractor_portfolio_submitted": "عمل مقاول بانتظار المراجعة",
+  "contractor.service_approved": "اعتمدت الخدمة", "contractor.service_rejected": "رفضت الخدمة",
+  "contractor.service_needs_changes": "الخدمة تحتاج تعديلًا",
+  "contractor.portfolio_approved": "اعتمد العمل", "contractor.portfolio_rejected": "رفض العمل",
+  "contractor.portfolio_needs_changes": "العمل يحتاج تعديلًا",
+  "admin.delivery_code_delivery_failed": "تعذر إرسال رمز التسليم",
+};
+
+export function notificationEventTitle(type: string) {
+  return eventTitles[type] ?? "تحديث من بُنية";
+}
+
+/** Send only an event summary; scopes, contact details and decisions stay behind the account link. */
+export function compactEventMessage(type: string, id: string, actionUrl: string, site: string, context?: string) {
+  const title = notificationEventTitle(type);
+  const label = context ? compactText(context.replace(/[^\s@]+@[^\s@]+/g, ""), 60) : "";
+  return [
+    `${title} · ${shortReference(id)}`,
+    label || null,
+    type === "customer.driver_arrived" ? "لا تسلّم رمز التأكيد قبل الاستلام." : null,
+    `${site}${actionUrl}`,
+  ].filter(Boolean).join("\n");
+}
 
 export type EventDefinition = {
   name: string;
@@ -552,10 +596,10 @@ export const NOTIFICATION_EVENTS = Object.freeze(
 export const templates = {
   otp: (otp: string) =>
     `رمز التحقق في منصة بُنية: ${otp}\nلا تشارك هذا الرمز مع أي شخص.`,
-  onboarding: (role: string, email: string, password: string, site: string) =>
-    `مرحبًا بك في منصة بُنية. تم اعتماد حسابك كـ${role}.\nالبريد المستخدم للدخول: ${email}\nكلمة المرور المؤقتة: ${password}\nتسجيل الدخول: ${site}/login\nغيّر كلمة المرور فور الدخول ولا تشاركها.`,
+  onboarding: (role: string, mobile: string, password: string, site: string) =>
+    `اعتمد حسابك كـ${compactText(role, 20)}.\n${/^\+?[\d\s-]{8,20}$/.test(mobile) ? `الجوال: ${mobile}` : "الدخول برقم جوالك المسجل"}\nكلمة مؤقتة: ${password}\nصالحة 24 ساعة. غيّرها عند الدخول ولا تشاركها.\n${site}/login`,
   orderCreated: (code: string, id: string, site: string) =>
-    `تم إنشاء طلبك في بُنية برقم ${code}.\nتابع الحالة: ${site}/customer/orders/${id}`,
+    `تم إنشاء الطلب · ${shortReference(code)}\n${site}/customer/orders/${id}`,
   deliveryConfirmed: (code: string, site: string) =>
-    `تم تأكيد استلام شحنتك للطلب ${code} وإغلاقه بنجاح.\nشكرًا لثقتك بمنصة بُنية. ابدأ طلبك القادم من ${site}/customer/quote-request/new`,
+    `تم تأكيد التسليم · ${shortReference(code)}\n${site}/customer/orders`,
 };

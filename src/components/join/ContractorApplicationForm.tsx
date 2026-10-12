@@ -1,5 +1,6 @@
 "use client";
 
+import { shortReference } from "@/lib/notifications/compact";
 import { useRef, useState, type FormEvent } from "react";
 import { MultiValueInput } from "@/components/PortalUI";
 import { JoinApplicationShell } from "./JoinApplicationShell";
@@ -91,10 +92,10 @@ export function ContractorApplicationForm({ initial, revisionToken }: { initial?
       setSubmitError(error instanceof Error ? error.message : "تعذر إرسال الطلب.");
     } finally { submitting.current = false; setBusy(false); setUploadStatus(""); }
   }
-  if (result) return <JoinApplicationShell title={revisionToken ? "تم استلام التعديلات" : "تم استلام طلب انضمام المقاول"} description={revisionToken ? "عاد الطلب للمراجعة وانتهت صلاحية رابط التعديل." : "سيصلك رد بعد مراجعة الإدارة."}><dl className="join-result"><div><dt>رقم الطلب</dt><dd dir="ltr">{result.applicationId}</dd></div></dl></JoinApplicationShell>;
+  if (result) return <JoinApplicationShell title={revisionToken ? "تم استلام التعديلات" : "تم استلام طلب انضمام المقاول"} description={revisionToken ? "عاد الطلب للمراجعة وانتهت صلاحية رابط التعديل." : "سيصلك رد بعد مراجعة الإدارة."}><dl className="join-result"><div><dt>رقم الطلب</dt><dd dir="ltr">{shortReference(result.applicationId)}</dd></div></dl></JoinApplicationShell>;
   const company = contractorType === "company";
   return <JoinApplicationShell title={revisionToken ? "تعديل طلب انضمام مقاول" : "طلب انضمام مقاول"} description="أكمل بياناتك ومدن عملك وأرفق المستندات.">
-    {initial ? <aside className="portal-form-message" role="note"><b>رقم الطلب: <span dir="ltr">{initial.id}</span></b><br/>التعديل المطلوب: {initial.review_notes || "راجع البيانات المطلوبة ثم أعد الإرسال."}<br/><small>هذا الرابط يُلغى تلقائيًا فور إعادة إرسال الطلب.</small></aside> : null}
+    {initial ? <aside className="portal-form-message" role="note"><b>رقم الطلب: <span dir="ltr">{shortReference(initial.id)}</span></b><br/>التعديل المطلوب: {initial.review_notes || "راجع البيانات المطلوبة ثم أعد الإرسال."}<br/><small>هذا الرابط يُلغى تلقائيًا فور إعادة إرسال الطلب.</small></aside> : null}
     <form className="application-form" onSubmit={submit} noValidate>
       <fieldset disabled={busy} className="application-form" style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
         <ContractorTypeInput value={contractorType} onChange={changeType}/>

@@ -1,5 +1,6 @@
 "use client";
 
+import { shortReference } from "@/lib/notifications/compact";
 import type { FormEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import { ContractorApplicationForm, type ContractorRevisionApplication } from "@/components/join/ContractorApplicationForm";
@@ -248,7 +249,7 @@ export default function ReviseJoinApplicationPage() {
           <span>راجع الطلب كاملًا، نفّذ التعديل المطلوب ثم أعد إرساله للمراجعة.</span>
         </header>
         <aside className="portal-form-message" role="note">
-          <b>رقم الطلب: <span dir="ltr">{applicationId}</span></b><br />
+          <b>رقم الطلب: <span dir="ltr">{shortReference(applicationId)}</span></b><br />
           التعديل المطلوب: {requestedChanges || "راجع البيانات المطلوبة ثم أعد الإرسال."}<br />
           <small>هذا الرابط يُلغى تلقائيًا فور إعادة إرسال الطلب.</small>
         </aside>

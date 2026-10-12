@@ -64,7 +64,7 @@ if (!adminUsers?.length) throw new Error('The selected profile is not an active 
 
 const table = kind === 'provider' ? 'provider_applications' : 'contractor_applications';
 const applications = await rest(
-  `${table}?select=id,status,created_at&id=eq.${applicationId}&limit=1`,
+  `${table}?select=id,status,mobile,${kind === 'provider' ? 'company_name' : 'contractor_name'}&id=eq.${applicationId}&limit=1`,
 );
 const application = applications?.[0];
 if (!application) throw new Error('Join application not found.');
@@ -94,16 +94,15 @@ if (!availabilityResponse.ok || availability.existsWhatsapp !== true) {
   throw new Error('The configured administration number is not available on WhatsApp.');
 }
 
-const kindLabel = kind === 'provider' ? 'مزود' : 'مقاول';
+const kindLabel = kind === 'provider' ? 'مورد' : 'مقاول';
 const reviewPath = kind === 'provider' ? 'providers' : 'contractors';
 const site = 'https://www.buniahksa.com';
 const message = [
-  `طلب انضمام ${kindLabel} جديد في بُنية`,
-  `رقم الطلب الفريد: ${applicationId}`,
-  `الحالة: ${application.status === 'pending' ? 'قيد المراجعة' : application.status}`,
-  '',
-  `المراجعة: ${site}/admin/join-requests/${reviewPath}`,
-].join('\n');
+  `انضمام ${kindLabel} #${applicationId.slice(0, 8).toUpperCase()}`,
+  String(application.company_name || application.contractor_name || '').replace(/\s+/g, ' ').slice(0, 60),
+  application.mobile,
+  `${site}/admin/join-requests/${reviewPath}`,
+].filter(Boolean).join('\n');
 
 let status = 'failed';
 let providerMessageId = null;

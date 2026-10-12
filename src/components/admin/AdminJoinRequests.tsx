@@ -1,6 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 "use client";
 
+import { shortReference } from "@/lib/notifications/compact";
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
 import { providerDocumentLabel } from "@/lib/join/provider-fields";
 import { contractorDocumentLabel } from "@/lib/join/contractor-fields";
@@ -214,7 +215,7 @@ function RequestDetails({
           <div>
             <p>{kind === "provider" ? "طلب انضمام مزود" : "طلب انضمام مقاول"}</p>
             <h3 id={`request-title-${item.id}`}>{name}</h3>
-            <small>مرجع الطلب <bdi>{item.id.slice(0, 8).toUpperCase()}</bdi></small>
+            <small>مرجع الطلب <bdi>{shortReference(item.id)}</bdi></small>
           </div>
           <div>
             <AdminStatus value={displayStatus(item.status)} />

@@ -7,6 +7,8 @@ import ts from "typescript";
 const compiled = ts.transpileModule(await readFile(new URL("../src/lib/notifications/join-reviewers.ts", import.meta.url), "utf8"), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
+const compact = {};
+vm.runInNewContext(ts.transpileModule(await readFile(new URL("../src/lib/notifications/compact.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, { exports: compact });
 const reviewer = (id, mobile, role = "super", active = true) => ({ profile_id: id, role_id: role, profiles: { mobile, email: `${id}@invalid.example`, full_name: id, is_active: active } });
 const normalize = value => {
   let digits = value.replace(/\D/g, "");
@@ -42,6 +44,7 @@ function harness(options = {}) {
   const exports = {};
   vm.runInNewContext(compiled, { exports, process: { env: { NOTIFICATIONS_ENABLED: "true" } }, require(name) {
     if (name === "server-only") return {};
+    if (name === "./compact") return compact;
     if (name === "@/lib/supabase/admin") return { createAdminClient: () => db };
     if (name === "./providers/green-api") return { normalizeWhatsAppChatId: normalize, maskWhatsAppDestination: () => "masked", sendGreenApiMessage: value => send("whatsapp", value) };
     if (name === "./providers/resend") return { sendResendSensitiveCopy: value => send("email", value) };
@@ -49,7 +52,7 @@ function harness(options = {}) {
     if (name === "./submissions") return { maskEmail: () => "masked", async recordProviderSubmission(value) { if (options.recordError) throw new Error("fake write failure"); records.push(value); submissions.set(value.idempotencyKey, value.result); } };
     throw new Error(`Unexpected dependency ${name}`);
   } });
-  return { sends, records, inapp, notify: () => exports.notifyJoinReviewers({ kind: options.kind ?? "provider", submissionKey: options.submissionKey, applicationId: "test-application", applicantEmail: "applicant@invalid.example", applicantName: "Test", submittedAt: "2026-09-30", details: [] }) };
+  return { sends, records, inapp, notify: () => exports.notifyJoinReviewers({ kind: options.kind ?? "provider", submissionKey: options.submissionKey, applicationId: "7b23f499-2578-4a02-bc1d-3863a90877d0", applicantEmail: "applicant@invalid.example", applicantName: "Test", submittedAt: "2026-09-30", details: [{label:"الجوال",value:"0500000004"},{label:"البريد الإلكتروني",value:"applicant@invalid.example"},{label:"التخصصات",value:"PRIVATE FULL APPLICATION"}] }) };
 }
 
 const normal = harness();
@@ -59,6 +62,9 @@ assert.equal(normalize(normal.sends[0].to), "966508424401@c.us", "designated rev
 assert.equal(normal.sends.filter(item => item.channel === "whatsapp" && normalize(item.to) === "966508424401@c.us").length, 1, "normalized duplicate recipient sent once");
 assert.ok(!normal.sends.some(item => item.to.includes("unauthorized") || item.to.includes("inactive")), "unauthorized/inactive profiles excluded");
 assert.equal(normal.inapp.length, 3, "all authorized active profiles retain in-app notice");
+for (const sent of normal.sends) { assert.ok(sent.text.length < 230); assert.match(sent.text,/7B23F499/);assert.doesNotMatch(sent.text,/applicant@|PRIVATE FULL|2578-4a02|2026-09-30/); }
+for (const sent of normal.sends.filter(item=>item.channel === "whatsapp"))assert.match(sent.text,/Test\n0500000004/);
+assert.ok(normal.inapp.every(item=>item.message.includes("0500000004") && item.message.includes("7B23F499")));
 const sendCount = normal.sends.length;
 await normal.notify();
 assert.equal(normal.sends.length, sendCount, "already submitted external notifications not resent");

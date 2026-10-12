@@ -62,7 +62,7 @@ export async function submitProvider(data: FormData, idempotencyKey: string | nu
     }
     saved = true;
     const receipt = result.data as { applicationId: string; status: string; submittedAt: string };
-    await notifyJoinReviewers({ kind: "provider", applicationId, applicantEmail: email, applicantName: identity.contact_name || identity.company_name,
+    await notifyJoinReviewers({ kind: "provider", applicationId, applicantEmail: email, applicantName: identity.company_name,
       submissionKey: revision ? `${applicationId}-${createHash("sha256").update(revision.token).digest("hex").slice(0, 16)}` : applicationId,
       submittedAt: revision ? new Date().toISOString() : receipt.submittedAt,
       details: [

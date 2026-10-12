@@ -5,6 +5,7 @@ import { sendGreenApiMessage, maskWhatsAppDestination, normalizeWhatsAppChatId, 
 import { sendResendSensitiveCopy } from "./providers/resend";
 import { OFFICIAL_PLATFORM_URL } from "./site-url";
 import { maskEmail, recordProviderSubmission } from "./submissions";
+import { compactText, shortReference } from "./compact";
 
 type JoinDetail = { label: string; value: string };
 
@@ -28,7 +29,7 @@ function normalizedMobile(value: string | null | undefined) {
 
 async function notifyAuthorizedReviewers(admin: ReturnType<typeof createAdminClient>, input: JoinNotificationInput, reviewers: Reviewer[], adminMessage: string) {
   const notificationId = input.submissionKey ?? input.applicationId;
-  const kindLabel = input.kind === "provider" ? "مزود" : "مقاول";
+  const kindLabel = input.kind === "provider" ? "مورد" : "مقاول";
   const reviewPath = input.kind === "provider" ? "providers" : "contractors";
   const failures: string[] = [];
   const target = normalizeWhatsAppChatId(designatedReviewMobile);
@@ -61,7 +62,7 @@ async function notifyAuthorizedReviewers(admin: ReturnType<typeof createAdminCli
     try {
       const notification = await admin.from("notifications").upsert({
         profile_id: row.profile_id, type: "join_application_submitted", title: `طلب انضمام ${kindLabel} جديد`,
-        message: `طلب جديد برقم ${input.applicationId}`, action_url: `/admin/join-requests/${reviewPath}`,
+        message: [compactText(input.applicantName, 60), compactText(input.details.find(detail => detail.label === "الجوال")?.value, 20), `#${shortReference(input.applicationId)}`].filter(Boolean).join(" · "), action_url: `/admin/join-requests/${reviewPath}`,
         entity_type: `${input.kind}_application`, entity_id: input.applicationId,
         event_key: `join-submitted-inapp-${notificationId}-${row.profile_id}`,
       }, { onConflict: "event_key", ignoreDuplicates: true });
@@ -78,13 +79,13 @@ async function notifyAuthorizedReviewers(admin: ReturnType<typeof createAdminCli
     if (email && !emails.has(email)) {
       emails.add(email);
       const key = `join-submitted-email-${notificationId}-${row.profile_id}`;
-      await submit("email", email, key, () => sendResendSensitiveCopy({ to: email, subject: `طلب انضمام ${kindLabel} جديد — ${input.applicationId}`, text: adminMessage, idempotencyKey: key }));
+      await submit("email", email, key, () => sendResendSensitiveCopy({ to: email, subject: `انضمام ${kindLabel} #${shortReference(input.applicationId)}`, text: adminMessage, idempotencyKey: key }));
     }
   }
   const applicantKey = `join-received-email-${notificationId}`;
   await submit("email", input.applicantEmail, applicantKey, () => sendResendSensitiveCopy({
-    to: input.applicantEmail, subject: `تم استلام طلب انضمامك — ${input.applicationId}`,
-    text: `مرحبًا ${input.applicantName}،\nتم استلام طلب انضمام ${kindLabel} في منصة بُنية.\nرقم الطلب الفريد: ${input.applicationId}\nالحالة: قيد المراجعة\nوقت التقديم: ${input.submittedAt}\nاحتفظ برقم الطلب للمتابعة.`,
+    to: input.applicantEmail, subject: `استلمنا طلبك #${shortReference(input.applicationId)}`,
+    text: `${compactText(input.applicantName, 60)}، طلب انضمامك #${shortReference(input.applicationId)} قيد المراجعة.`,
     idempotencyKey: applicantKey,
   }), "join.application_received");
   if (failures.length) throw new Error(`${input.kind}_join_notification_failures: ${[...new Set(failures)].join(",")}`);
@@ -105,11 +106,11 @@ export async function notifyJoinReviewers(input: JoinNotificationInput) {
   const roles = new Set<string>((permissionRoles.data ?? []).map((row) => row.role_id));
   if (superRole.data?.id) roles.add(superRole.data.id);
 
-  const kindLabel = input.kind === "provider" ? "مزود" : "مقاول";
+  const kindLabel = input.kind === "provider" ? "مورد" : "مقاول";
   const reviewPath = input.kind === "provider" ? "providers" : "contractors";
   const site = OFFICIAL_PLATFORM_URL;
-  const details = input.details.map(({ label, value }) => `${label}: ${value || "—"}`).join("\n");
-  const adminMessage = `طلب انضمام ${kindLabel} جديد في بُنية\nرقم الطلب الفريد: ${input.applicationId}\nوقت التقديم: ${input.submittedAt}\n\nبيانات مقدم الطلب:\n${details}\n\nالمراجعة: ${site}/admin/join-requests/${reviewPath}`;
+  const mobile = compactText(input.details.find(detail => detail.label === "الجوال")?.value, 20);
+  const adminMessage = [`انضمام ${kindLabel} جديد #${shortReference(input.applicationId)}`, compactText(input.applicantName, 60), mobile, `${site}/admin/join-requests/${reviewPath}`].filter(Boolean).join("\n");
 
   await notifyAuthorizedReviewers(admin, input, (users.data ?? []).filter(row => roles.has(row.role_id)), adminMessage);
 }
