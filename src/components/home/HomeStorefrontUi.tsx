@@ -4,15 +4,12 @@ import Link from "next/link";
 import type { Product, ProductImage } from "@/lib/bunya-types";
 import { isProductVideo } from "@/lib/products/image-urls";
 import { BunyaLogo } from "@/components/brand/BunyaLogo";
-import { MobileHeaderLanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
 import { publicAccountFor, type PublicAccount } from "@/lib/auth/public-account";
-import styles from "./PublicAccountHeader.module.css";
 import { PublicAccountLink } from "./PublicAccountLink";
 
 type ProductVisualStyle = CSSProperties & {
   "--product-tone"?: string;
   "--product-ink"?: string;
-  "--store-stagger"?: string;
 };
 
 const visualTone: Record<ProductImage["tone"], { tone: string; ink: string }> = {
@@ -27,8 +24,10 @@ const visualTone: Record<ProductImage["tone"], { tone: string; ink: string }> = 
   tools: { tone: "#c6d3e4", ink: "#172554" },
 };
 
-export function Icon({ name }: { name: "search" | "grid" | "list" | "filter" | "spark" | "quote" | "close" | "plus" | "check" | "menu" | "box" | "truck" | "shield" | "tag" | "pin" | "calendar" | "clock" }) {
+export function Icon({ name }: { name: "search" | "grid" | "list" | "filter" | "spark" | "quote" | "close" | "plus" | "check" | "menu" | "box" | "truck" | "shield" | "tag" | "pin" | "calendar" | "clock" | "user" | "helmet" }) {
   const paths = {
+    user: <><circle cx="12" cy="8" r="3.5" /><path d="M5 21v-2a7 7 0 0 1 14 0v2" /></>,
+    helmet: <><path d="M4 16v-3a8 8 0 0 1 16 0v3M3 16h18v4H3zM9 5v6M15 5v6" /></>,
     search: <><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></>,
     grid: <><path d="M4 4h6v6H4z" /><path d="M14 4h6v6h-6z" /><path d="M4 14h6v6H4z" /><path d="M14 14h6v6h-6z" /></>,
     list: <><path d="M9 6h11" /><path d="M9 12h11" /><path d="M9 18h11" /><circle cx="5" cy="6" r="1" /><circle cx="5" cy="12" r="1" /><circle cx="5" cy="18" r="1" /></>,
@@ -79,79 +78,74 @@ export function ProductArtwork({ image, large = false }: { image?: ProductImage;
 type StoreHeaderProps = {
   account?: PublicAccount;
   compact: boolean;
-  menuOpen: boolean;
   quoteCount: number;
   quoteOpen: boolean;
-  onMenuToggle: () => void;
-  onNavigate: () => void;
+  hasLatestProducts?: boolean;
   onQuoteOpen: () => void;
 };
 
-export function StoreHeader({ compact, menuOpen, quoteCount, quoteOpen, onMenuToggle, onNavigate, onQuoteOpen, account = publicAccountFor(null) }: StoreHeaderProps) {
+export function StoreHeader({ compact, quoteCount, quoteOpen, hasLatestProducts = true, onQuoteOpen, account = publicAccountFor(null) }: StoreHeaderProps) {
   const quoteLabel = `طلب عرض السعر يحتوي على ${quoteCount.toLocaleString("ar-SA")} منتج`;
   return (
-    <header className={`store-header ${styles.header} ${compact ? "store-header-compact" : ""}`}>
-      <div className="store-header-layout mx-auto max-w-[90rem]">
-        <a className="store-brand" href="#products" aria-label="بُنية - متجر مواد البناء" onClick={onNavigate}>
-          <BunyaLogo priority sizes="(max-width: 700px) 112px, 125px" />
+    <header className={`sf-header ${compact ? "sf-header-compact" : ""}`}>
+      <div className="sf-header-layout mx-auto max-w-[90rem]">
+        <a className="sf-brand" href="#top" aria-label="بُنية - متجر مواد البناء">
+          <BunyaLogo priority sizes="(max-width: 700px) 128px, 152px" />
         </a>
 
-        <nav className="store-desktop-nav" aria-label="روابط المتجر">
-          <a className="store-nav-link" href="#products"><Icon name="grid" />المنتجات</a>
-          <a className="store-nav-link" href="#latest"><Icon name="spark" />الأحدث</a>
-          <Link className="store-nav-link store-nav-contractor" href="/contractors"><Icon name="search" />ابحث عن مقاول</Link>
+        <nav className="sf-desktop-nav" aria-label="روابط المتجر">
+          <a className="sf-nav-link" href="#products"><Icon name="grid" />المنتجات</a>
+          {hasLatestProducts ? <a className="sf-nav-link" href="#latest"><Icon name="spark" />الأحدث</a> : null}
+          <Link className="sf-nav-link sf-nav-contractor" href="/contractors"><Icon name="search" />ابحث عن مقاول</Link>
         </nav>
 
-        <nav className="store-desktop-portals" aria-label="بوابات بُنية">
-          {account.signedIn ? <PublicAccountLink account={account} /> : <Link className="store-portal-link store-portal-link-primary" href={account.href}>لوحة التحكم</Link>}
-          {account.canApplyProvider ? <Link className="store-portal-link" href="/providers/join">المزودون</Link> : null}
-          {account.canApplyContractor ? <Link className="store-portal-link" href="/contractors/join">المقاولون</Link> : null}
+        <nav className="sf-desktop-portals" aria-label="حساب بُنية">
+          {account.signedIn ? <PublicAccountLink account={account} /> : <Link className="sf-portal-link sf-portal-link-primary" href={account.href}>تسجيل الدخول</Link>}
         </nav>
 
-        <div className={styles.mobileActions}>{account.signedIn ? <PublicAccountLink account={account} /> : null}<MobileHeaderLanguageSwitcher /></div>
-        <button aria-controls="store-quote-drawer" aria-expanded={quoteOpen} className="store-icon-button store-header-quote" aria-label={quoteLabel} onClick={onQuoteOpen} type="button">
-          <Icon name="quote" /><span className="store-count">{quoteCount.toLocaleString("ar-SA")}</span>
+        <div className="sf-mobile-account">{account.signedIn ? <PublicAccountLink account={account} /> : null}</div>
+        <button aria-controls="store-quote-drawer" aria-expanded={quoteOpen} className="sf-icon-button sf-header-quote" aria-label={quoteLabel} onClick={onQuoteOpen} type="button">
+          <Icon name="quote" /><span className="sf-quote-label">طلب السعر</span><span className="sf-count">{quoteCount.toLocaleString("ar-SA")}</span>
         </button>
-        <button aria-expanded={menuOpen} aria-controls="store-mobile-menu" aria-label={menuOpen ? "إغلاق القائمة" : "فتح القائمة"} className="store-menu-button" onClick={onMenuToggle} type="button"><Icon name={menuOpen ? "close" : "menu"} /></button>
       </div>
 
-      <nav className="store-mobile-menu" data-open={menuOpen} id="store-mobile-menu" aria-label="قائمة الجوال">
-        <a href="#products" onClick={onNavigate}>المنتجات</a>
-        <a href="#latest" onClick={onNavigate}>أحدث المنتجات</a>
-        <Link href="/contractors">ابحث عن مقاول</Link>
-        <Link href={account.href} onClick={onNavigate}>{account.signedIn ? "ملفي الشخصي" : "لوحة التحكم"}</Link>
-        {account.canApplyProvider ? <Link href="/providers/join">بوابة المزودين</Link> : null}
-        {account.canApplyContractor ? <Link href="/contractors/join">بوابة المقاولين</Link> : null}
-      </nav>
     </header>
   );
 }
 
-export function LatestProductCard({ product, index, onOpen }: { product: Product; index: number; onOpen: (product: Product, element: HTMLElement) => void }) {
-  const style: ProductVisualStyle = { "--store-stagger": `${Math.min(index, 5) * 55}ms` };
+export function StoreQuickLinks({ account = publicAccountFor(null) }: { account?: PublicAccount }) {
   return (
-    <button className="store-latest-card store-stagger-card text-start" onClick={(event) => onOpen(product, event.currentTarget)} style={style} type="button">
+    <nav className="sf-quick-links" aria-label="اختصارات بُنية">
+      <a href="#products"><span className="sf-quick-icon"><Icon name="box" /></span><span>المنتجات</span></a>
+      <Link href="/contractors"><span className="sf-quick-icon"><Icon name="helmet" /></span><span>ابحث عن مقاول</span></Link>
+      <Link href={account.href}><span className="sf-quick-icon"><Icon name="user" /></span><span>{account.signedIn ? "ملفي الشخصي" : "تسجيل الدخول"}</span></Link>
+    </nav>
+  );
+}
+
+export function LatestProductCard({ product, onOpen }: { product: Product; index: number; onOpen: (product: Product, element: HTMLElement) => void }) {
+  return (
+    <button className="sf-latest-card text-start" onClick={(event) => onOpen(product, event.currentTarget)} type="button">
       <ProductArtwork image={product.images[0]} />
-      <span className="store-card-name">{product.name}</span>
-      <span className="store-card-meta"><b>{product.unit}</b><i aria-hidden="true" /><b>{product.delivery.window}</b></span>
+      <span className="sf-card-name">{product.name}</span>
+      <span className="sf-card-meta"><b>{product.unit}</b><i aria-hidden="true" /><b>{product.delivery.window}</b></span>
     </button>
   );
 }
 
-export function ProductCard({ product, index, onOpen }: { product: Product; index: number; onOpen: (product: Product, element: HTMLElement) => void }) {
-  const style: ProductVisualStyle = { "--store-stagger": `${Math.min(index, 8) * 45}ms` };
+export function ProductCard({ product, onOpen }: { product: Product; index: number; onOpen: (product: Product, element: HTMLElement) => void }) {
   return (
-    <button aria-label={`عرض تفاصيل ${product.name}`} className="store-product-card store-stagger-card text-start" onClick={(event) => onOpen(product, event.currentTarget)} style={style} type="button">
-      <span className="store-card-visual-wrap">
+    <button aria-label={`عرض تفاصيل ${product.name}`} className="sf-product-card text-start" onClick={(event) => onOpen(product, event.currentTarget)} type="button">
+      <span className="sf-card-visual-wrap">
         <ProductArtwork image={product.images[0]} />
-        <span className="store-card-availability">{product.availabilityStatus}</span>
+        <span className="sf-card-availability">{product.availabilityStatus}</span>
       </span>
-      <span className="store-card-body">
-        <span className="store-card-category">{product.category}</span>
-        <span className="store-card-name">{product.name}</span>
-        <span className="store-card-description">{product.shortDescription || product.description}</span>
-        <span className="store-card-meta"><b>{product.unit}</b><i aria-hidden="true" /><b>{product.delivery.window}</b></span>
-        <span className="store-card-open">عرض التفاصيل والمواصفات <span aria-hidden="true">←</span></span>
+      <span className="sf-card-body">
+        <span className="sf-card-category">{product.category}</span>
+        <span className="sf-card-name">{product.name}</span>
+        <span className="sf-card-description">{product.shortDescription || product.description}</span>
+        <span className="sf-card-meta"><b>{product.unit}</b><i aria-hidden="true" /><b>{product.delivery.window}</b></span>
+        <span className="sf-card-open">عرض التفاصيل والمواصفات <span aria-hidden="true">←</span></span>
       </span>
     </button>
   );

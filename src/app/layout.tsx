@@ -7,13 +7,14 @@ import "./brand-experience.css";
 import "./database.css";
 import "./marketplace-catalog.css";
 import "./native-mobile.css";
+import "./storefront.css";
 import {LegacyPwaCleanup} from "@/components/LegacyPwaCleanup";
 import {NativePushRuntime} from "@/components/NativePushRuntime";
 import {BunyaVisualRuntime} from "@/components/BunyaVisualRuntime";
 import {cookies} from "next/headers";
 import {LocaleProvider} from "@/components/i18n/LocaleProvider";
 import {FloatingLanguageSwitcher} from "@/components/i18n/LanguageSwitcher";
-import {defaultLocale,isAppLocale,localeCookieName,localeDirection} from "@/lib/i18n/config";
+import {defaultLocale,isAppLocale,languageSwitchingEnabled,localeCookieName,localeDirection} from "@/lib/i18n/config";
 import {ImpersonationBanner} from "@/components/auth/ImpersonationBanner";
 import {IMPERSONATION_COOKIE} from "@/lib/auth/impersonation-cookie";
 
@@ -28,6 +29,17 @@ const plexArabic = localFont({
   variable: "--font-plex-arabic",
   display: "swap",
   fallback: ["Tahoma", "Arial", "sans-serif"],
+});
+
+const salmaArabic = localFont({
+  src: [
+    { path: "./fonts/SalmaArabic-Regular.otf", weight: "400", style: "normal" },
+    { path: "./fonts/SalmaArabic-Medium.otf", weight: "500", style: "normal" },
+    { path: "./fonts/SalmaArabic-Bold.otf", weight: "700", style: "normal" },
+  ],
+  variable: "--font-salma-arabic",
+  display: "swap",
+  preload: false,
 });
 
 export const metadata: Metadata = {
@@ -45,9 +57,9 @@ export default async function RootLayout({
 }>) {
   const cookieStore=await cookies();
   const storedLocale=cookieStore.get(localeCookieName)?.value;
-  const locale=isAppLocale(storedLocale)?storedLocale:defaultLocale;
+  const locale=languageSwitchingEnabled&&isAppLocale(storedLocale)?storedLocale:defaultLocale;
   return (
-    <html className={plexArabic.variable} lang={locale} dir={localeDirection(locale)}>
+    <html className={`${plexArabic.variable} ${salmaArabic.variable}`} lang={locale} dir={localeDirection(locale)}>
       <body><LocaleProvider initialLocale={locale}><ImpersonationBanner present={cookieStore.has(IMPERSONATION_COOKIE)}/><LegacyPwaCleanup/><NativePushRuntime/><BunyaVisualRuntime/><FloatingLanguageSwitcher/>{children}</LocaleProvider></body>
     </html>
   );

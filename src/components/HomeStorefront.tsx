@@ -20,13 +20,13 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import type { PublicAccount } from "@/lib/auth/public-account";
 import { BunyaHomeMotion } from "./home/BunyaHomeMotion";
-import { BunyaLogoIntro } from "./home/BunyaLogoIntro";
 import {
   Icon,
   LatestProductCard,
   ProductArtwork,
   ProductCard,
   StoreHeader,
+  StoreQuickLinks,
 } from "./home/HomeStorefrontUi";
 
 type HomeStorefrontProps = {
@@ -208,7 +208,6 @@ export function HomeStorefront({
   const [catalogView, setCatalogView] = useState<CatalogView>("grid");
   const [catalogSort, setCatalogSort] = useState<CatalogSort>("featured");
   const [headerCompact, setHeaderCompact] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [activeImageId, setActiveImageId] = useState<string>("");
   const [quoteItems, setQuoteItems] = useState<QuoteRequestItem[]>([]);
@@ -230,6 +229,22 @@ export function HomeStorefront({
   );
   const storefrontRef = useRef<HTMLElement>(null);
   const productOriginRef = useRef<HTMLElement | null>(null);
+  const filterDialogRef = useRef<HTMLDialogElement>(null);
+  const filterToggleRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const dialog = filterDialogRef.current;
+    if (!catalogFiltersOpen || !dialog) return;
+    const originalOverflow = document.body.style.overflow;
+    const trigger = filterToggleRef.current;
+    dialog.showModal();
+    document.body.style.overflow = "hidden";
+    return () => {
+      dialog.close();
+      document.body.style.overflow = originalOverflow;
+      trigger?.focus();
+    };
+  }, [catalogFiltersOpen]);
 
   useEffect(() => {
     const onScroll = () => setHeaderCompact(window.scrollY > 20);
@@ -420,7 +435,8 @@ export function HomeStorefront({
   };
 
   const updateFilters = (update: () => void) => {
-    runViewTransition(update);
+    if (catalogFiltersOpen) update();
+    else runViewTransition(update);
   };
 
   const openProduct = (product: Product, origin: HTMLElement) => {
@@ -750,11 +766,10 @@ export function HomeStorefront({
 
   return (
     <main
-      className="store-home min-h-screen overflow-hidden"
+      className="store-home bunya-storefront"
       id="top"
       ref={storefrontRef}
     >
-      <BunyaLogoIntro />
       <BunyaHomeMotion
         detailOpen={Boolean(selectedProduct || quoteDrawerOpen)}
         filterKey={`${activeCategory}:${query}`}
@@ -763,112 +778,34 @@ export function HomeStorefront({
       <StoreHeader
         account={account}
         compact={headerCompact}
-        menuOpen={mobileMenuOpen}
-        onMenuToggle={() => setMobileMenuOpen((current) => !current)}
-        onNavigate={() => setMobileMenuOpen(false)}
         onQuoteOpen={() => void openQuoteDrawer()}
         quoteCount={quoteItems.length}
         quoteOpen={quoteDrawerOpen}
+        hasLatestProducts={latestProducts.length > 0}
       />
-
-      <section aria-label="واجهة تطبيق بُنية" className="native-home-dashboard">
-        <div className="native-home-welcome">
-          <span className="native-home-eyebrow">بُنية لمواد البناء</span>
-          <h1>ابدأ مشروعك من المكان الصحيح</h1>
-          <p>مواد، موردون ومقاولون في تجربة واحدة موثوقة.</p>
-          <small className="native-home-trust">
-            <i aria-hidden="true" /> منتجات ومزودون موثّقون
-          </small>
-        </div>
-        <div className="native-home-search" role="search">
-          <Icon name="search" />
-          <input
-            aria-label="البحث عن المنتجات في التطبيق"
-            value={query}
-            onChange={(event) => {
-              const value = event.currentTarget.value;
-              updateFilters(() => setQuery(value));
-            }}
-            placeholder="ماذا تحتاج لمشروعك؟"
-          />
-          {query ? (
-            <button
-              aria-label="مسح البحث"
-              onClick={() => updateFilters(() => setQuery(""))}
-              type="button"
-            >
-              <Icon name="close" />
-            </button>
-          ) : null}
-        </div>
-        <div className="native-home-actions-heading">
-          <strong>خدمات بُنية</strong>
-          <small>وصول سريع لما تحتاجه</small>
-        </div>
-        <div className="native-home-actions" aria-label="الخدمات الرئيسية">
-          <a href="#products">
-            <span>
-              <Icon name="grid" />
-            </span>
-            <strong>المنتجات</strong>
-            <small>مواد البناء</small>
-          </a>
-          <Link href="/contractors">
-            <span>
-              <Icon name="search" />
-            </span>
-            <strong>المقاولون</strong>
-            <small>حسب التخصص</small>
-          </Link>
-          <button
-            className="native-home-quote-action"
-            onClick={() => void openQuoteDrawer()}
-            type="button"
-          >
-            <span>
-              <Icon name="quote" />
-              {quoteItems.length ? (
-                <b>{quoteItems.length.toLocaleString("ar-SA")}</b>
-              ) : null}
-            </span>
-            <strong>طلب السعر</strong>
-            <small>راجع طلبك</small>
-          </button>
-        </div>
-      </section>
 
       <section
         aria-labelledby="marketplace-title"
-        className="store-marketplace-browser"
+        className="sf-marketplace-browser"
         id="categories"
       >
-        <div className="store-marketplace-browser-inner">
-          <div className="store-marketplace-title-row">
-            <div>
-              <p className="store-eyebrow">سوق مواد البناء</p>
-              <h1 id="marketplace-title">كل احتياج مشروعك، في بحث واحد</h1>
-              <span>اختر المواد واجمعها ثم أرسل طلبًا واحدًا لأفضل عرض.</span>
-            </div>
-            <button
-              className="store-marketplace-quote"
-              onClick={() => void openQuoteDrawer()}
-              type="button"
-            >
-              <Icon name="quote" />
-              <span>طلب السعر</span>
-              <b>{quoteItems.length.toLocaleString("ar-SA")}</b>
-            </button>
+        <div className="sf-marketplace-browser-inner">
+          <div className="sf-hero">
+            <h1 id="marketplace-title">احتياجات مشروعك في مكان واحد</h1>
           </div>
 
-          <div className="store-marketplace-search" role="search">
-            <Icon name="search" />
+          <StoreQuickLinks account={account} />
+          <div className="sf-discovery-heading"><h2>ماذا يحتاج مشروعك؟</h2><span>ابحث عن المادة أو اختر التصنيف</span></div>
+          <div className="sf-discovery-bar">
+          <div className="sf-marketplace-search" role="search">
+            {!query ? <Icon name="search" /> : null}
             <input
               aria-label="البحث في مواد البناء"
               onChange={(event) => {
                 const value = event.currentTarget.value;
                 updateFilters(() => setQuery(value));
               }}
-              placeholder="ابحث عن أسمنت، حديد، بلوك أو عزل..."
+              placeholder="ابحث..."
               type="search"
               value={query}
             />
@@ -882,10 +819,32 @@ export function HomeStorefront({
               </button>
             ) : null}
           </div>
+            <div className="sf-view-toggle" role="group" aria-label="طريقة العرض">
+              <button aria-label="عرض شبكي" title="عرض شبكي" aria-pressed={catalogView === "grid"} onClick={() => setCatalogView("grid")} type="button"><Icon name="grid" /><span>شبكة</span></button>
+              <button aria-label="عرض قائمة" title="عرض قائمة" aria-pressed={catalogView === "list"} onClick={() => setCatalogView("list")} type="button"><Icon name="list" /><span>قائمة</span></button>
+            </div>
+            <button
+              aria-controls="sf-catalog-filters"
+              aria-haspopup="dialog"
+              aria-label="تصفية المنتجات"
+              title="تصفية المنتجات"
+              ref={filterToggleRef}
+              aria-expanded={catalogFiltersOpen}
+              className={`sf-filter-toggle ${catalogFiltersOpen || activeCatalogFilterCount ? "active" : ""}`}
+              onClick={() => setCatalogFiltersOpen((current) => !current)}
+              type="button"
+            >
+              <Icon name="filter" />
+              <span>تصفية</span>
+              {activeCatalogFilterCount ? (
+                <b>{activeCatalogFilterCount.toLocaleString("ar-SA")}</b>
+              ) : null}
+            </button>
+          </div>
 
           <nav
             aria-label="تصنيفات مواد البناء"
-            className="store-marketplace-categories"
+            className="sf-marketplace-categories"
           >
             {(["الكل", ...categories] as const).map((category) => {
               const isActive = category === activeCategory;
@@ -905,114 +864,17 @@ export function HomeStorefront({
             })}
           </nav>
 
-          <div className="store-marketplace-tools" aria-label="أدوات عرض المنتجات">
-            <label className="store-marketplace-region">
-              <Icon name="pin" />
-              <span className="sr-only">منطقة التوفر</span>
-              <select
-                aria-label="منطقة التوفر"
-                onChange={(event) =>
-                  updateFilters(() => setSelectedRegion(event.currentTarget.value))
-                }
-                value={selectedRegion}
-              >
-                <option>كل المناطق</option>
-                {catalogRegions.map((region) => (
-                  <option key={region}>{region}</option>
-                ))}
-              </select>
-            </label>
-            <button
-              aria-controls="store-catalog-filters"
-              aria-expanded={catalogFiltersOpen}
-              className={catalogFiltersOpen ? "active" : ""}
-              onClick={() => setCatalogFiltersOpen((current) => !current)}
-              type="button"
-            >
-              <Icon name="filter" />
-              <span>تصفية</span>
-              {activeCatalogFilterCount ? (
-                <b>{activeCatalogFilterCount.toLocaleString("ar-SA")}</b>
-              ) : null}
-            </button>
-            <button
-              aria-pressed={deliveryOnly}
-              className={deliveryOnly ? "active" : ""}
-              onClick={() => updateFilters(() => setDeliveryOnly((current) => !current))}
-              type="button"
-            >
-              <Icon name="truck" />
-              <span>يوصل للموقع</span>
-            </button>
-            <div className="store-marketplace-view" role="group" aria-label="طريقة العرض">
-              <button
-                aria-label="عرض شبكي"
-                aria-pressed={catalogView === "grid"}
-                className={catalogView === "grid" ? "active" : ""}
-                onClick={() => setCatalogView("grid")}
-                type="button"
-              >
-                <Icon name="grid" />
-              </button>
-              <button
-                aria-label="عرض قائمة"
-                aria-pressed={catalogView === "list"}
-                className={catalogView === "list" ? "active" : ""}
-                onClick={() => setCatalogView("list")}
-                type="button"
-              >
-                <Icon name="list" />
-              </button>
-            </div>
-          </div>
-
-          {catalogFiltersOpen ? (
-            <div className="store-marketplace-filter-panel" id="store-catalog-filters">
-              <div>
-                <span>اختيار سريع</span>
-                <button
-                  aria-pressed={availableOnly}
-                  className={availableOnly ? "active" : ""}
-                  onClick={() => updateFilters(() => setAvailableOnly((current) => !current))}
-                  type="button"
-                >
-                  متوفر الآن
-                </button>
-                <button
-                  aria-pressed={newOnly}
-                  className={newOnly ? "active" : ""}
-                  onClick={() => updateFilters(() => setNewOnly((current) => !current))}
-                  type="button"
-                >
-                  وصل حديثًا
-                </button>
-              </div>
-              <label>
-                <span>الترتيب</span>
-                <select
-                  onChange={(event) => setCatalogSort(event.currentTarget.value as CatalogSort)}
-                  value={catalogSort}
-                >
-                  <option value="featured">الأنسب أولًا</option>
-                  <option value="name">حسب اسم المنتج</option>
-                </select>
-              </label>
-              <button className="store-marketplace-reset" onClick={resetCatalogFilters} type="button">
-                إعادة الضبط
-              </button>
-            </div>
-          ) : null}
         </div>
       </section>
 
-      <section className="store-marketplace-canvas" id="products" data-store-reveal>
-        <div className="store-marketplace-layout">
-          <aside className="store-marketplace-rail" aria-label="تصفية سريعة حسب التصنيف">
-            <div className="store-marketplace-rail-heading">
-              <span className="store-marketplace-rail-icon"><Icon name="box" /></span>
+      <section className="sf-marketplace-canvas" id="products" data-sf-reveal>
+        <div className="sf-marketplace-layout">
+          <aside className="sf-marketplace-rail" aria-label="تصفية سريعة حسب التصنيف">
+            <div className="sf-marketplace-rail-heading">
+              <span className="sf-marketplace-rail-icon"><Icon name="box" /></span>
               <div><strong>مواد البناء</strong><small>اختيار سريع</small></div>
             </div>
-            <div className="store-marketplace-rail-list">
+            <div className="sf-marketplace-rail-list">
               {(["الكل", ...categories] as const).map((category) => {
                 const count = category === "الكل"
                   ? products.length
@@ -1032,7 +894,7 @@ export function HomeStorefront({
                 );
               })}
             </div>
-            <div className="store-marketplace-rail-quick">
+            <div className="sf-marketplace-rail-quick">
               <span>حسب احتياجك</span>
               <button aria-pressed={availableOnly} onClick={() => updateFilters(() => setAvailableOnly((current) => !current))} type="button">
                 <Icon name="check" /> متوفر الآن
@@ -1046,11 +908,11 @@ export function HomeStorefront({
             </div>
           </aside>
 
-          <div className="store-marketplace-feed">
-            <header className="store-marketplace-feed-heading">
+          <div className="sf-marketplace-feed">
+            <header className="sf-marketplace-feed-heading">
               <div>
-                <p className="store-eyebrow">كتالوج بُنية</p>
-                <h2>المنتجات المطابقة</h2>
+                <p className="sf-eyebrow">كتالوج بُنية</p>
+                <h2>{query || activeCatalogFilterCount || activeCategory !== "الكل" ? "نتائج البحث" : "مواد لمشروعك"}</h2>
               </div>
               <p aria-live="polite">
                 <strong>{filteredProducts.length.toLocaleString("ar-SA")}</strong>
@@ -1059,14 +921,15 @@ export function HomeStorefront({
             </header>
 
             {dataError ? (
-              <div className="store-marketplace-empty" role="alert">
+              <div className="sf-marketplace-empty" role="alert">
                 <span><Icon name="box" /></span>
-                <h3>تعذر الاتصال بقاعدة البيانات</h3>
+                <h3>تعذر تحميل المنتجات</h3>
                 <p>{dataError}</p>
+                <button onClick={() => router.refresh()} type="button">إعادة المحاولة</button>
               </div>
             ) : filteredProducts.length > 0 ? (
               <div
-                className={`store-product-grid store-product-results-${catalogView}`}
+                className={`sf-product-grid sf-product-results-${catalogView}`}
                 key={`${activeCategory}:${query}:${selectedRegion}:${deliveryOnly}:${availableOnly}:${newOnly}:${catalogSort}:${catalogView}`}
               >
                 {filteredProducts.map((product, index) => (
@@ -1079,11 +942,11 @@ export function HomeStorefront({
                 ))}
               </div>
             ) : (
-              <div className="store-marketplace-empty">
+              <div className="sf-marketplace-empty">
                 <span><Icon name="box" /></span>
-                <h3>لا توجد منتجات مطابقة</h3>
-                <p>جرّب كلمة بحث أخرى أو أزل بعض عوامل التصفية.</p>
-                <button onClick={resetCatalogFilters} type="button">مسح عوامل التصفية</button>
+                <h3>{products.length ? "لم نجد ما تبحث عنه" : "نجهّز لك مواد مشروعك"}</h3>
+                <p>{products.length ? "جرّب اسم مادة مختلفًا أو وسّع خيارات البحث." : "ستجد هنا المنتجات فور توفرها. يمكنك الآن استكشاف المقاولين حسب تخصص مشروعك."}</p>
+                {products.length ? <button onClick={resetCatalogFilters} type="button">عرض جميع المنتجات</button> : <Link className="sf-primary-button" href="/contractors">استكشف المقاولين <span aria-hidden="true">←</span></Link>}
               </div>
             )}
           </div>
@@ -1092,22 +955,22 @@ export function HomeStorefront({
 
       <section
         id="latest"
-        className="store-home-section store-marketplace-latest px-4"
+        className="sf-home-section sf-marketplace-latest" hidden={!latestProducts.length}
         data-gsap-section
       >
         <div className="mx-auto max-w-7xl">
-          <div className="store-section-heading">
+          <div className="sf-section-heading">
             <div>
-              <p className="store-eyebrow">وصلت حديثًا</p>
+              <p className="sf-eyebrow">وصلت حديثًا</p>
               <h2>أحدث المنتجات</h2>
             </div>
-            <a className="store-text-link" href="#products">عرض الكتالوج</a>
+            <a className="sf-text-link" href="#products">عرض الكتالوج</a>
           </div>
-          <div className="store-latest-grid">
+          <div className="sf-latest-grid">
             {latestProducts.length > 0 ? latestProducts.map((product, index) => (
               <LatestProductCard index={index} key={product.id} onOpen={openProduct} product={product} />
             )) : (
-              <div className="store-empty rounded-lg p-8 text-center">
+              <div className="sf-empty rounded-lg p-8 text-center">
                 <h3 className="text-xl font-black">لا توجد منتجات حديثة حاليًا</h3>
                 <p className="mt-2 font-semibold text-[#2a2a2a]">ستظهر هنا المنتجات المنشورة حديثًا عند إضافتها.</p>
               </div>
@@ -1116,7 +979,21 @@ export function HomeStorefront({
         </div>
       </section>
 
-      <nav aria-label="التنقل الرئيسي في التطبيق" className="native-home-tabs">
+      <section className="sf-project-banner" aria-label="خدمات المقاولين">
+        <span className="sf-project-icon"><Icon name="shield" /></span>
+        <div><p className="sf-eyebrow">من المواد إلى التنفيذ</p><h2>المقاول المناسب يكمل مشروعك.</h2><p>اكتشف التخصصات واختر ما يناسب احتياجك.</p></div>
+        <Link href="/contractors">اكتشف المقاولين <span aria-hidden="true">←</span></Link>
+      </section>
+
+      {(!account?.signedIn || account.canApplyProvider || account.canApplyContractor) ? (
+        <nav className="sf-partner-links" aria-label="الانضمام إلى بُنية">
+          <span>ابنِ فرصًا جديدة مع بُنية</span>
+          {(!account || account.canApplyProvider) ? <Link href="/providers/join">انضم كمزود مواد <span aria-hidden="true">←</span></Link> : null}
+          {(!account || account.canApplyContractor) ? <Link href="/contractors/join">انضم كمقاول <span aria-hidden="true">←</span></Link> : null}
+        </nav>
+      ) : null}
+
+      <nav aria-label="التنقل الرئيسي" className="sf-mobile-tabs">
         <a aria-current="page" href="#top">
           <Icon name="spark" />
           <span>الرئيسية</span>
@@ -1130,7 +1007,7 @@ export function HomeStorefront({
           onClick={() => void openQuoteDrawer()}
           type="button"
         >
-          <span className="native-home-tabs-quote">
+          <span className="sf-mobile-tabs-quote">
             <Icon name="quote" />
             {quoteItems.length ? (
               <b>{quoteItems.length.toLocaleString("ar-SA")}</b>
@@ -1143,6 +1020,52 @@ export function HomeStorefront({
           <span>المقاولون</span>
         </Link>
       </nav>
+
+      {catalogFiltersOpen ? (
+        <dialog
+          aria-labelledby="sf-filter-title"
+          className="sf-filter-dialog"
+          id="sf-catalog-filters"
+          ref={filterDialogRef}
+          onCancel={(event) => { event.preventDefault(); setCatalogFiltersOpen(false); }}
+          onClick={(event) => { if (event.target === event.currentTarget) setCatalogFiltersOpen(false); }}
+        >
+          <div className="sf-filter-content">
+            <header className="sf-filter-heading">
+              <h2 id="sf-filter-title">تصفية المنتجات</h2>
+              <button aria-label="إغلاق التصفية" className="sf-filter-close" onClick={() => setCatalogFiltersOpen(false)} type="button"><Icon name="close" /></button>
+            </header>
+
+            <div className="sf-filter-fields">
+              <label>
+                <span>المنطقة</span>
+                <select aria-label="منطقة التوفر" value={selectedRegion} onChange={(event) => updateFilters(() => setSelectedRegion(event.currentTarget.value))}>
+                  <option>كل المناطق</option>
+                  {catalogRegions.map((region) => <option key={region}>{region}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>الترتيب</span>
+                <select value={catalogSort} onChange={(event) => setCatalogSort(event.currentTarget.value as CatalogSort)}>
+                  <option value="featured">الأنسب أولًا</option>
+                  <option value="name">حسب الاسم</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="sf-filter-options" role="group" aria-label="خيارات المنتجات">
+              <button aria-label="يوصل للموقع" aria-pressed={deliveryOnly} onClick={() => setDeliveryOnly((current) => !current)} type="button"><Icon name="truck" />توصيل</button>
+              <button aria-pressed={availableOnly} onClick={() => setAvailableOnly((current) => !current)} type="button"><Icon name="check" />متوفر</button>
+              <button aria-pressed={newOnly} onClick={() => setNewOnly((current) => !current)} type="button"><Icon name="spark" />الأحدث</button>
+            </div>
+
+            <footer className="sf-filter-footer">
+              <button className="sf-filter-apply" onClick={() => setCatalogFiltersOpen(false)} type="button">عرض النتائج <span aria-live="polite">({filteredProducts.length.toLocaleString("ar-SA")})</span></button>
+              <button className="sf-filter-reset" onClick={resetCatalogFilters} type="button">إعادة الضبط</button>
+            </footer>
+          </div>
+        </dialog>
+      ) : null}
 
       {storefrontNotice ? (
         <div aria-live="polite" className="store-cart-toast" role="status">

@@ -21,7 +21,7 @@ export function BunyaHomeMotion({
     if (!root) return;
     const heroTargets = root.querySelectorAll<HTMLElement>(".store-hero-logo, [data-hero-motion]");
     const sections = Array.from(root.querySelectorAll<HTMLElement>("[data-gsap-section]")).slice(0, 2);
-    const categoryCards = root.querySelectorAll<HTMLElement>(".store-category-chip, .store-latest-card");
+    const categoryCards = root.querySelectorAll<HTMLElement>(".sf-latest-card");
     const categorySection = root.querySelector<HTMLElement>("#categories");
     const mm = gsap.matchMedia();
     mm.add({ reduce: "(prefers-reduced-motion: reduce)", mobile: "(max-width: 700px)" }, (context) => {
@@ -54,7 +54,7 @@ export function BunyaHomeMotion({
   useGSAP(() => {
     const root = scope.current;
     if (!root) return;
-    const cards = root.querySelectorAll<HTMLElement>(".store-product-grid .store-stagger-card");
+    const cards = root.querySelectorAll<HTMLElement>(".sf-product-grid .sf-product-card");
     if (!cards.length) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     gsap.fromTo(cards, { autoAlpha: 0, y: 10 }, { autoAlpha: 1, y: 0, duration: 0.28, stagger: 0.025, clearProps: "all" });

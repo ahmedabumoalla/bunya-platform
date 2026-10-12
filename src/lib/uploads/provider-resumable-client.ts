@@ -65,7 +65,7 @@ export async function uploadProviderDocuments(data: FormData, options: UploadOpt
     if (percent !== lastPercent) { lastPercent = percent; options.onProgress?.(percent); }
   };
   report(0);
-  // Lazy-load TUS only on submission. Signed object credentials never enter localStorage.
+  // Lazy-load TUS only on submission. Signed object credentials stay in memory.
   const { Upload } = documents.length ? await import("tus-js-client") : { Upload: null };
   for (const { documentType, documentKey, file } of documents) {
     const target = body.files.find((entry) => kind === "contractor" ? entry.documentKey === documentKey : entry.documentType === documentType);

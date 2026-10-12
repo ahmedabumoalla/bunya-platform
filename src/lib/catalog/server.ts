@@ -5,7 +5,7 @@ import { isProductVideo, signProductImageMap } from "@/lib/products/image-urls";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
-import { defaultLocale, isAppLocale, localeCookieName } from "@/lib/i18n/config";
+import { defaultLocale, isAppLocale, languageSwitchingEnabled, localeCookieName } from "@/lib/i18n/config";
 
 type CatalogProductRow = {
   id: string;
@@ -73,7 +73,7 @@ function normalizeVariantAttributes(value: unknown) {
 
 export async function loadPublicCatalog(): Promise<{ categories: string[]; products: Product[] }> {
   const storedLocale = (await cookies()).get(localeCookieName)?.value;
-  const locale = isAppLocale(storedLocale) ? storedLocale : defaultLocale;
+  const locale = languageSwitchingEnabled && isAppLocale(storedLocale) ? storedLocale : defaultLocale;
   const supabase = await createClient();
   const [categoriesResult, productsResult] = await Promise.all([
     supabase.from("product_categories").select("id,name,sort_order").eq("is_active", true).order("sort_order"),

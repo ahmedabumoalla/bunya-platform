@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { defaultLocale, isAppLocale, localeCookieName, localeDirection, type AppLocale } from "@/lib/i18n/config";
+import { defaultLocale, isAppLocale, languageSwitchingEnabled, localeCookieName, localeDirection, type AppLocale } from "@/lib/i18n/config";
 import { translate, translateStatus, type MessageKey } from "@/lib/i18n/messages";
 import { translateLiteral } from "@/lib/i18n/messages";
 
@@ -17,7 +17,7 @@ type LocaleContextValue = {
 const LocaleContext = createContext<LocaleContextValue | null>(null);
 
 export function LocaleProvider({ initialLocale, children }: { initialLocale?: string; children: ReactNode }) {
-  const [locale, setLocaleState] = useState<AppLocale>(isAppLocale(initialLocale) ? initialLocale : defaultLocale);
+  const [locale, setLocaleState] = useState<AppLocale>(languageSwitchingEnabled && isAppLocale(initialLocale) ? initialLocale : defaultLocale);
 
   useEffect(() => {
     document.documentElement.lang = locale;
@@ -81,6 +81,7 @@ export function LocaleProvider({ initialLocale, children }: { initialLocale?: st
   }, [locale]);
 
   const setLocale = useCallback(async (next: AppLocale) => {
+    if (!languageSwitchingEnabled) return;
     setLocaleState(next);
     document.cookie = `${localeCookieName}=${next}; Path=/; Max-Age=31536000; SameSite=Lax${location.protocol === "https:" ? "; Secure" : ""}`;
     try {
@@ -94,6 +95,7 @@ export function LocaleProvider({ initialLocale, children }: { initialLocale?: st
   }, []);
 
   useEffect(() => {
+    if (!languageSwitchingEnabled) return;
     if (document.cookie.split("; ").some((entry) => entry.startsWith(`${localeCookieName}=`))) return;
     void (async () => {
       try {

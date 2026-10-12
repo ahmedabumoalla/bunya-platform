@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { localeOptions, type AppLocale } from "@/lib/i18n/config";
+import { languageSwitchingEnabled, localeOptions, type AppLocale } from "@/lib/i18n/config";
 import { useLocale } from "./LocaleProvider";
 import styles from "./LanguageSwitcher.module.css";
 
 export function LanguageSwitcher({ compact = false }: { compact?: boolean }) {
   const { locale, t, setLocale } = useLocale();
   const [busy, setBusy] = useState(false);
+  if (!languageSwitchingEnabled) return null;
 
   async function change(value: string) {
     if (value === locale) return;
@@ -34,9 +35,11 @@ export function LanguageSwitcher({ compact = false }: { compact?: boolean }) {
 }
 
 export function FloatingLanguageSwitcher() {
+  if (!languageSwitchingEnabled) return null;
   return <div className={styles.floating}><LanguageSwitcher compact /></div>;
 }
 
 export function MobileHeaderLanguageSwitcher() {
+  if (!languageSwitchingEnabled) return null;
   return <div className={styles.mobileHeader}><LanguageSwitcher compact /></div>;
 }

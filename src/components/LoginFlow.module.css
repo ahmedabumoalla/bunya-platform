@@ -1,0 +1,76 @@
+.page {
+  --login-ink: #3f4547;
+  --login-muted: #686b6a;
+  --login-accent: #945335;
+  --login-line: #e4e3df;
+  --login-canvas: #f7f7f5;
+  --login-white: #fff;
+  min-height: 100dvh;
+  background: var(--login-canvas);
+  color: var(--login-ink);
+  font-family: var(--font-salma-arabic),var(--font-plex-arabic),sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+.page :where(h1,p) { margin: 0; }
+.page :where(h1,input,button) { font-family: inherit; }
+.page :where(a,button,input):focus-visible { outline: 3px solid var(--login-accent); outline-offset: 3px; }
+.topbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; max-width: 1168px; min-height: 88px; padding: 8px 32px; margin-inline: auto; }
+.brand { display: flex; align-items: center; width: 144px; height: 64px; overflow: hidden; }
+.brand :global(.bunya-logo) { width: 144px; max-width: none; flex-shrink: 0; }
+.back { display: inline-flex; align-items: center; justify-content: center; gap: 14px; min-height: 44px; color: var(--login-muted); font-size: 14px; }
+.back:hover { color: var(--login-accent); }
+.content { display: grid; place-items: center; min-height: calc(100dvh - 88px); padding: 32px 24px 80px; }
+.card { width: min(100%,440px); padding: 36px; border: 1px solid var(--login-line); border-radius: 18px; background: var(--login-white); box-shadow: 0 12px 40px #3f454708; }
+.heading { margin-bottom: 26px; text-align: start; }
+.heading h1 { font-size: 30px; font-weight: 700; line-height: 1.4; }
+.heading p { margin-top: 6px; color: var(--login-muted); font-size: 15px; }
+.form { display: grid; gap: 18px; }
+.field { display: grid; gap: 7px; min-width: 0; }
+.field label { color: var(--login-ink); font-size: 14px; font-weight: 500; }
+.field input { width: 100%; min-width: 0; height: 48px; padding: 10px 12px; border: 1px solid var(--login-line); border-radius: 9px; background: var(--login-canvas); color: var(--login-ink); font-size: 16px; font-weight: 400; transition: border-color 160ms ease,background-color 160ms ease; }
+.field input:hover { border-color: #c9a982; }
+.field input:focus { border-color: var(--login-accent); background: var(--login-white); }
+.field input[aria-invalid="true"] { border-color: #a13932; }
+.field input:disabled { opacity: .7; cursor: wait; }
+.passwordLabel { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.passwordLabel a { display: inline-flex; align-items: center; min-height: 44px; margin-block: -6px; color: var(--login-accent); font-size: 12px; }
+.passwordLabel a:hover,.signup a:hover { text-decoration: underline; text-underline-offset: 4px; }
+.passwordInput { position: relative; }
+.passwordInput input { padding-left: 50px; }
+.visibility { position: absolute; top: 2px; left: 2px; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--login-muted); }
+.visibility svg { width: 20px; height: 20px; }
+.visibility:hover { color: var(--login-accent); background: #f5ede6; }
+.visibility:disabled { cursor: wait; }
+.error { display: block; color: #963b35; font-size: 13px; line-height: 1.6; }
+.formError { padding: 10px 12px; border: 1px solid #e9c7c3; border-radius: 8px; background: #fff3f1; color: #963b35; font-size: 14px; line-height: 1.7; }
+.submit { display: flex; align-items: center; justify-content: center; min-height: 48px; margin-top: 2px; padding: 10px 16px; border: 0; border-radius: 9px; background: var(--login-ink); color: var(--login-white); font-size: 16px; font-weight: 500; transition: background-color 160ms ease; }
+.submit:hover:not(:disabled) { background: var(--login-accent); }
+.submit:disabled,.apple:disabled { opacity: .65; cursor: wait; }
+.signup { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; color: var(--login-muted); font-size: 14px; }
+.signup a { display: inline-flex; align-items: center; min-height: 44px; color: var(--login-accent); font-weight: 500; }
+.divider { display: flex; align-items: center; gap: 12px; color: var(--login-muted); font-size: 13px; }
+.divider::before,.divider::after { content: ""; flex: 1; height: 1px; background: var(--login-line); }
+.apple { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 10px 16px; border: 1px solid var(--login-line); border-radius: 9px; background: var(--login-white); color: var(--login-ink); font-size: 15px; }
+.apple svg { width: 22px; height: 22px; fill: currentColor; }
+@media (max-width: 600px) {
+  .page { background: var(--login-white); }
+  .topbar { min-height: 72px; padding: 4px 20px; border-bottom: 1px solid var(--login-line); }
+  .brand { width: 128px; height: 58px; }
+  .brand :global(.bunya-logo) { width: 128px; }
+  .content { min-height: 0; align-items: start; padding: 32px 24px max(24px,env(safe-area-inset-bottom)); }
+  .card { max-width: 400px; padding: 0; border: 0; border-radius: 0; box-shadow: none; }
+  .heading { margin-bottom: 24px; }
+  .heading h1 { font-size: 26px; }
+  .heading p { font-size: 14px; }
+  .form { gap: 16px; }
+}
+@media (max-width: 359px) {
+  .content { padding-inline: 20px; }
+  .field label { font-size: 13px; }
+  .passwordLabel a { font-size: 11px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .page * { transition: none !important; }
+}

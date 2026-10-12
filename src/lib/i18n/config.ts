@@ -3,6 +3,8 @@ export const supportedLocales = ["ar", "en", "ur", "hi", "bn", "fil"] as const;
 export type AppLocale = (typeof supportedLocales)[number];
 
 export const defaultLocale: AppLocale = "ar";
+// Translation is intentionally paused until the multilingual experience is ready.
+export const languageSwitchingEnabled = false;
 export const localeCookieName = "bunya_locale";
 
 export const localeOptions: ReadonlyArray<{

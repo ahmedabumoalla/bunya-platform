@@ -8,7 +8,8 @@ import { normalizeSaudiPhone } from "@/lib/auth/phone-verification";
 import { isAppRole } from "@/lib/auth/types";
 import { loginErrorMessage } from "@/lib/auth/login-errors";
 import { createClient } from "@/lib/supabase/client";
-import { AuthCard, PasswordFieldWithVisibilityCheckbox, PortalShell } from "./PortalUI";
+import { BunyaLogo } from "./brand/BunyaLogo";
+import styles from "./LoginFlow.module.css";
 
 type Errors = Record<string, string>;
 
@@ -39,6 +40,7 @@ export function LoginFlow({ initialError, returnTo }: { initialError?: string; r
   );
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState<"credentials" | "account">("credentials");
+  const [showPassword, setShowPassword] = useState(false);
 
   const startAppleSignIn = async () => {
     if (busy || !appleSignInEnabled) return;
@@ -153,14 +155,19 @@ export function LoginFlow({ initialError, returnTo }: { initialError?: string; r
   };
 
   return (
-    <PortalShell>
-      <AuthCard
-        eyebrow="تسجيل الدخول الموحد"
-        title="مرحبًا بعودتك"
-        description="ادخل إلى لوحة دورك عبر البريد الإلكتروني أو رقم الجوال وكلمة المرور."
-      >
-        <form className="portal-form" onSubmit={submit} noValidate>
-          <div className="portal-field">
+    <main className={styles.page}>
+      <header className={styles.topbar}>
+        <Link className={styles.brand} href="/" aria-label="بُنية — الصفحة الرئيسية"><BunyaLogo priority sizes="144px" /></Link>
+        <Link className={styles.back} href="/">الرئيسية <span aria-hidden="true">←</span></Link>
+      </header>
+      <div className={styles.content}>
+      <section className={styles.card} aria-labelledby="login-title">
+        <header className={styles.heading}>
+          <h1 id="login-title">تسجيل الدخول</h1>
+          <p>مرحبًا بعودتك إلى بُنية.</p>
+        </header>
+        <form className={styles.form} onSubmit={submit} noValidate aria-busy={busy}>
+          <div className={styles.field}>
             <label htmlFor="login-identifier">البريد الإلكتروني أو رقم الجوال</label>
             <input
               id="login-identifier"
@@ -168,6 +175,11 @@ export function LoginFlow({ initialError, returnTo }: { initialError?: string; r
               type="text"
               inputMode="text"
               autoComplete="username"
+              autoCapitalize="none"
+              spellCheck={false}
+              aria-invalid={Boolean(errors.identifier)}
+              aria-describedby={errors.identifier ? "login-identifier-error" : undefined}
+              disabled={busy}
               dir="ltr"
               value={identifier}
               onChange={(event) => {
@@ -175,27 +187,51 @@ export function LoginFlow({ initialError, returnTo }: { initialError?: string; r
                 setErrors({});
               }}
             />
-            {errors.identifier ? <small className="portal-error">{errors.identifier}</small> : null}
+            {errors.identifier ? <small className={styles.error} id="login-identifier-error" role="alert">{errors.identifier}</small> : null}
           </div>
-          <PasswordFieldWithVisibilityCheckbox
-            id="login-password"
-            name="password"
-            label="كلمة المرور"
-            value={password}
-            onChange={(value) => {
-              setPassword(value);
-              setErrors({});
-            }}
-            error={errors.password}
-          />
-          {errors.form ? <p className="portal-form-message portal-form-error">{errors.form}</p> : null}
-          <button className="portal-primary-button" disabled={busy} type="submit">
-            {busy ? stage === "credentials" ? "جارٍ التحقق من بيانات الدخول..." : "تم التحقق، جارٍ فتح لوحة التحكم..." : "تسجيل الدخول"}
+          <div className={styles.field}>
+            <div className={styles.passwordLabel}>
+              <label htmlFor="login-password">كلمة المرور</label>
+              <Link href="/forgot-password">نسيت كلمة المرور؟</Link>
+            </div>
+            <div className={styles.passwordInput}>
+              <input
+                id="login-password"
+                name="password"
+                type={showPassword ? "text" : "password"}
+                autoComplete="current-password"
+                dir="ltr"
+                value={password}
+                disabled={busy}
+                aria-invalid={Boolean(errors.password)}
+                aria-describedby={errors.password ? "login-password-error" : undefined}
+                onChange={(event) => { setPassword(event.target.value); setErrors({}); }}
+              />
+              <button
+                className={styles.visibility}
+                type="button"
+                disabled={busy}
+                aria-label={showPassword ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"}
+                aria-pressed={showPassword}
+                aria-controls="login-password"
+                onClick={() => setShowPassword((current) => !current)}
+              >
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" />
+                  {showPassword ? <path d="m3 3 18 18" /> : null}
+                </svg>
+              </button>
+            </div>
+            {errors.password ? <small className={styles.error} id="login-password-error" role="alert">{errors.password}</small> : null}
+          </div>
+          {errors.form ? <p className={styles.formError} role="alert">{errors.form}</p> : null}
+          <button className={styles.submit} disabled={busy} type="submit">
+            <span aria-live="polite">{busy ? stage === "credentials" ? "جارٍ تسجيل الدخول..." : "جارٍ فتح حسابك..." : "تسجيل الدخول"}</span>
           </button>
           {appleSignInEnabled ? (
             <>
-              <div className="portal-oauth-divider" aria-hidden="true"><span>أو</span></div>
-              <button className="portal-apple-button" disabled={busy} type="button" onClick={startAppleSignIn}>
+              <div className={styles.divider} aria-hidden="true"><span>أو</span></div>
+              <button className={styles.apple} disabled={busy} type="button" onClick={startAppleSignIn}>
                 <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
                   <path d="M16.37 12.15c.02 2.36 2.07 3.15 2.09 3.16-.02.06-.33 1.14-1.08 2.25-.65.96-1.33 1.91-2.39 1.93-1.04.02-1.38-.62-2.58-.62-1.19 0-1.57.6-2.55.64-1.02.04-1.8-1.03-2.46-1.99-1.34-1.94-2.36-5.48-.99-7.87a3.82 3.82 0 0 1 3.24-1.97c1.01-.02 1.97.68 2.58.68.61 0 1.76-.84 2.96-.72.51.02 1.93.2 2.84 1.54-.07.04-1.7.99-1.68 2.93ZM14.4 6.37c.54-.65.9-1.56.8-2.46-.78.03-1.73.52-2.29 1.17-.5.58-.94 1.5-.82 2.38.87.07 1.76-.44 2.31-1.09Z" />
                 </svg>
@@ -203,12 +239,13 @@ export function LoginFlow({ initialError, returnTo }: { initialError?: string; r
               </button>
             </>
           ) : null}
-          <div className="portal-links">
-            <Link href="/forgot-password">نسيت كلمة المرور؟</Link>
+          <p className={styles.signup}>
+            <span>ليس لديك حساب؟</span>
             <Link href={`/register${quoteReturnToQuery(returnTo)}`}>إنشاء حساب جديد</Link>
-          </div>
+          </p>
         </form>
-      </AuthCard>
-    </PortalShell>
+      </section>
+      </div>
+    </main>
   );
 }

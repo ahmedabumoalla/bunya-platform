@@ -18,15 +18,19 @@ const link={default:({children,...props})=>React.createElement('a',props,childre
 const accountStyles={default:new Proxy({},{get:(_,key)=>key})};
 const accountLinkModule=load('src/components/home/PublicAccountLink.tsx',{'next/link':link,'./PublicAccountHeader.module.css':accountStyles});
 const identity=role=>({status:'ready',userId:'user',primaryRole:role,activeRoles:[role,...(['provider','contractor'].includes(role)?['customer']:[])],profile:{isActive:true,mustChangePassword:false},details:{customer:{exists:true},provider:role==='provider'?{providerId:'supplier',companyName:'Test'}:null,contractor:role==='contractor'?{contractorProfileId:'builder'}:null,admin:null,driver:null}});
-const {StoreHeader}=load('src/components/home/HomeStorefrontUi.tsx',{
+const {StoreHeader,StoreQuickLinks}=load('src/components/home/HomeStorefrontUi.tsx',{
   'next/link':link,'@/lib/auth/public-account':accountModule,'@/lib/products/image-urls':{},
   '@/components/brand/BunyaLogo':{BunyaLogo:()=>null},'@/components/i18n/LanguageSwitcher':{MobileHeaderLanguageSwitcher:()=>null},'./PublicAccountHeader.module.css':accountStyles,'./PublicAccountLink':accountLinkModule,
 });
 for(const [role,href] of Object.entries(types.ROLE_ROUTES)) {
   const account=publicAccountFor(identity(role));assert.equal(account.href,href);
-  const html=renderToStaticMarkup(React.createElement(StoreHeader,{account,quoteCount:0,compact:false,menuOpen:false,quoteOpen:false,onMenuToggle(){},onNavigate(){},onQuoteOpen(){}}));
+  const html=renderToStaticMarkup(React.createElement(StoreHeader,{account,quoteCount:0,compact:false,quoteOpen:false,onQuoteOpen(){}}));
+  const shortcuts=renderToStaticMarkup(React.createElement(StoreQuickLinks,{account}));
+  assert.ok(shortcuts.includes(`href="${href}"`));
+  assert.ok(shortcuts.includes('ملفي الشخصي'));
+  assert.equal((shortcuts.match(/class="sf-quick-icon"/g)??[]).length,3);
   assert.match(html,new RegExp(`href="${href}"[^>]*aria-label="ملفي الشخصي`));
-  assert.match(html,new RegExp(`class="mobileActions"><a[^>]*href="${href}"`),'Account link exists outside mobile drawer on first render');
+  assert.match(html,new RegExp(`class="sf-mobile-account"><a[^>]*href="${href}"`),'Account link exists outside mobile drawer on first render');
   assert.equal(html.includes('href="/providers/join"'),false);
   assert.equal(html.includes('href="/contractors/join"'),false);
   assert.equal(html.includes('لوحة التحكم'),false);
@@ -34,8 +38,9 @@ for(const [role,href] of Object.entries(types.ROLE_ROUTES)) {
   assert.ok(html.includes(account.roleLabel));
 }
 const guest=publicAccountFor(null);assert.equal(guest.signedIn,false);assert.equal(guest.href,'/login');assert.equal(guest.canApplyProvider,true);
-const guestHtml=renderToStaticMarkup(React.createElement(StoreHeader,{account:guest,quoteCount:0,menuOpen:true}));
-for(const href of ['/login','/providers/join','/contractors/join']) assert.ok(guestHtml.includes(`href="${href}"`));
+const guestHtml=renderToStaticMarkup(React.createElement(StoreHeader,{account:guest,quoteCount:0}));
+assert.ok(guestHtml.includes('href="/login"'));
+assert.ok(renderToStaticMarkup(React.createElement(StoreQuickLinks,{account:guest})).includes('href="/login"'));
 assert.equal(guestHtml.includes('class="accountLink"'),false);
 const named=publicAccountFor({...identity('admin'),profile:{fullName:'  أحمد محمد  '}});
 assert.equal(named.displayName,'أحمد محمد');assert.equal(named.initials,'أم');
