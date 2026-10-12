@@ -6,6 +6,7 @@ import { lockBodyScroll } from "@/lib/body-scroll-lock";
 import { providerDocumentLabel } from "@/lib/join/provider-fields";
 import { contractorDocumentLabel } from "@/lib/join/contractor-fields";
 import { useDialogFocus } from "./useDialogFocus";
+import { AdminFilterBar } from "./AdminFilterBar";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import "./join-request-dialog.css";
@@ -493,21 +494,7 @@ export function AdminJoinRequests({ kind }: { kind: "provider" | "contractor" })
         title={kind === "provider" ? "طلبات انضمام المزودين" : "طلبات انضمام المقاولين"}
         description="بيانات Supabase الفعلية ومراجعة المستندات وإنشاء الحساب الآمن."
       />
-      <section className="admin-filters">
-        <input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="بحث بالاسم أو البريد أو الجوال"
-          aria-label="بحث بالاسم أو البريد أو الجوال"
-        />
-        <select aria-label="حالة الطلب" value={status} onChange={(event) => setStatus(event.target.value)}>
-          <option value="all">كل الحالات</option>
-          <option value="pending">قيد المراجعة</option>
-          <option value="needs_changes">بحاجة إلى تعديلات</option>
-          <option value="approved">معتمد</option>
-          <option value="rejected">مرفوض</option>
-        </select>
-      </section>
+      <AdminFilterBar query={query} onQueryChange={setQuery} searchLabel="بحث بالاسم أو البريد أو الجوال" placeholder="بحث بالاسم أو البريد أو الجوال" resultText={loading ? "جارٍ التحميل…" : `${filtered.length} طلب`} filters={[{ key: "status", label: "حالة الطلب", value: status, defaultValue: "all", options: [{ value: "all", label: "كل الحالات" }, { value: "pending", label: "قيد المراجعة" }, { value: "needs_changes", label: "بحاجة إلى تعديلات" }, { value: "approved", label: "معتمد" }, { value: "rejected", label: "مرفوض" }] }]} onApply={values => setStatus(values.status)} />
 
       {loading ? (
         <p>جاري التحميل...</p>

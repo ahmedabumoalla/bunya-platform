@@ -1,10 +1,15 @@
 # Bunya Platform — Project Reference
 
+## 2026-10-13 - Shared compact admin filters
+
+- Users, operations, records, settlements, notifications, join requests and catalog now share one search/filter bar. All filter options are in a compact modal with draft/apply/reset/cancel behavior, active count, focus restoration and scroll lock. Search icon occupies its own space. Existing backend queries/actions remain intact.
+- Fresh targeted component/users/notifications tests, TypeScript, ESLint, CSS parse and production build passed at01:58. Necessary local browser measurement with real shared/admin CSS confirmed320/375/1280 widths, no horizontal overflow and visible dialog footer; temporary preview removed. Authenticated full-page check unavailable. Details/limits in docs/task-state.md. Deployment pending.
+
 ## 2026-10-13 - Compact notifications and request references
 
 - Join notices now contain event, short reference, applicant/company name, mobile and review link. Removed email/form data/timestamps from bodies. Decisions and onboarding are brief; retain required secure revision link and temporary-login credentials/expiry.
 - General commerce/contractor/support notifications now use short event/ref/link; product review sends one text without catalog image/details. Push body has no long URL. Existing web notices use concise previews; details remain in their pages and original records. UUID display references use8 uppercase characters while full identifiers remain authoritative for links/actions; business codes unchanged.
-- Fresh targeted delivery/privacy/idempotency/credential/UI regressions, TypeScript/lint/mock guard and local build passed01:39-01:46. No database changes, real outbound messages, browser or native builds. Final publication pending; evidence in docs/task-state.md.
+- Fresh targeted delivery/privacy/idempotency/credential/UI regressions, TypeScript/lint/mock guard and local build passed01:39-01:46. No database changes, real outbound messages, browser or native builds. Published1187210947c87bf87768a6cae7f87a5d1af0fef5; Vercel dpl_RBQtFk953QinrjUzTEMW6Pj6cd63 READY and official domain/commit verified at01:47. Production read-only checks passed for protected notice routes and both join forms; no real messages sent. Evidence in docs/task-state.md; final release note is local documentation.
 
 
 ## 2026-10-13 - Administration redesign and actionable counters

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import styles from "./AdminUsers.module.css";
 import { AdminUserDetails } from "./AdminUserDetails";
+import { AdminFilterBar } from "./AdminFilterBar";
 
 type RoleKey = "customer" | "provider" | "contractor" | "driver" | "admin";
 type RoleRow = { role: RoleKey; is_primary: boolean; revoked_at: string | null };
@@ -21,7 +22,7 @@ type UserRow = {
 };
 
 const db = createClient();
-const roleLabels: Record<RoleKey, string> = { customer: "عميل", provider: "مزود", contractor: "مقاول", driver: "سائق", admin: "إدارة" };
+const roleLabels: Record<RoleKey, string> = { customer: "عميل", provider: "مورد", contractor: "مقاول", driver: "سائق", admin: "إدارة" };
 const roleOrder: RoleKey[] = ["customer", "provider", "contractor", "driver", "admin"];
 const pageSize = 15;
 
@@ -105,20 +106,28 @@ export function AdminUsers() {
       {roleOrder.map(key => <button key={key} aria-pressed={role === key} className={role === key ? styles.selectedMetric : ""} onClick={() => updateFilter(() => setRole(key))}><span>{roleLabels[key]}</span><strong>{loading ? "…" : counts.byRole[key].toLocaleString("en-US")}</strong><small>بدور نشط</small></button>)}
     </section>
 
-    <section className={`admin-panel ${styles.filterPanel}`}>
-      <div className={styles.searchRow}>
-        <label className={styles.search}><span aria-hidden>⌕</span><input value={query} onChange={event => updateFilter(() => setQuery(event.target.value))} placeholder="ابحث بالاسم، اسم المستخدم، البريد، الجوال أو المعرّف" aria-label="البحث في المستخدمين"/><kbd>بحث</kbd></label>
-        <label><span>ترتيب النتائج</span><select value={sort} onChange={event => updateFilter(() => setSort(event.target.value as typeof sort))}><option value="newest">الأحدث تسجيلًا</option><option value="oldest">الأقدم تسجيلًا</option><option value="updated">آخر تحديث</option><option value="name">الاسم أبجديًا</option></select></label>
-      </div>
-      <div className={styles.filterGrid}>
-        <label><span>الدور</span><select value={role} onChange={event => updateFilter(() => setRole(event.target.value as typeof role))}><option value="all">كل الأدوار</option>{roleOrder.map(key => <option value={key} key={key}>{roleLabels[key]}</option>)}</select></label>
-        <label><span>حالة الحساب</span><select value={accountStatus} onChange={event => updateFilter(() => setAccountStatus(event.target.value as typeof accountStatus))}><option value="all">الكل</option><option value="active">نشط فقط</option><option value="inactive">موقوف فقط</option></select></label>
-        <label><span>رقم الجوال</span><select value={phoneStatus} onChange={event => updateFilter(() => setPhoneStatus(event.target.value as typeof phoneStatus))}><option value="all">الكل</option><option value="verified">رقم جوال</option><option value="missing">بدون جوال موثق</option></select></label>
-        <label><span>تاريخ التسجيل</span><select value={period} onChange={event => updateFilter(() => setPeriod(event.target.value as typeof period))}><option value="all">كل الفترات</option><option value="7">آخر 7 أيام</option><option value="30">آخر 30 يومًا</option><option value="90">آخر 90 يومًا</option></select></label>
-        {hasFilters ? <button className="admin-ghost" onClick={reset}>مسح الفلاتر</button> : null}
-      </div>
-      <div className={styles.resultLine}><span>عرض {visible.length ? ((currentPage - 1) * pageSize + 1).toLocaleString("ar-SA") : "٠"}–{Math.min(currentPage * pageSize, filtered.length).toLocaleString("ar-SA")} من {filtered.length.toLocaleString("ar-SA")}</span>{hasFilters ? <b>الفلاتر مفعلة</b> : <small>جميع الحسابات</small>}</div>
-    </section>
+    <AdminFilterBar
+      query={query}
+      onQueryChange={value => updateFilter(() => setQuery(value))}
+      searchLabel="البحث في المستخدمين"
+      placeholder="الاسم أو الجوال أو البريد…"
+      resultText={loading ? "جارٍ التحميل…" : <>عرض {visible.length ? ((currentPage - 1) * pageSize + 1).toLocaleString("ar-SA") : "0"}–{Math.min(currentPage * pageSize, filtered.length).toLocaleString("ar-SA")} من {filtered.length.toLocaleString("ar-SA")}</>}
+      filters={[
+        { key: "role", label: "الدور", value: role, defaultValue: "all", options: [{ value: "all", label: "كل الأدوار" }, ...roleOrder.map(key => ({ value: key, label: roleLabels[key] }))] },
+        { key: "accountStatus", label: "حالة الحساب", value: accountStatus, defaultValue: "all", options: [{ value: "all", label: "الكل" }, { value: "active", label: "نشط" }, { value: "inactive", label: "موقوف" }] },
+        { key: "phoneStatus", label: "رقم الجوال", value: phoneStatus, defaultValue: "all", options: [{ value: "all", label: "الكل" }, { value: "verified", label: "رقم جوال مسجل" }, { value: "missing", label: "بدون رقم جوال" }] },
+        { key: "period", label: "تاريخ التسجيل", value: period, defaultValue: "all", options: [{ value: "all", label: "كل الفترات" }, { value: "7", label: "آخر 7 أيام" }, { value: "30", label: "آخر 30 يومًا" }, { value: "90", label: "آخر 90 يومًا" }] },
+        { key: "sort", label: "الترتيب", value: sort, defaultValue: "newest", options: [{ value: "newest", label: "الأحدث تسجيلًا" }, { value: "oldest", label: "الأقدم تسجيلًا" }, { value: "updated", label: "آخر تحديث" }, { value: "name", label: "الاسم أبجديًا" }] },
+      ]}
+      onApply={values => {
+        setRole(values.role as typeof role);
+        setAccountStatus(values.accountStatus as typeof accountStatus);
+        setPhoneStatus(values.phoneStatus as typeof phoneStatus);
+        setPeriod(values.period as typeof period);
+        setSort(values.sort as typeof sort);
+        setPage(1);
+      }}
+    />
 
     {error ? <div className="database-state database-error"><span>!</span><h2>تعذر تحميل المستخدمين</h2><p>{error}</p></div> : loading ? <div className="database-state"><span className="database-spinner"/><h2>جارٍ تحميل المستخدمين...</h2></div> : visible.length ? <section className={`admin-panel ${styles.tablePanel}`}>
       <div className={styles.tableWrap} tabIndex={0} role="region" aria-label="قائمة المستخدمين"><table><thead><tr><th>المستخدم</th><th>بيانات التواصل</th><th>الأدوار النشطة</th><th>الحالة</th><th>تاريخ التسجيل</th><th>آخر تحديث</th></tr></thead><tbody>{visible.map(user => <tr key={user.id}><td><div className={styles.identity}><span>{initials(user)}</span><div><button type="button" className={styles.userLink} onClick={() => setSelectedUser(user.id)} aria-label={`عرض ملف ${user.full_name || user.username || "المستخدم"}`} aria-haspopup="dialog">{user.full_name || "بدون اسم كامل"}</button><small>@{user.username || "غير محدد"}</small></div></div></td><td><div className={styles.contact}><b dir="ltr">{user.email || "بدون بريد"}</b><span dir="ltr">{user.mobile || "بدون جوال موثق"}</span></div></td><td><div className={styles.roles}>{activeRoles(user).map(item => <span data-role={item.role} key={item.role}>{roleLabels[item.role]}{item.is_primary ? <i title="الدور الأساسي">●</i> : null}</span>)}</div></td><td><div className={styles.accountState} data-active={user.is_active}><i/><div><b>{user.is_active ? "نشط" : "موقوف"}</b><small>{user.mobile ? "رقم الجوال مسجل" : "لم يُسجل رقم جوال"}</small></div></div></td><td><time dateTime={user.created_at}>{formatDate(user.created_at)}</time></td><td><time dateTime={user.updated_at}>{formatDate(user.updated_at)}</time></td></tr>)}</tbody></table></div>

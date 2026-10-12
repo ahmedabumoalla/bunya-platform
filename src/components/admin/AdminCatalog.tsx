@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import styles from "./AdminCatalog.module.css";
+import { AdminFilterBar } from "./AdminFilterBar";
 
 type Category = Record<string, unknown>;
 const categoryArt: Record<string, { description: string; path: string }> = {
@@ -50,15 +51,7 @@ export function AdminCatalog({ rows }: { rows: Category[] }) {
       </div>
     </header>
 
-    <div className={styles.toolbar}>
-      <label className={styles.search}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></svg>
-        <input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="ابحث عن تصنيف…" aria-label="البحث في التصنيفات" />
-      </label>
-      <div className={styles.filters} role="group" aria-label="حالة التصنيف">
-        {[["all", "الكل", rows.length], ["active", "نشط", active], ["inactive", "غير نشط", rows.length - active]].map(([value, label, count]) => <button key={value} type="button" aria-pressed={status === value} onClick={() => setStatus(String(value))}>{label}<span>{Number(count).toLocaleString("ar-SA")}</span></button>)}
-      </div>
-    </div>
+    <AdminFilterBar query={query} onQueryChange={setQuery} searchLabel="البحث في التصنيفات" placeholder="ابحث عن تصنيف…" filters={[{ key: "status", label: "حالة التصنيف", value: status, defaultValue: "all", options: [{ value: "all", label: `الكل (${rows.length.toLocaleString("ar-SA")})` }, { value: "active", label: `نشط (${active.toLocaleString("ar-SA")})` }, { value: "inactive", label: `غير نشط (${(rows.length - active).toLocaleString("ar-SA")})` }] }]} onApply={values => setStatus(values.status)} />
 
     <div className={styles.sectionHeading}><h2>تصنيفات المنتجات</h2><span role="status">{filtered.length.toLocaleString("ar-SA")} تصنيف</span></div>
     {filtered.length ? <div className={styles.grid}>
