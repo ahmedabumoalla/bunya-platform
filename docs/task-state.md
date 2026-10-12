@@ -1,6 +1,12 @@
 # Current task — Bunya platform
 
-Updated: 2026-10-12 23:40 Asia/Riyadh. Single join entry follow-up on 9ff610a ready for publication.
+Updated: 2026-10-12 23:46 Asia/Riyadh. Both application forms redesigned; supplier (مورد) wording applied to public join title/success/metadata/cities/consent link and storefront join footer. Ready for follow-up release on 06ac649.
+
+New JoinApplicationShell + isolated CSS replace legacy PortalShell/card/background in ProviderJoinFlow and ContractorApplicationForm, including success and contractor revision rendering. Real logo + type-choice link, concise heading, neutral form sections, 16px inputs, desktop two-column/mobile one-column, accessible focus, compact check/radio/upload controls and charcoal submit. Shared provider-join CSS updates document/policy presentation, including portaled modal font/colors. Provider catalog error uses the same new shell. Backend role keys/routes, field/validation/upload/submit handlers, consent data, policy content and revision semantics unchanged.
+
+Fresh PASS ~23:44-23:46 Asia/Riyadh (Windows Node20.20.2 Next16.3.4; dependency/config unchanged): npx tsc --noEmit; scoped ESLint; provider-join-validation 24 groups; contractor-join-validation 16 groups; contractor-web-fields 8 groups; node tmp/join-forms-design-check.mjs (exact handler comparison against 06ac649, both local real forms HTTP200 with labels/file controls/new shell and parsed compiled CSS); git diff --check. Source reviewed mobile/desktop, focus/touch, error/disabled/success and policy modal/reduced motion; no browser, real submission, database mutation or native build. Final footer terminology edit is copy-only and source-reviewed.
+
+Previous single-entry release: 06ac6496a5c0707673dc94813686322ae1ccd071 (origin/main verified). Vercel dpl_Abxaj8stLiJxdjqKKUqXaPDbXr2U READY with official alias; production join-choice HTTP check passed ~23:41, no submissions.
 
 User rejected the pair of small header icons. Shared JoinLinks now renders one 44px-minimum icon/text link "طلب انضمام" to /join, positioned opposite the logo on mobile and in the desktop actions area. New server-rendered /join page offers Contractor -> /contractors/join and Supplier -> /providers/join with isolated Salma/charcoal/copper responsive CSS. Existing application forms, eligibility flags and contractor bottom navigation preserved; /join/revise unchanged.
 

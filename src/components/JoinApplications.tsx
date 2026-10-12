@@ -6,7 +6,8 @@ import type { ParsedMapLocation } from "@/lib/bunya-types";
 import { parseGoogleMapsLink } from "@/lib/bunya-local";
 import { ProviderUploadError, uploadProviderDocuments } from "@/lib/uploads/provider-resumable-client";
 import { isValidProviderUsername, resolveProviderUsername } from "@/lib/join/provider-fields";
-import { MultiValueInput, PortalShell } from "./PortalUI";
+import { MultiValueInput } from "./PortalUI";
+import { JoinApplicationShell } from "./join/JoinApplicationShell";
 import { ContractorApplicationForm } from "@/components/join/ContractorApplicationForm";
 import { PolicyLinks } from "@/components/legal/PolicyLinks";
 import { normalizeProviderText, normalizeServiceCities } from "@/lib/join/provider-fields";
@@ -17,14 +18,14 @@ type Result = { applicationId: string; status: string; submittedAt: string };
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const mobilePattern = /^(?:\+?966|0)?5\d{8}$/;
 
-function Frame({ eyebrow, title, description, children }: { eyebrow: string; title: string; description: string; children: ReactNode }) {
-  return <PortalShell><section className="portal-card application-card"><header className="portal-heading application-heading"><p>{eyebrow}</p><h1>{title}</h1><span>{description}</span></header>{children}<PolicyLinks /></section></PortalShell>;
+function Frame({ title, description, children }: { title: string; description: string; children: ReactNode }) {
+  return <JoinApplicationShell title={title} description={description}>{children}<PolicyLinks /></JoinApplicationShell>;
 }
 function Field({ id, label, value, onChange, error, type = "text", placeholder }: { id: string; label: string; value: string; onChange: (value: string) => void; error?: string; type?: string; placeholder?: string }) {
   return <div className="portal-field"><label htmlFor={id}>{label}</label><input id={id} type={type} dir="auto" placeholder={placeholder} value={value} aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined} onChange={(event) => onChange(event.target.value)} />{error ? <small id={`${id}-error`} className="portal-error">{error}</small> : null}</div>;
 }
 function Success({ result, kind }: { result: Result; kind: "provider" | "contractor" }) {
-  return <PortalShell><section className="portal-card application-card"><header className="portal-heading application-heading"><p>تم استلام الطلب</p><h1>طلب انضمام {kind === "provider" ? "المزود" : "المقاول"}</h1><span>سيصلك رد بعد مراجعة الإدارة.</span></header><dl className="admin-record-meta"><div><dt>رقم الطلب</dt><dd dir="ltr">{result.applicationId}</dd></div><div><dt>الحالة</dt><dd>{result.status === "pending" ? "قيد المراجعة" : result.status}</dd></div></dl></section></PortalShell>;
+  return <JoinApplicationShell title={`تم استلام طلب انضمام ${kind === "provider" ? "المورد" : "المقاول"}`} description="سيصلك رد بعد مراجعة الإدارة."><dl className="join-result"><div><dt>رقم الطلب</dt><dd dir="ltr">{result.applicationId}</dd></div><div><dt>الحالة</dt><dd>{result.status === "pending" ? "قيد المراجعة" : result.status}</dd></div></dl></JoinApplicationShell>;
 }
 async function analyzeGoogleMapsLink(value: string): Promise<ParsedMapLocation> {
   const parsed = parseGoogleMapsLink(value);
@@ -105,7 +106,7 @@ export function ProviderJoinFlow({ categories }: { categories: string[] }) {
     } finally { submitting.current = false; setBusy(false); setUploadStatus(""); }
   };
   if (result) return <Success result={result} kind="provider"/>;
-  return <Frame eyebrow="بوابة الشركاء" title="طلب انضمام مزود" description="قدّم بيانات منشأتك دون الحاجة إلى تسجيل الدخول."><form className="application-form" onSubmit={submit} noValidate><input tabIndex={-1} autoComplete="off" className="sr-only" name="website"/>
+  return <Frame title="طلب انضمام مورد" description="أكمل بيانات منشأتك وأرفق المستندات."><form className="application-form" onSubmit={submit} noValidate><input tabIndex={-1} autoComplete="off" className="sr-only" name="website"/>
     <fieldset className="form-section"><legend><span>01</span> بيانات مقدم الطلب</legend><div className="form-grid"><Field id="provider-company" label="اسم الشركة بالعربية" value={form.companyName} onChange={(v)=>update("companyName",v)} error={errors.companyName}/><Field id="provider-company-en" label="اسم الشركة بالإنجليزية" value={form.companyNameEn} onChange={(v)=>update("companyNameEn",v)} error={errors.companyNameEn}/><Field id="provider-contact" label="اسم المسؤول (اختياري)" value={form.contactName} onChange={(v)=>update("contactName",v)} error={errors.contactName}/><Field id="provider-mobile" label="رقم الجوال" value={form.mobile} onChange={(v)=>update("mobile",v)} error={errors.mobile}/><Field id="provider-email" label="البريد الإلكتروني" type="email" value={form.email} onChange={(v)=>update("email",v)} error={errors.email}/><Field id="provider-user" label="اسم المستخدم (اختياري)" placeholder="اتركه فارغًا لاستخدام اسم الشركة بالإنجليزية" value={form.username} onChange={(v)=>update("username",v)} error={errors.username}/><ServiceCitiesInput values={serviceCities} onChange={(cities) => { setServiceCities(cities); setErrors((current) => ({ ...current, serviceCities: "" })); }} error={errors.serviceCities}/></div><p className="portal-hint">يمكن أن يتكوّن اسم الشركة من عدة كلمات تفصل بينها مسافات.</p></fieldset>
     <fieldset className="form-section"><legend><span>02</span> موقع مقدم الطلب</legend><div className="map-input-row"><Field id="provider-map" label="رابط Google Maps" value={form.mapsUrl} onChange={(v)=>{update("mapsUrl",v);setMap(null)}} error={errors.mapsUrl}/><button type="button" disabled={mapBusy} onClick={()=>void analyzeMap()}>{mapBusy?"جارٍ التحليل...":"تحليل الرابط"}</button></div>{map && map.kind!=="invalid"?<p className="portal-hint">{map.message}</p>:null}</fieldset>
     <fieldset className="form-section"><legend><span>03</span> التصنيفات الرئيسية المتوفرة لدى مقدم الطلب</legend><div className="choice-grid">{categories.map((category)=><label className={selected.includes(category)?"choice-card choice-card-active":"choice-card"} key={category}><input type="checkbox" checked={selected.includes(category)} onChange={()=>setSelected((current)=>current.includes(category)?current.filter((v)=>v!==category):[...current,category])}/>{category}</label>)}<label className={showOther?"choice-card choice-card-active":"choice-card"}><input type="checkbox" checked={showOther} onChange={(e)=>setShowOther(e.target.checked)}/>أخرى</label></div>{showOther?<MultiValueInput label="تصنيفات مخصصة" placeholder="اكتب التصنيف" values={custom} onChange={setCustom}/>:null}{errors.categories?<small className="portal-error">{errors.categories}</small>:null}</fieldset>

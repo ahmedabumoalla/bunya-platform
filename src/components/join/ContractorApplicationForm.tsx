@@ -1,7 +1,8 @@
 "use client";
 
 import { useRef, useState, type FormEvent } from "react";
-import { MultiValueInput, PortalShell } from "@/components/PortalUI";
+import { MultiValueInput } from "@/components/PortalUI";
+import { JoinApplicationShell } from "./JoinApplicationShell";
 import { PolicyLinks } from "@/components/legal/PolicyLinks";
 import { contractorDocumentAllowed, contractorDocumentType, isValidContractorUsername, normalizeContractorText, normalizeServiceCities, resolveContractorUsername, type ContractorType } from "@/lib/join/contractor-fields";
 import { ProviderUploadError, uploadProviderDocuments } from "@/lib/uploads/provider-resumable-client";
@@ -90,9 +91,9 @@ export function ContractorApplicationForm({ initial, revisionToken }: { initial?
       setSubmitError(error instanceof Error ? error.message : "تعذر إرسال الطلب.");
     } finally { submitting.current = false; setBusy(false); setUploadStatus(""); }
   }
-  if (result) return <PortalShell><section className="portal-card application-card"><h1>{revisionToken ? "تم استلام التعديلات" : "تم استلام طلب انضمام المقاول"}</h1><p>{revisionToken ? "عاد الطلب إلى قائمة المراجعة، وتم إلغاء رابط التعديل ولا يمكن استخدامه مرة أخرى." : "سيصلك رد بعد مراجعة الإدارة."}</p><p>رقم الطلب: <span dir="ltr">{result.applicationId}</span></p></section></PortalShell>;
+  if (result) return <JoinApplicationShell title={revisionToken ? "تم استلام التعديلات" : "تم استلام طلب انضمام المقاول"} description={revisionToken ? "عاد الطلب للمراجعة وانتهت صلاحية رابط التعديل." : "سيصلك رد بعد مراجعة الإدارة."}><dl className="join-result"><div><dt>رقم الطلب</dt><dd dir="ltr">{result.applicationId}</dd></div></dl></JoinApplicationShell>;
   const company = contractorType === "company";
-  return <PortalShell><section className="portal-card application-card"><header className="portal-heading application-heading"><p>بوابة المقاولين</p><h1>{revisionToken ? "تعديل طلب انضمام مقاول" : "طلب انضمام مقاول"}</h1><span>اختر نوع المقاول، ثم أضف بياناتك ومدن عملك ومرفقاتك.</span></header>
+  return <JoinApplicationShell title={revisionToken ? "تعديل طلب انضمام مقاول" : "طلب انضمام مقاول"} description="أكمل بياناتك ومدن عملك وأرفق المستندات.">
     {initial ? <aside className="portal-form-message" role="note"><b>رقم الطلب: <span dir="ltr">{initial.id}</span></b><br/>التعديل المطلوب: {initial.review_notes || "راجع البيانات المطلوبة ثم أعد الإرسال."}<br/><small>هذا الرابط يُلغى تلقائيًا فور إعادة إرسال الطلب.</small></aside> : null}
     <form className="application-form" onSubmit={submit} noValidate>
       <fieldset disabled={busy} className="application-form" style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
@@ -109,5 +110,5 @@ export function ContractorApplicationForm({ initial, revisionToken }: { initial?
         {errors.policy && !policyState.accepted ? <p className="portal-error" role="alert">{errors.policy}</p> : null}
       </fieldset>
       {submitError ? <p className="portal-form-error" role="alert">{submitError}</p> : null}<p className="portal-hint" role="status" aria-live="polite" aria-atomic="true">{uploadStatus}</p><button className="portal-primary-button application-submit" disabled={busy || !policyState.policy || !policyState.accepted}>{busy ? "جارٍ الإرسال..." : revisionToken ? "حفظ التعديلات وإعادة الإرسال" : "رفع طلب الانضمام"}</button>
-    </form><PolicyLinks/></section></PortalShell>;
+    </form><PolicyLinks/></JoinApplicationShell>;
 }

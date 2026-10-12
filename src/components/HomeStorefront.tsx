@@ -988,7 +988,7 @@ export function HomeStorefront({
       {(!account?.signedIn || account.canApplyProvider || account.canApplyContractor) ? (
         <nav className="sf-partner-links" aria-label="الانضمام إلى بُنية">
           <span>ابنِ فرصًا جديدة مع بُنية</span>
-          {(!account || account.canApplyProvider) ? <Link href="/providers/join">انضم كمزود مواد <span aria-hidden="true">←</span></Link> : null}
+          {(!account || account.canApplyProvider) ? <Link href="/providers/join">انضم كمورد مواد <span aria-hidden="true">←</span></Link> : null}
           {(!account || account.canApplyContractor) ? <Link href="/contractors/join">انضم كمقاول <span aria-hidden="true">←</span></Link> : null}
         </nav>
       ) : null}

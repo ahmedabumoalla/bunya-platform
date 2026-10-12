@@ -1,7 +1,14 @@
 # Bunya Platform — Project Reference
 
+## 2026-10-12 — Modern supplier and contractor application forms
+
+- Added shared isolated JoinApplicationShell for both public forms, success and contractor revision views. Actual logo/type-choice link, plain background, Salma Arabic, compact sections/controls, desktop two-column/mobile one-column fields and charcoal submission. Updated document cards and policy modal colors/font; preserved all attachments, required fields and accessibility behaviors.
+- Public supplier join title/success/browser metadata/city field/consent-link/footer now say مورد instead of مزود. Internal provider keys/routes and stored policy content unchanged. Provider catalog error shares the modern shell.
+- Fresh TypeScript, scoped ESLint, provider validation (24 groups), contractor validation (16), contractor web fields (8), local form HTTP/CSS checks and diff review passed ~23:44-23:46 Asia/Riyadh. Compared both forms' state/validation/upload/submit handlers byte-for-byte with 06ac649: unchanged. No browser, real submissions, database updates or native builds. Publishing under existing release authorization.
+
 ## 2026-10-12 — Single join request entry and role choice
 
+- Published 06ac6496a5c0707673dc94813686322ae1ccd071; origin/main verified, Vercel dpl_Abxaj8stLiJxdjqKKUqXaPDbXr2U READY and aliased to https://www.buniahksa.com. Production HTTP/CSS checks for the two headers, /join chooser and both real forms passed ~23:41 Asia/Riyadh. No form submissions or database changes.
 - Replaced the two small header role icons with one readable "طلب انضمام" icon/text link opposite the logo on mobile. Shared across homepage and contractor directory; existing guest eligibility and bottom navigation preserved.
 - New /join server page offers "مقاول" -> /contractors/join and "مورد" -> /providers/join; selecting goes directly to the existing real application form. Isolated responsive Salma/charcoal/copper styles, visible keyboard focus, no extra client state or backend change; /join/revise remains intact.
 - Fresh TypeScript, scoped ESLint, navigation/storefront regressions and local HTTP checks for all five routes passed ~23:39-23:40 Asia/Riyadh. New page CSS compiled/parsed; both application forms available. No browser, submissions or database mutations. Publishing this follow-up under existing release authorization.

@@ -25,7 +25,7 @@ export function appendProviderFiles(data: FormData, files: ProviderFiles) {
   }
 }
 
-export function ServiceCitiesInput({ values, onChange, error, label = "المدن التي يخدمها المزود" }: { values: string[]; onChange: (values: string[]) => void; error?: string; label?: string }) {
+export function ServiceCitiesInput({ values, onChange, error, label = "المدن التي يخدمها المورد" }: { values: string[]; onChange: (values: string[]) => void; error?: string; label?: string }) {
   const id = useId();
   const [draft, setDraft] = useState("");
   const [localError, setLocalError] = useState("");
@@ -102,7 +102,7 @@ export function appendProviderConsent(data: FormData, policy: ProviderJoinPolicy
   data.set("policyUpdatedAt", policy.updatedAt);
 }
 
-export function ProviderPolicyConsent({ value, label = "سياسة التقديم كمزود خدمة في بنية" }: { value: ReturnType<typeof useProviderPolicy>; label?: string }) {
+export function ProviderPolicyConsent({ value, label = "سياسة انضمام المورد" }: { value: ReturnType<typeof useProviderPolicy>; label?: string }) {
   const { policy, accepted, setAccepted, status, reload } = value;
   const [open, setOpen] = useState(false);
   const id = useId();
