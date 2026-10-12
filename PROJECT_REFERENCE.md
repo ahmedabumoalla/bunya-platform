@@ -1,7 +1,13 @@
 # Bunya Platform — Project Reference
 
+## 2026-10-12 — Supplier form horizontal overflow correction
+
+- User screenshot exposed a19px RTL overflow missed by earlier source/HTTP checks. Browser measurement was necessary and announced: at375px the root scrolled394px and the header/card shifted19px. Generic input styling had expanded the hidden website honeypot despite its sr-only class.
+- Excluded sr-only inputs from JoinApplicationShell's full-width input rule. Honeypot remains functional and hidden at1px; no overflow hiding or business-logic changes. Direct measurements on both forms at320/375/768/1280 confirmed scrollWidth=clientWidth and no visible overflowing elements. Evidence tmp/join-overflow-evidence.json; diff check passed ~23:50 Asia/Riyadh. No form submissions or data mutations; publishing CSS fix.
+
 ## 2026-10-12 — Modern supplier and contractor application forms
 
+- Released 419be01930b605959a6b4ddbe3c1a500338ab0bc (remote main verified), Vercel dpl_DF2oB4ajNPnuERQXfpYDJmh7qcNN READY and aliased to https://www.buniahksa.com. Production form HTTP/CSS checks passed ~23:47 Asia/Riyadh for both new form shells, labels, fields and attachments without submitting requests. Inspector: https://vercel.com/ahmedabumoallas-projects/bunya-platform/DF2oB4ajNPnuERQXfpYDJmh7qcNN. These final evidence notes are local documentation only.
 - Added shared isolated JoinApplicationShell for both public forms, success and contractor revision views. Actual logo/type-choice link, plain background, Salma Arabic, compact sections/controls, desktop two-column/mobile one-column fields and charcoal submission. Updated document cards and policy modal colors/font; preserved all attachments, required fields and accessibility behaviors.
 - Public supplier join title/success/browser metadata/city field/consent-link/footer now say مورد instead of مزود. Internal provider keys/routes and stored policy content unchanged. Provider catalog error shares the modern shell.
 - Fresh TypeScript, scoped ESLint, provider validation (24 groups), contractor validation (16), contractor web fields (8), local form HTTP/CSS checks and diff review passed ~23:44-23:46 Asia/Riyadh. Compared both forms' state/validation/upload/submit handlers byte-for-byte with 06ac649: unchanged. No browser, real submissions, database updates or native builds. Publishing under existing release authorization.

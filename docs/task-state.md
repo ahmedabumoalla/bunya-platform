@@ -1,6 +1,14 @@
 # Current task — Bunya platform
 
-Updated: 2026-10-12 23:46 Asia/Riyadh. Both application forms redesigned; supplier (مورد) wording applied to public join title/success/metadata/cities/consent link and storefront join footer. Ready for follow-up release on 06ac649.
+Updated: 2026-10-12 23:50 Asia/Riyadh. Diagnosed and fixed supplier form horizontal overflow on released 419be01; publishing CSS-only correction.
+
+Root cause: the new generic input sizing rule overrode Tailwind sr-only dimensions on the absolute website honeypot (100% width/min-height/padding), adding 19px to the RTL scrollable width. At mobile375, reproduced root scrollWidth394 and header/card x19..394. Excluded :global(.sr-only) inputs from that sizing rule; honeypot returns to width1px/minHeight0 without removal or changing spam protection. No overflow clipping workaround.
+
+Critical browser exception stated before use: source/HTTP checks had failed to detect reported rendered overflow; direct layout measurement required. Fresh local Chrome DevTools checks ~23:49-23:50 Asia/Riyadh on both anonymous supplier/contractor forms at emulated320/375/768/1280: root scrollWidth equals clientWidth in all 8 cases, no visible overflowing elements. Mobile375 now main x0..375; desktop client widths753/1265 account for15px scrollbar. Evidence tmp/join-overflow-evidence.json. Next dev compiled CSS successfully; git diff --check PASS. One CSS selector change only, prior JS validation tests not rerun; no submissions, backend changes or native builds. Earlier source/HTTP-only layout assurances are superseded by these measured results.
+
+Previous release: 419be01930b605959a6b4ddbe3c1a500338ab0bc (origin/main verified). Supplier (مورد) wording applied to public join title/success/metadata/cities/consent link and storefront join footer.
+
+Vercel dpl_DF2oB4ajNPnuERQXfpYDJmh7qcNN READY; production build succeeded and alias https://www.buniahksa.com verified. Fresh `node tmp/join-forms-design-check.mjs https://www.buniahksa.com` PASS ~23:47 Asia/Riyadh: both real forms HTTP200, new shell/titles/supplier labels, inputs/attachments/type selection and compiled CSS/local font. No submissions/browser. Inspector: https://vercel.com/ahmedabumoallas-projects/bunya-platform/DF2oB4ajNPnuERQXfpYDJmh7qcNN. Final notes are local documentation after release.
 
 New JoinApplicationShell + isolated CSS replace legacy PortalShell/card/background in ProviderJoinFlow and ContractorApplicationForm, including success and contractor revision rendering. Real logo + type-choice link, concise heading, neutral form sections, 16px inputs, desktop two-column/mobile one-column, accessible focus, compact check/radio/upload controls and charcoal submit. Shared provider-join CSS updates document/policy presentation, including portaled modal font/colors. Provider catalog error uses the same new shell. Backend role keys/routes, field/validation/upload/submit handlers, consent data, policy content and revision semantics unchanged.
 
