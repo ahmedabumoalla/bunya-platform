@@ -158,13 +158,13 @@ export function ProductCard({ product, onOpen }: { product: Product; index: numb
     <button aria-label={`عرض تفاصيل ${product.name}`} className="sf-product-card text-start" onClick={(event) => onOpen(product, event.currentTarget)} type="button">
       <span className="sf-card-visual-wrap">
         <ProductArtwork image={product.images[0]} />
-        <span className="sf-card-availability">{product.availabilityStatus}</span>
+        <span className="sf-card-availability">{product.catalogEntry ? "كتالوج بُنية" : product.availabilityStatus}</span>
       </span>
       <span className="sf-card-body">
         <span className="sf-card-category">{product.category}</span>
         <span className="sf-card-name">{product.name}</span>
         <span className="sf-card-description">{product.shortDescription || product.description}</span>
-        <span className="sf-card-meta"><b>{product.unit}</b><i aria-hidden="true" /><b>{product.delivery.window}</b></span>
+        <span className="sf-card-meta"><b>{product.unit}</b><i aria-hidden="true" /><b>{product.catalogEntry ? `${product.catalogEntry.variantCount.toLocaleString("ar-SA")} خيار` : product.delivery.window}</b></span>
         <span className="sf-card-open">عرض التفاصيل والمواصفات <span aria-hidden="true">←</span></span>
       </span>
     </button>

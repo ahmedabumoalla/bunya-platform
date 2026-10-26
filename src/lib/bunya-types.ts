@@ -58,6 +58,12 @@ export type Warranty = {
 };
 
 export type Product = {
+  catalogEntry?: {
+    subcategory: string;
+    variantCount: number;
+    searchText: string;
+    detailsPath: string;
+  };
   id: string;
   sku: string | null;
   name: string;

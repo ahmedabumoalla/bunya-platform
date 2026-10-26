@@ -38,6 +38,7 @@ const { HomeStorefront } = load('src/components/HomeStorefront.tsx', {
   '@/lib/quotes/pending-draft': load('src/lib/quotes/pending-draft.ts'),
   '@/lib/supabase/client': { createClient: () => ({ auth: { getUser: async () => ({ data: { user: null } }) } }) },
   './home/BunyaHomeMotion': { BunyaHomeMotion: () => null }, './home/HomeStorefrontUi': ui,
+  './home/PlatformProductDialog': { PlatformProductDialog: () => null },
 });
 const base = { sku: 'sku', unit: 'كيس', units: ['كيس'], description: 'مواد بناء', shortDescription: '',
   fullDescription: '', availability: 'متوفر', availabilityStatus: 'متوفر', leadTime: '',
@@ -243,4 +244,25 @@ const catalog = await loadPublicCatalog();
 assert.equal(catalog.products[0].name, 'منتج مسجل');
 assert.equal(queriedLocales.length, 4);
 assert.ok(queriedLocales.every(locale => locale === 'ar'));
-console.log('PASS storefront filters, RFQ empty/deep-link/add/quantity/remove flows, directory search/region/specialty/reset/error states, shared mobile navigation and paused client/server translation. No browser or live mutations.');
+// A platform catalog opens a display dialog, never the transactional RFQ form.
+state = [];
+const importedProducts = Array.from({ length: 51 }, (_, index) => ({ ...base, id: `brkz-${index}`, name: `Catalog ${index}`, category: 'الحديد',
+  catalogEntry: { subcategory: index < 30 ? 'تسليح' : 'شبك', variantCount: 2, searchText: index === 50 ? 'UniqueBrand' : '', detailsPath: `/catalog/products/${index}.json` } }));
+const catalogProps = { products: importedProducts, categories: ['الحديد'] };
+tree = render(catalogProps); assert.equal(cardIds(tree).length, 24);
+find(tree, n => n.type === 'button' && buttonText(n) === 'عرض المزيد من المنتجات').props.onClick();
+tree = render(catalogProps); assert.equal(cardIds(tree).length, 48);
+find(tree, n => n.type === 'button' && buttonText(n) === 'عرض المزيد من المنتجات').props.onClick();
+tree = render(catalogProps); assert.equal(cardIds(tree).length, 51);
+find(tree, n => n.type === 'input' && n.props.type === 'search').props.onChange({ currentTarget: { value: 'UniqueBrand' } });
+tree = render(catalogProps); assert.deepEqual(cardIds(tree), ['brkz-50'], 'Search includes variant facts beyond the first page');
+find(tree, n => n.props?.['aria-label'] === 'مسح البحث').props.onClick();
+tree = render(catalogProps); assert.equal(cardIds(tree).length, 24, 'Filters reset pagination');
+const subcategory = find(tree, n => n.props?.className === 'sf-subcategory-filter');
+find(subcategory, n => n.type === 'select').props.onChange({ target: { value: 'شبك' } });
+tree = render(catalogProps); assert.equal(cardIds(tree).length, 21);
+find(tree, n => n.type === ui.ProductCard).props.onOpen(importedProducts[30], {});
+tree = render(catalogProps);
+assert.ok(nodes(tree).some(n => n.props?.product?.id === 'brkz-30' && typeof n.props?.onClose === 'function'));
+assert.ok(!nodes(tree).some(n => n.props?.id === 'quote'), 'No supplier RFQ form for platform entries');
+console.log('PASS storefront filters, catalog pagination/subcategories/variant search/display-only details, RFQ flows, directory navigation and translation. No browser or live mutations.');

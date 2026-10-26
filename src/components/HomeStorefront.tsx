@@ -20,6 +20,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import type { PublicAccount } from "@/lib/auth/public-account";
 import { BunyaHomeMotion } from "./home/BunyaHomeMotion";
+import { PlatformProductDialog } from "./home/PlatformProductDialog";
 import {
   Icon,
   LatestProductCard,
@@ -232,6 +233,13 @@ export function HomeStorefront({
   const productOriginRef = useRef<HTMLElement | null>(null);
   const filterDialogRef = useRef<HTMLDialogElement>(null);
   const filterToggleRef = useRef<HTMLButtonElement>(null);
+  const [platformProduct, setPlatformProduct] = useState<Product | null>(null);
+  const [visibleProducts, setVisibleProducts] = useState(24);
+  const [subcategoryFilter, setSubcategoryFilter] = useState({ category: "الكل", name: "" });
+  const activeSubcategory = subcategoryFilter.category === activeCategory ? subcategoryFilter.name : "";
+  const subcategories = useMemo(() => [...new Set(products
+    .filter(product => activeCategory === "الكل" || product.category === activeCategory)
+    .map(product => product.catalogEntry?.subcategory).filter((name): name is string => Boolean(name)))], [products, activeCategory]);
 
   useEffect(() => {
     const dialog = filterDialogRef.current;
@@ -345,11 +353,13 @@ export function HomeStorefront({
     const result = products.filter((product) => {
       const matchesCategory =
         activeCategory === "الكل" || product.category === activeCategory;
+      const matchesSubcategory = !activeSubcategory || product.catalogEntry?.subcategory === activeSubcategory;
       const matchesQuery =
         !normalizedQuery ||
         product.name.toLowerCase().includes(normalizedQuery) ||
         product.category.toLowerCase().includes(normalizedQuery) ||
-        product.description.toLowerCase().includes(normalizedQuery);
+        product.description.toLowerCase().includes(normalizedQuery) ||
+        Boolean(product.catalogEntry?.searchText.toLowerCase().includes(normalizedQuery));
       const productRegions = [
         ...product.regions.map((region) => region.city),
         ...product.deliveryDetails.regions,
@@ -364,6 +374,7 @@ export function HomeStorefront({
 
       return (
         matchesCategory &&
+        matchesSubcategory &&
         matchesQuery &&
         matchesRegion &&
         matchesDelivery &&
@@ -380,6 +391,7 @@ export function HomeStorefront({
     return result;
   }, [
     activeCategory,
+    activeSubcategory,
     availableOnly,
     catalogSort,
     deliveryOnly,
@@ -400,6 +412,7 @@ export function HomeStorefront({
     updateFilters(() => {
       setQuery("");
       setActiveCategory("الكل");
+      setSubcategoryFilter({ category: "الكل", name: "" });
       setSelectedRegion("كل المناطق");
       setDeliveryOnly(false);
       setAvailableOnly(false);
@@ -435,11 +448,16 @@ export function HomeStorefront({
   };
 
   const updateFilters = (update: () => void) => {
-    if (catalogFiltersOpen) update();
-    else runViewTransition(update);
+    const apply = () => { update(); setVisibleProducts(24); };
+    if (catalogFiltersOpen) apply();
+    else runViewTransition(apply);
   };
 
   const openProduct = (product: Product, origin: HTMLElement) => {
+    if (product.catalogEntry) {
+      setPlatformProduct(product);
+      return;
+    }
     productOriginRef.current = origin;
     origin.style.viewTransitionName = "store-product-detail";
     const transition = runViewTransition(() => {
@@ -771,7 +789,7 @@ export function HomeStorefront({
       ref={storefrontRef}
     >
       <BunyaHomeMotion
-        detailOpen={Boolean(selectedProduct || quoteDrawerOpen)}
+        detailOpen={Boolean(selectedProduct || platformProduct || quoteDrawerOpen)}
         filterKey={`${activeCategory}:${query}`}
         scope={storefrontRef}
       />
@@ -864,6 +882,14 @@ export function HomeStorefront({
             })}
           </nav>
 
+          {subcategories.length > 0 && <label className="sf-subcategory-filter">
+            <span>التصنيف الفرعي</span>
+            <select value={activeSubcategory} onChange={event => updateFilters(() => setSubcategoryFilter({ category: activeCategory, name: event.target.value }))}>
+              <option value="">جميع التصنيفات الفرعية</option>
+              {subcategories.map(name => <option key={name} value={name}>{name}</option>)}
+            </select>
+          </label>}
+
         </div>
       </section>
 
@@ -912,7 +938,7 @@ export function HomeStorefront({
             <header className="sf-marketplace-feed-heading">
               <div>
                 <p className="sf-eyebrow">كتالوج بُنية</p>
-                <h2>{query || activeCatalogFilterCount || activeCategory !== "الكل" ? "نتائج البحث" : "مواد لمشروعك"}</h2>
+                <h2>{query || activeSubcategory || activeCatalogFilterCount || activeCategory !== "الكل" ? "نتائج البحث" : "مواد لمشروعك"}</h2>
               </div>
               <p aria-live="polite">
                 <strong>{filteredProducts.length.toLocaleString("ar-SA")}</strong>
@@ -932,7 +958,7 @@ export function HomeStorefront({
                 className={`sf-product-grid sf-product-results-${catalogView}`}
                 key={`${activeCategory}:${query}:${selectedRegion}:${deliveryOnly}:${availableOnly}:${newOnly}:${catalogSort}:${catalogView}`}
               >
-                {filteredProducts.map((product, index) => (
+                {filteredProducts.slice(0, visibleProducts).map((product, index) => (
                   <ProductCard
                     index={index}
                     key={product.id}
@@ -949,6 +975,10 @@ export function HomeStorefront({
                 {products.length ? <button onClick={resetCatalogFilters} type="button">عرض جميع المنتجات</button> : <Link className="sf-primary-button" href="/contractors">استكشف المقاولين <span aria-hidden="true">←</span></Link>}
               </div>
             )}
+            {filteredProducts.length > visibleProducts && !dataError && <div className="sf-catalog-pagination">
+              <p aria-live="polite">عرض {Math.min(visibleProducts, filteredProducts.length).toLocaleString("ar-SA")} من {filteredProducts.length.toLocaleString("ar-SA")} منتج</p>
+              <button type="button" onClick={() => setVisibleProducts(value => value + 24)}>عرض المزيد من المنتجات</button>
+            </div>}
           </div>
         </div>
       </section>
@@ -1590,6 +1620,8 @@ export function HomeStorefront({
           </aside>
         </div>
       ) : null}
+
+      {platformProduct && <PlatformProductDialog key={platformProduct.id} product={platformProduct} onClose={() => setPlatformProduct(null)} />}
 
       {selectedProduct ? (
         <div className="store-detail-backdrop" onMouseDown={closeProduct}>
