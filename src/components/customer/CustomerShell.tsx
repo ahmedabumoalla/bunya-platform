@@ -8,7 +8,8 @@ import { useAuthIdentity } from "@/components/auth/AuthIdentityProvider";
 import { createClient } from "@/lib/supabase/client";
 const groups = [
   { title: "المشتريات والمشاريع", links: [
-    ["الرئيسية", "/customer", "home"], ["طلب عرض سعر", "/customer/quote-request/new", "plus"],
+    ["الرئيسية", "/customer", "home"], ["طلب عرض سعر", "/#products", "plus"],
+    ["عروض الأسعار", "/customer/managed-quotes", "quote"],
     ["المحادثات والعروض", "/customer/conversations", "quote"],
     ["طلبات عروض الأسعار", "/customer/quote-requests", "list"], ["عروض بُنية", "/customer/quotes", "quote"],
     ["الطلبات", "/customer/orders", "box"], ["متابعة التوصيل", "/customer/deliveries", "truck"],
@@ -89,7 +90,7 @@ export function CustomerShell({ children }: { children: ReactNode }) {
       <div className="customer-sidebar-footer">{identity.activeRoles.includes("provider") && identity.details.provider ? <Link className="customer-logout" href="/merchant"><span aria-hidden="true">↔</span><b>حساب المورد</b></Link> : null}{identity.activeRoles.includes("contractor") && identity.details.contractor ? <Link className="customer-logout" href="/contractor"><span aria-hidden="true">↔</span><b>{"حساب المقاول"}</b></Link> : null}<Link href="/customer/profile" onClick={() => setDrawer(false)} className="customer-account"><span>{viewerName.slice(0, 1)}</span><div><strong>{viewerName}</strong><small>إدارة حسابك</small></div></Link><LogoutButton className="customer-logout"><span><CustomerIcon name="logout" /></span><b>تسجيل الخروج</b></LogoutButton></div>
     </aside>
     <section className="customer-workspace" inert={drawer}>
-      <header className="customer-topbar"><button ref={menu} onClick={() => setDrawer(true)} aria-label="فتح القائمة" aria-expanded={drawer} aria-controls="customer-navigation"><CustomerIcon name="menu" /></button><div className="customer-current-section"><p>مساحتك في بُنية</p><strong>{label}</strong></div><div className="customer-top-actions"><Link className="customer-quick" href="/customer/quote-request/new"><CustomerIcon name="plus" /> طلب عرض سعر</Link><Link href="/customer/notifications" aria-label={`الإشعارات${unread ? `، ${unread} غير مقروءة` : ""}`}><CustomerIcon name="bell" />{unread > 0 ? <em>{unread > 99 ? "99+" : unread}</em> : null}</Link><Link href="/customer/profile" aria-label="الملف الشخصي">{viewerName.slice(0, 1)}</Link></div></header>
+      <header className="customer-topbar"><button ref={menu} onClick={() => setDrawer(true)} aria-label="فتح القائمة" aria-expanded={drawer} aria-controls="customer-navigation"><CustomerIcon name="menu" /></button><div className="customer-current-section"><p>مساحتك في بُنية</p><strong>{label}</strong></div><div className="customer-top-actions"><Link className="customer-quick" href="/#products"><CustomerIcon name="plus" /> طلب عرض سعر</Link><Link href="/customer/notifications" aria-label={`الإشعارات${unread ? `، ${unread} غير مقروءة` : ""}`}><CustomerIcon name="bell" />{unread > 0 ? <em>{unread > 99 ? "99+" : unread}</em> : null}</Link><Link href="/customer/profile" aria-label="الملف الشخصي">{viewerName.slice(0, 1)}</Link></div></header>
       <div className="customer-breadcrumb"><Link href="/customer">حساب العميل</Link><span aria-hidden="true">/</span><span>{label}</span><Link href="/products" className="customer-catalog-link">تصفح المنتجات ←</Link></div>
       <div id="customer-content" tabIndex={-1} className="customer-content">{children}</div>
     </section>

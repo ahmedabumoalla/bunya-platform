@@ -8,7 +8,7 @@ import type { AppRole } from "@/lib/auth/types";
 import { createClient } from "@/lib/supabase/client";
 import { ContractorConversations } from "@/components/conversations/ContractorConversations";
 import { ProjectConversationBoundary } from "@/components/conversations/ProjectConversationBoundary";
-import {AdminDeliveryCode,AdminQuoteAssembly,CustomerQuoteDecision,CustomerRfqForm,DriverDeliveryWorkflow,ProviderFulfillmentWorkflow} from "@/components/commerce/CommerceActions";
+import {AdminDeliveryCode,AdminQuoteAssembly,CustomerQuoteDecision,DriverDeliveryWorkflow,ProviderFulfillmentWorkflow} from "@/components/commerce/CommerceActions";
 import {ProviderRfqResponse} from "@/components/commerce/ProviderRfqResponse";
 import {AdminJoinRequests} from "@/components/admin/AdminJoinRequests";
 import{OpportunityProposal,ProjectProposalDecisions,ProjectRequestForm}from"@/components/contractor/ContractorWorkflows";
@@ -34,6 +34,7 @@ import { CustomerPolicies } from "@/components/customer/CustomerPolicies";
 import { CustomerNotifications } from "@/components/customer/CustomerNotifications";
 import { CustomerSupport } from "@/components/customer/CustomerSupport";
 import { CustomerOrderDetail } from "@/components/customer/CustomerOrderDetail";
+import { ManagedQuotes } from "@/components/quotes/ManagedQuotes";
 import { adminRecordPages } from "@/lib/admin/records";
 import{CustomerAddresses,CustomerBilling,CustomerDashboard,CustomerDeliveries,CustomerOrders,CustomerProfile,CustomerProjectRequests,CustomerQuoteRequestDetail,CustomerQuoteRequests,CustomerQuotes,CustomerSavedContractors}from"@/components/customer/CustomerWorkspace";
 import{ContractorProfileEditor}from"@/components/contractor/ContractorProfileEditor";
@@ -314,8 +315,10 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
   const providerAccount = providerHome ? identity.details.provider : null;
   const providerProductChangeMatch = pathname.match(/^\/merchant\/products\/([^/]+)\/change-request$/);
   const adminProductChangeMatch = pathname.match(/^\/admin\/products\/changes\/([^/]+)$/);
+  const managedQuoteMatch = pathname.match(/^\/(admin|customer)\/managed-quotes(?:\/([^/]+))?$/);
 
   useEffect(() => {
+    if (/^\/(admin|customer)\/managed-quotes(?:\/[^/]+)?$/.test(pathname)) return;
     if (pathname.endsWith("/conversations")) return;
     if (pathname === "/driver/change-password") return;
     // Dedicated customer views own their session-scoped queries and states.
@@ -367,6 +370,7 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
     return () => { active = false; };
   }, [config, detailId, pathname, role]);
 
+  if (managedQuoteMatch && (role === "admin" || role === "customer") && managedQuoteMatch[1] === role) return <ManagedQuotes key={pathname} scope={role} id={managedQuoteMatch[2] ?? null} />;
   if (role === "admin" && pathname === "/admin") return <AdminDashboard />;
   if (role === "admin" && adminRecordPages[config.path] && (config.path !== "/admin/catalog" || detailId)) return <AdminRecords key={pathname} path={config.path} id={detailId} />;
   if (role === "customer" && pathname === "/customer/policies") return <CustomerPolicies />;
@@ -375,7 +379,7 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
   if (pathname === "/driver/change-password") return children;
   if(role==="customer"&&pathname.endsWith("/payment"))return children;
   if(role==="customer"&&pathname==="/customer")return <CustomerDashboard/>;
-  if(role==="customer"&&pathname==="/customer/quote-request/new")return <CustomerRfqForm/>;
+  if(role==="customer"&&pathname==="/customer/quote-request/new")return <Link href="/#products">اختيار المنتجات وإرسال طلب عرض سعر ←</Link>;
   if(role==="provider"&&pathname.startsWith("/merchant/quote-requests/")&&detailId)return <ProviderRfqResponse id={detailId}/>;
   if(role==="customer"&&pathname.startsWith("/customer/quotes/")&&detailId)return <CustomerQuoteDecision key={detailId} id={detailId}/>;
   if(role==="admin"&&pathname.startsWith("/admin/sourcing/")&&detailId)return <AdminQuoteAssembly id={detailId}/>;

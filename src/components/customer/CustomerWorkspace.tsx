@@ -306,12 +306,15 @@ export function CustomerDashboard() {
       loading={loading}
       error={error}
       actions={
+        <>
+        <Link className="customer-primary-link" href="/customer/managed-quotes">عروض الأسعار الحالية</Link>
         <Link
           className="customer-primary-link"
-          href="/customer/quote-request/new"
+          href="/#products"
         >
           طلب عرض سعر
         </Link>
+        </>
       }
     >
       <section className={`database-metrics ${styles.dashboardMetrics}`} aria-label="نظرة على حسابك">
@@ -339,7 +342,7 @@ export function CustomerDashboard() {
       <section className="database-panel customer-quick-panel">
         <div className={styles.sectionIntro}><span>خطوتك القادمة</span><h2>ماذا يحتاج مشروعك اليوم؟</h2><p>جهّز المواد، ابحث عن مقاول، ورتّب وصول الطلب إلى موقعك.</p></div>
         <div className="customer-quick-actions">
-          <Link href="/customer/quote-request/new">
+          <Link href="/#products">
             <b>طلب مواد بناء</b>
             <span>أرسل المنتجات والكميات للحصول على عرض موحد.</span>
           </Link>
@@ -497,7 +500,7 @@ export function CustomerQuoteRequests() {
       actions={
         <Link
           className="customer-primary-link"
-          href="/customer/quote-request/new"
+          href="/#products"
         >
           طلب جديد
         </Link>
@@ -566,7 +569,7 @@ export function CustomerQuoteRequests() {
           action={
             <Link
               className="customer-primary-link"
-              href="/customer/quote-request/new"
+              href="/#products"
             >
               إنشاء طلب عرض سعر
             </Link>
@@ -992,7 +995,7 @@ export function CustomerQuotes() {
           action={
             <Link
               className="customer-primary-link"
-              href="/customer/quote-request/new"
+              href="/#products"
             >
               إرسال طلب مواد
             </Link>

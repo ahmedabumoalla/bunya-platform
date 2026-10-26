@@ -94,5 +94,6 @@
   "093_professional_customer_accounts.sql": "83cf7406a8f0055445acb7038f612fa1f59251ab8cea3c03c8f32eddceed3a1e",
   "094_contractor_platform_conversations.sql": "49b581973a68a88dbc0abd106f1b751e3a8c922450bcabf4e92dc4a83131723b",
   "095_restrict_conversation_helpers.sql": "2b4df382063374b09685cbdaf61c468ee438dc19cdef1d8c61dd4a9752dd449a",
-  "096_admin_attention_counts.sql": "97d6eb18dea5bcfa5266db0756ee0f18852a5efb57e7150adea2e383ab488ab8"
+  "096_admin_attention_counts.sql": "97d6eb18dea5bcfa5266db0756ee0f18852a5efb57e7150adea2e383ab488ab8",
+  "097_managed_admin_quotes.sql": "758fdc702d9ab1a5cc5bbbcb1d04fe8cc4e11a730ab9ab92f39d6f28ba5044d2"
 }

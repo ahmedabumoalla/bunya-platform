@@ -1,6 +1,16 @@
 # Bunya Platform — Project Reference
 
+## 2026-10-27 - Admin-managed material quotes (current behavior)
+
+Supersedes the display-only catalog and supplier dispatch described below. All 598 imported products support exact SKU/unit/quantity selection and a combined quote cart. New requests go to authorized administrators with in-app notifications and `/admin/managed-quotes`; customer tracking is `/customer/managed-quotes`. Administrators set line prices, sale/rental duration, warranty, delivery charges/date and terms. Owner clarified: customer acceptance only; payment is coordinated by the administrator outside the platform. No new payment session or supplier quote is created.
+
+Migration097 applied to the linked database. Service-only mutations validate active verified customer/admin identities, sourcing permission, ownership, quote revision and state. Customer APIs hide draft pricing. Delivery code is encrypted, customer-only, accepted-order-only; admin submits the code received through the supplier to prove delivery. Five failed attempts require admin reissue; all mutations are audited. Old supplier submission RPCs are revoked for authenticated callers; existing historical orders remain intact. Native app updates remain deferred and must adopt the new API later.
+
+Fresh 2026-10-27 01:10 Asia/Riyadh checks on Windows Node24.21.0/Next16.3.4: production build, scoped ESLint, managed quote HTTP/UI/SQL tests, product dialog/storefront regressions, SQL/hash/mock/color guards and diff check PASS. Actual linked-schema transaction rehearsal passed submission, notifications, pricing, acceptance and incorrect/correct delivery code, then rolled back all test records. HTTP test sandbox initially lacked URL; corrected fixture and rerun passed. Release verification will be recorded after GitHub/Vercel completes.
+
 ## 2026-10-27 - Independent public product catalog
+
+Released 2026-10-27 00:45-00:46 Asia/Riyadh: main/origin140ef5b324133cfe87e119c831cc16a3699ca628, Vercel dpl_AHTToQZiDsYttrEqqwBQ6tFjJ884 READY, exact official www.buniahksa.com alias verified. Fresh anonymous production HTTP passed for598 product IDs in homepage data,24 visible initial cards,12 category detail/image samples. Handoff published with implementation. This result note is local post-release documentation; no redundant deployment for verification notes.
 
 Imported the owner's requested public BRKZ catalog: 598 products, 12 categories/52 subcategories, 6,946 SKU variants, 566 unique locally stored WebP images (18,625,612 bytes). Facts and exact SKU attribute paths preserved; descriptions newly composed from classification/units. 44 SKU records have no published attributes and remain explicitly unknown. Source mapping/retrieval time in src/data/catalog/provenance.json; reproducible collector/preparer and README included. No source runtime dependency, supplier identities, DB mutations, assumed prices/stock/delivery or mobile changes.
 

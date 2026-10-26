@@ -22,7 +22,7 @@ await Promise.all(Array.from({ length: 4 }, async () => {
     const parsed = new URL(url);
     if (parsed.protocol !== 'https:' || parsed.hostname !== 'res.cloudinary.com' || !parsed.pathname.startsWith('/dtbk6u1pb/image/upload/')) throw new Error(`Unexpected image host/path: ${url}`);
     const destination = path.join(imageDir, imageName(url));
-    try { totalBytes += (await stat(destination)).size; continue; } catch (error) { if (error.code !== 'ENOENT') throw error; }
+    try { const cachedImage = await stat(destination); totalBytes += cachedImage.size; continue; } catch (error) { if (error.code !== 'ENOENT') throw error; }
     let buffer;
     for (let attempt = 0; attempt < 4; attempt++) {
       try {
@@ -47,6 +47,7 @@ await Promise.all(Array.from({ length: 4 }, async () => {
 let missingAttributes = 0;
 const summaries = [];
 const provenance = [];
+const quoteOptions = {};
 for (const product of snapshot.products) {
   const variants = flattenVariants(product);
   missingAttributes += variants.filter(variant => !variant.attributes.length).length;
@@ -57,6 +58,7 @@ for (const product of snapshot.products) {
   // Use factual names/specifications with original summary wording, not copied marketing prose.
   const description = `${product.name} ضمن ${product.category} — ${product.subcategory}. ${units.length ? `وحدات القياس: ${units.join('، ')}.` : ''}`.trim();
   const detail = { id, name: product.name, category: product.category, subcategory: product.subcategory, description, units, images, attributes, variants };
+  quoteOptions[id] = variants;
   const serialized = JSON.stringify(detail);
   const detailsPath = `/catalog/products/${id}.${hash(serialized)}.json`;
   await writeFile(path.join(root, 'public', detailsPath), serialized);
@@ -66,5 +68,6 @@ for (const product of snapshot.products) {
 }
 const manifest = { source: snapshot.source, retrievedAt: snapshot.retrievedAt, categories: snapshot.categories, products: summaries };
 await writeFile(path.join(dataDir, 'imported.json'), JSON.stringify(manifest));
+await writeFile(path.join(dataDir, 'quote-options.json'), JSON.stringify(quoteOptions));
 await writeFile(path.join(dataDir, 'provenance.json'), JSON.stringify({ source: snapshot.source, retrievedAt: snapshot.retrievedAt, records: provenance }));
 console.log(JSON.stringify({ products: summaries.length, categories: snapshot.categories.length, subcategories: snapshot.categories.reduce((sum, category) => sum + category.subcategories.length, 0), variants: summaries.reduce((sum, product) => sum + product.variantCount, 0), missingAttributes, images: urls.length, imageBytes: totalBytes }));

@@ -244,7 +244,7 @@ const catalog = await loadPublicCatalog();
 assert.equal(catalog.products[0].name, 'منتج مسجل');
 assert.equal(queriedLocales.length, 4);
 assert.ok(queriedLocales.every(locale => locale === 'ar'));
-// A platform catalog opens a display dialog, never the transactional RFQ form.
+// Imported products add exact selected SKU facts to the shared quote cart.
 state = [];
 const importedProducts = Array.from({ length: 51 }, (_, index) => ({ ...base, id: `brkz-${index}`, name: `Catalog ${index}`, category: 'الحديد',
   catalogEntry: { subcategory: index < 30 ? 'تسليح' : 'شبك', variantCount: 2, searchText: index === 50 ? 'UniqueBrand' : '', detailsPath: `/catalog/products/${index}.json` } }));
@@ -264,5 +264,26 @@ tree = render(catalogProps); assert.equal(cardIds(tree).length, 21);
 find(tree, n => n.type === ui.ProductCard).props.onOpen(importedProducts[30], {});
 tree = render(catalogProps);
 assert.ok(nodes(tree).some(n => n.props?.product?.id === 'brkz-30' && typeof n.props?.onClose === 'function'));
-assert.ok(!nodes(tree).some(n => n.props?.id === 'quote'), 'No supplier RFQ form for platform entries');
-console.log('PASS storefront filters, catalog pagination/subcategories/variant search/display-only details, RFQ flows, directory navigation and translation. No browser or live mutations.');
+const getPlatformDialog = () => find(tree, n => n.props?.product?.id === 'brkz-30' && typeof n.props?.onAddSelection === 'function');
+const selection = { sku: 'STEEL-20', quantity: 2, unit: 'كيس', notes: '', attributes: [{ label: 'المقاس', value: '20' }] };
+assert.equal(getPlatformDialog().props.onAddSelection(selection), null);
+tree = render(catalogProps);
+assert.equal(find(tree, n => n.type === ui.PublicMobileNav).props.quoteCount, 1);
+assert.equal(getPlatformDialog().props.onAddSelection({ ...selection, quantity: 3 }), null);
+tree = render(catalogProps);
+assert.equal(find(tree, n => n.type === ui.PublicMobileNav).props.quoteCount, 1, 'Duplicate SKU/unit merges quantities');
+assert.ok(getPlatformDialog().props.onAddSelection({ ...selection, quantity: 1000000 }), 'Duplicate total cannot exceed maximum');
+tree = render(catalogProps);
+assert.equal(getPlatformDialog().props.onAddSelection({ ...selection, sku: 'STEEL-25' }), null);
+tree = render(catalogProps);
+assert.equal(find(tree, n => n.type === ui.PublicMobileNav).props.quoteCount, 2, 'Different SKU stays a separate cart line');
+getPlatformDialog().props.onReviewQuote();
+await Promise.resolve(); tree = render(catalogProps);
+assert.ok(!nodes(tree).some(n => typeof n.props?.onAddSelection === 'function'), 'Review closes product dialog');
+assert.equal(nodes(tree).filter(n => n.props?.className === 'sf-rfq-drawer-item').length, 2);
+const quantities = nodes(tree).filter(n => n.type === 'input' && n.props['aria-label'] === 'كمية Catalog 30');
+assert.deepEqual(quantities.map(n => n.props.value).sort(), [2, 5]);
+assert.ok(quantities.every(n => n.props.min === .001));
+assert.ok(renderToStaticMarkup(tree).includes('عرض سعر من إدارة بُنية'));
+assert.ok(!renderToStaticMarkup(tree).includes('منافسة أسعار لمدة 3 ساعات'));
+console.log('PASS storefront filters, catalog pagination/subcategories/variant search, shared cart SKU merging and quantity limits, admin RFQ copy, directory navigation and translation. No browser or live mutations.');

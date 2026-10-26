@@ -83,16 +83,17 @@ export function normalizePendingStorefrontQuote(value: unknown): PendingStorefro
     const unitId = text(item.unitId, 40);
     const measurementId = text(item.measurementId, 40);
     const quantity = Number(item.quantity);
-    if (!isUuid(productId) || (unitId && !isUuid(unitId)) || (measurementId && !isUuid(measurementId)) || !Number.isFinite(quantity) || quantity <= 0 || quantity > 1_000_000 || quantity !== Number(quantity.toFixed(3))) return null;
+    const isPlatformProduct = /^brkz-[0-9a-f]{24}$/.test(productId);
+    if ((!isUuid(productId) && !isPlatformProduct) || (unitId && !isUuid(unitId)) || (measurementId && !isUuid(measurementId)) || (isPlatformProduct && (unitId || measurementId)) || !Number.isFinite(quantity) || quantity <= 0 || quantity > 1_000_000 || quantity !== Number(quantity.toFixed(3))) return null;
     const selectedVariants: QuoteVariantSelection[] = [];
     if (item.selectedVariants !== undefined && !Array.isArray(item.selectedVariants)) return null;
     if (Array.isArray(item.selectedVariants)) {
-      if (item.selectedVariants.length > 20) return null;
+      if (item.selectedVariants.length > (isPlatformProduct ? 1 : 20)) return null;
       for (const candidateVariant of item.selectedVariants) {
         if (!candidateVariant || typeof candidateVariant !== "object") return null;
         const variant = candidateVariant as Record<string, unknown>;
-        const id = text(variant.id, 40);
-        if (!isUuid(id) || selectedVariants.some((entry) => entry.id.toLowerCase() === id.toLowerCase()) || !Array.isArray(variant.attributes)) return null;
+        const id = text(variant.id, isPlatformProduct ? 200 : 40);
+        if ((isPlatformProduct ? !id || /[\u0000-\u001f]/.test(id) : !isUuid(id)) || selectedVariants.some((entry) => entry.id.toLowerCase() === id.toLowerCase()) || !Array.isArray(variant.attributes)) return null;
         selectedVariants.push({
           id,
           name: text(variant.name, 160),

@@ -20,7 +20,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import type { PublicAccount } from "@/lib/auth/public-account";
 import { BunyaHomeMotion } from "./home/BunyaHomeMotion";
-import { PlatformProductDialog } from "./home/PlatformProductDialog";
+import { PlatformProductDialog, type PlatformCatalogSelection } from "./home/PlatformProductDialog";
 import {
   Icon,
   LatestProductCard,
@@ -578,6 +578,7 @@ export function HomeStorefront({
 
   const openQuoteDrawer = async () => {
     setSelectedProduct(null);
+    setPlatformProduct(null);
     setQuoteDrawerOpen(true);
     setQuoteDrawerFeedback("");
     setQuoteDetails((current) => ({
@@ -643,7 +644,8 @@ export function HomeStorefront({
   const updateQuoteItemQuantity = (id: string, quantity: number) => {
     const item = quoteItems.find(entry => entry.id === id);
     const product = products.find(entry => entry.id === item?.productId);
-    if (!Number.isFinite(quantity) || quantity < Math.max(product?.minimumOrder || 1, .001) || quantity > 1000000) return;
+    const minimum = product?.catalogEntry ? .001 : Math.max(product?.minimumOrder || 1, .001);
+    if (!Number.isFinite(quantity) || quantity < minimum || quantity > 1000000 || quantity !== Number(quantity.toFixed(3))) return;
     setQuoteItems((current) =>
       current.map((item) => (item.id === id ? { ...item, quantity } : item)),
     );
@@ -652,6 +654,30 @@ export function HomeStorefront({
   const removeQuoteItem = (id: string) => {
     setQuoteItems((current) => current.filter((item) => item.id !== id));
     setQuoteDrawerFeedback("");
+  };
+
+  const addPlatformSelection = (selection: PlatformCatalogSelection): string | null => {
+    if (!platformProduct?.catalogEntry) return "تعذر إضافة المنتج. أعد فتح تفاصيله.";
+    const duplicate = quoteItems.find(item => item.productId === platformProduct.id && item.unit === selection.unit &&
+      (selection.sku ? item.selectedVariants.length === 1 && item.selectedVariants[0].id === selection.sku : item.selectedVariants.length === 0) && (item.notes || "") === selection.notes);
+    if (duplicate) {
+      const total = Number((duplicate.quantity + selection.quantity).toFixed(3));
+      if (total > 1000000) return "الكمية الإجمالية لهذا الخيار لا يمكن أن تتجاوز مليون وحدة.";
+      setQuoteItems(items => items.map(item => item.id === duplicate.id ? { ...item, quantity: total } : item));
+    } else {
+      if (quoteItems.length >= 50) return "يمكن إضافة 50 صنفًا إلى الطلب الواحد. أرسل هذا الطلب ثم أنشئ طلبًا آخر.";
+      const item: QuoteRequestItem = {
+        id: createQuoteId(platformProduct.id), productId: platformProduct.id, productName: platformProduct.name,
+        quantity: selection.quantity, unit: selection.unit, measurementId: "", measurementLabel: "بدون قياس إضافي",
+        selectedVariants: selection.sku ? [{ id: selection.sku, name: selection.attributes.map(attribute => `${attribute.label}: ${attribute.value}`).join(" · ") || selection.sku, attributes: selection.attributes }] : [],
+        notes: selection.notes || undefined, desiredReceiptDate: "", mapsUrl: "", createdAt: new Date().toISOString(),
+      };
+      setQuoteItems(items => [item, ...items]);
+    }
+    setQuoteDetails(current => ({ ...current, desiredReceiptAt: current.desiredReceiptAt || minimumReceiptDateTime() }));
+    setStorefrontNotice(`تمت إضافة «${platformProduct.name}» إلى طلب عرض السعر.`);
+    setQuoteDrawerFeedback("");
+    return null;
   };
 
   const approveQuoteRequest = async () => {
@@ -736,7 +762,7 @@ export function HomeStorefront({
     const body = (await response?.json().catch(() => null)) as {
       message?: string;
       requestId?: string;
-      outsidePricingHours?: boolean;
+      redirectUrl?: string;
     } | null;
     if (!response?.ok || !body?.requestId) {
       setQuoteDrawerBusy(false);
@@ -748,18 +774,9 @@ export function HomeStorefront({
 
     setQuoteItems([]);
     setQuoteSubmissionKey(createQuoteId("storefront-quote"));
-    if (body.outsidePricingHours) {
-      setQuoteDrawerFeedback(
-        body.message ||
-          "تم استلام الطلب خارج أوقات التسعير، وسيتم تزويدك بعرض السعر خلال 24 ساعة.",
-      );
-      window.setTimeout(() => {
-        router.push(`/customer/quote-requests/${body.requestId}`);
-      }, 2200);
-      return;
-    }
     setQuoteDrawerOpen(false);
-    router.push(`/customer/quote-requests/${body.requestId}`);
+    const requestUrl = `/customer/managed-quotes/${encodeURIComponent(body.requestId)}`;
+    router.push(body.redirectUrl === requestUrl ? body.redirectUrl : requestUrl);
   };
 
   const increaseDuplicateQuantity = () => {
@@ -1172,7 +1189,7 @@ export function HomeStorefront({
                               <span>الكمية</span>
                               <input
                                 aria-label={`كمية ${item.productName}`}
-                                min={Math.max(product?.minimumOrder || 1, .001)}
+                                min={product?.catalogEntry ? .001 : Math.max(product?.minimumOrder || 1, .001)}
                                 max={1000000}
                                 step="0.001"
                                 onChange={(event) =>
@@ -1211,10 +1228,10 @@ export function HomeStorefront({
                     <div>
                       <Icon name="quote" />
                       <span>
-                        <b>منافسة أسعار لمدة 3 ساعات</b>
+                        <b>عرض سعر من إدارة بُنية</b>
                         <small>
-                          الطلب بين 8 ص و4 م يبدأ فورًا. خارج هذه الفترة يُتاح
-                          للمزودين من 6 ص ويبدأ العداد 8 ص بتوقيت الرياض.
+                          يصل طلبك إلى الأدمن المسؤول لتسعير المنتجات وتحديد
+                          التوصيل والضمان وتفاصيل البيع أو التأجير.
                         </small>
                       </span>
                     </div>
@@ -1274,7 +1291,7 @@ export function HomeStorefront({
                         value={quoteDetails.deliveryMode}
                       >
                         <option value="delivery">توصيل للموقع</option>
-                        <option value="pickup">استلام من المزود</option>
+                        <option value="pickup">استلام من نقطة التسليم</option>
                       </select>
                     </label>
                     <label className="sf-rfq-drawer-wide">
@@ -1460,7 +1477,7 @@ export function HomeStorefront({
                       />
                     </label>
                     <label>
-                      <span>مسؤولية التحميل عند المزود</span>
+                      <span>مسؤولية التحميل</span>
                       <select
                         onChange={(event) =>
                           updateQuoteDetails(
@@ -1472,7 +1489,7 @@ export function HomeStorefront({
                       >
                         <option value="">حدد الخيار</option>
                         <option value="التحميل ضمن مسؤولية المزود">
-                          التحميل ضمن مسؤولية المزود
+                          التحميل ضمن مسؤولية جهة التوريد
                         </option>
                         <option value="العميل يوفّر معدات التحميل">
                           العميل يوفّر معدات التحميل
@@ -1621,7 +1638,7 @@ export function HomeStorefront({
         </div>
       ) : null}
 
-      {platformProduct && <PlatformProductDialog key={platformProduct.id} product={platformProduct} onClose={() => setPlatformProduct(null)} />}
+      {platformProduct && <PlatformProductDialog key={platformProduct.id} product={platformProduct} onClose={() => setPlatformProduct(null)} onAddSelection={addPlatformSelection} onReviewQuote={() => void openQuoteDrawer()} />}
 
       {selectedProduct ? (
         <div className="store-detail-backdrop" onMouseDown={closeProduct}>
@@ -1892,8 +1909,8 @@ export function HomeStorefront({
               <p className="store-pricing-note">
                 <Icon name="quote" />
                 <span>
-                  <b>سعر عادل من مزودين مؤهلين</b>السعر النهائي يظهر بعد جمع
-                  العروض ومقارنة التكلفة والتوصيل.
+                  <b>عرض سعر من إدارة بُنية</b>الإدارة تسعّر طلبك وتحدد
+                  تفاصيل التوصيل والضمان.
                 </span>
               </p>
             </div>
