@@ -1,3 +1,7 @@
+## 2026-10-28 22:32 Asia/Riyadh - Handoff published; private archive files verified
+
+Documentation commit d2ea54356e6985ad350df15f32a1d0dfeb36da78 pushed; Vercel dpl_425LDJmEFvSuTo5VcR56jcpnfWwy READY with exact SHA and official www.buniahksa.com alias. Application source unchanged from tested64be44d; no duplicate local tests/builds. Independent actual production file verification22:30:29 passed for BOTH restricted actors:5 originally visible files each, one sampled private GET200/signing200/signed GET200, downloaded bytes match immutable capture SHA256, private/no-store headers correct. Disposable Auth sessions revoked; no business writes/messages. Ignored runner tmp/verify-production-admin-archive-assets.mjs.104 still pending management reauthentication. This final verification note is included in the documentation follow-up; no application changes.
+
 ## 2026-10-28 22:29 Asia/Riyadh - Web published and frozen operator access ACTIVE
 
 PUBLISHED GitHub main64be44d905762669267be52e5fa1427f50496920; Vercel dpl_AyjoiA52u3672Sj2GPHqqDJfSf8K READY, matching Git SHA and www.buniahksa.com alias independently verified through Vercel API. Fresh Vercel production build completed29s, deployment22:26. HTTP production verification: /,/login,/register200; actual registration optional email/username and mandatory mobile labels; login CSS200; admin users/quotes and customer quotes correctly307 to login. Evidence tmp/release-20261028-deployment-full.json, release-20261028-build.log, release-20261028-web-verification.json.

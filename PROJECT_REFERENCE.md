@@ -4,7 +4,7 @@
 
 GitHub main64be44d905762669267be52e5fa1427f50496920 published; Vercel dpl_AyjoiA52u3672Sj2GPHqqDJfSf8K READY on www.buniahksa.com, exact commit/domain and fresh production build verified. Both restricted accounts' frozen views ACTIVATED22:28 after matching web release, original14:21:28 Riyadh snapshot unchanged. Real production checks passed:7 historical profiles each, frozen RPCs/API/portal work, new quote hidden, live business reads and writes denied. Owner still sees new quote; prior WhatsApp processed once. Diagnostic sessions revoked, no new messages/business writes.
 
-104 default schema-order repair remains unapplied due Supabase managementCLI403 and pending user reauthentication. It is independent of activated protection because deployed web and SDK explicitly select schemas.098-103 applied. Updated DELIVERY_HANDOFF.md and full evidence/limits in docs/task-state.md. Native/store work remains deferred. Earlier local-only/inactive/pending-release statements below are historical and superseded.
+104 default schema-order repair remains unapplied due Supabase managementCLI403 and pending user reauthentication. It is independent of activated protection because deployed web and SDK explicitly select schemas.098-103 applied. Updated DELIVERY_HANDOFF.md published as d2ea543 with READY official-domain deployment; subsequent documentation-only follow-up records production private-file download/signing/checksum verification for both actors (5 visible files each, sampled downloads200, sessions revoked). Full evidence/limits in docs/task-state.md. Native/store work remains deferred. Earlier local-only/inactive/pending-release statements below are historical and superseded.
 
 ## 2026-10-28 - Current production release authorized
 
