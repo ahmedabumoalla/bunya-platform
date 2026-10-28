@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/client";
 import { isProductVideo, signProductImage } from "./image-urls";
+import { ARCHIVE_ACTORS } from "@/lib/supabase/archive-fetch";
 
 type PendingImage = { id: string; resolve: (url: string) => void };
 const cache = new Map<string, { expiresAt: number; result: Promise<string> }>();
@@ -10,10 +11,11 @@ let scheduled = false;
 export function customerProductImage(productId: string, viewerId: string): Promise<string> {
   if (!/^[a-f0-9]{8}-[a-f0-9-]{27}$/i.test(productId)) return Promise.resolve("");
   const key = `${viewerId}:${productId}`;
+  const cacheAllowed = !ARCHIVE_ACTORS.has(viewerId) && !(typeof document !== "undefined" && document.cookie.split("; ").includes("bunya-maintenance-active=1"));
   const existing = cache.get(key);
-  if (existing && existing.expiresAt > Date.now()) return existing.result;
+  if (cacheAllowed && existing && existing.expiresAt > Date.now()) return existing.result;
   const result = new Promise<string>(resolve => queue.push({ id: productId, resolve }));
-  cache.set(key, { expiresAt: Date.now() + 300_000, result });
+  if (cacheAllowed) cache.set(key, { expiresAt: Date.now() + 300_000, result });
   if (cache.size > 500) for (const [entry, value] of cache) if (value.expiresAt < Date.now()) cache.delete(entry);
   if (!scheduled) { scheduled = true; queueMicrotask(() => { void flush(); }); }
   return result;

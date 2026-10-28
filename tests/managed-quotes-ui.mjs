@@ -13,7 +13,7 @@ const hooks = { ...React, useState(initial) { const index = cursor++; if (!(inde
   return [state[index], value => { state[index] = typeof value === 'function' ? value(state[index]) : value; }]; }, useEffect(effect) { effects.push(effect); } };
 const exports = {};
 const code = ts.transpileModule(readFileSync('src/components/quotes/ManagedQuotes.tsx', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
-vm.runInNewContext(code, { exports, require: name => name === 'react' ? hooks : name === 'next/link' ? { default: ({ children, ...props }) => React.createElement('a', props, children) } : name.endsWith('.module.css') ? { default: new Proxy({}, { get: (_, key) => key }) } : require(name),
+vm.runInNewContext(code, { exports, require: name => name === 'react' ? hooks : name === 'next/link' ? { __esModule:true, default: ({ children, ...props }) => React.createElement('a', props, children) } : name === 'next/image' ? { __esModule:true, default: ({src,alt,width,height,className}) => React.createElement('img',{src,alt,width,height,className}) } : name.endsWith('.module.css') ? { __esModule:true, default: new Proxy({}, { get: (_, key) => key }) } : require(name),
   AbortController, Event, window: { dispatchEvent() {} }, fetch: async (url, options = {}) => { calls.push({ url, options }); return { ok: responseOk, json: async () => responseData }; } });
 const { ManagedQuotes, ManagedQuoteDetail, QuoteEditor, CustomerDeliveryCode } = exports;
 function reset() { state = []; cursor = 0; effects = []; calls = []; responseData = { success: true }; responseOk = true; }
@@ -29,6 +29,12 @@ const request = { id: 'request-id', request_code: 'MQ-01', customer_id: 'custome
   valid_until: '2099-01-01T12:00:00Z', expected_delivery_at: '2099-01-02T12:00:00Z', terms: 'شروط العرض', created_at: '2026-10-27T00:00:00Z', accepted_at: null, delivered_at: null };
 const customerProps = { request, scope: 'customer', canManage: false, onChanged() { changes++; } };
 reset(); let tree = render(ManagedQuoteDetail, customerProps);
+const reference = find(tree,node=>node.type==='h2'&&text(node)===request.request_code);
+assert.equal(reference.props.dir,'ltr','reference has stable left-to-right order');
+assert.equal(reference.props.className,'requestCode');
+assert.ok(!text(tree).includes('الدفع يُنسّق مع الإدارة خارج المنصة.'),'removed payment note stays absent');
+assert.equal(find(tree,node=>node.type==='bdi'&&text(node)==='0500000000').props.dir,'ltr','phone digits retain their order');
+assert.ok(nodes(tree).some(node=>node.props?.className==='detailGrid'),'detail panels share a bounded responsive layout');
 assert.ok(!nodes(tree).some(node => node.type === QuoteEditor));
 assert.ok(!nodes(tree).some(node => node.type === 'a' && String(node.props.href).startsWith('javascript:')));
 find(tree, node => node.type === 'button' && text(node) === 'قبول عرض السعر').props.onClick();
@@ -91,4 +97,11 @@ for (const file of ['src/components/customer/CustomerWorkspace.tsx', 'src/compon
   assert.ok(!source.includes('"/customer/quote-request/new"'), 'New request CTAs use the shared catalog/cart');
   assert.ok(source.includes('"/customer/quote-requests"'), 'Historical requests remain accessible');
 }
-console.log('PASS managed quote UI: role-gated editor, immutable acceptance, explicit customer decision, external-payment copy, private code reveal/verify roles, rental payload, pagination and dedicated routing.');
+reset(); tree=render(ManagedQuoteDetail,{...customerProps,request:{...request,items:[{...item,image_url:'/catalog/steel.webp'}]}});
+assert.ok(renderToStaticMarkup(tree).includes('src="/catalog/steel.webp"'),'existing product photo appears with its item');
+const css=readFileSync('src/components/quotes/ManagedQuotes.module.css','utf8');
+require('postcss').parse(css);
+assert.match(css,/max-width:1120px/);
+assert.match(css,/\.page \.requestCode,\.page \.identifier,\.page \.date \{ font-family:var\(--font-plex-arabic\)/,'codes and numerals use existing legible utility font');
+assert.match(css,/@media\(max-width:480px\).*\.detailGrid \.facts/s);
+console.log('PASS managed quote UI: compact responsive detail, isolated references/phones, product photos, removed payment note, role-gated editor, customer decisions, private code roles, rental payload, pagination and routing.');

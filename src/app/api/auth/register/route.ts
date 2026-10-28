@@ -35,18 +35,18 @@ export async function POST(request: NextRequest) {
     const username = normalizeJoinUsername(String(body.username || ""));
     const password = String(body.password || "");
 
-    if (fullName.length < 3 || !phone || !isValidJoinUsername(username) || !/^\S+@\S+\.\S+$/.test(email)) {
+    if (fullName.length < 3 || !phone || (username && !isValidJoinUsername(username)) || (email && !/^\S+@\S+\.\S+$/.test(email))) {
       throw new PublicJoinError("بيانات التسجيل غير صالحة.", 400);
     }
     const passwordError = validatePassword(password);
     if (passwordError) throw new PublicJoinError(passwordError, 400);
 
-    enforceRateLimit(request, `register:${email}`);
+    enforceRateLimit(request, `register:${phone}`);
     if (!request.headers.get("idempotency-key")) throw new PublicJoinError("معرّف المحاولة مطلوب.", 400);
     const admin = createAdminClient();
     const [emailMatch, usernameMatch, phoneMatch, whatsappAvailability] = await Promise.all([
-      admin.from("profiles").select("id").ilike("email", email).maybeSingle(),
-      admin.from("profiles").select("id").ilike("username", username).maybeSingle(),
+      email ? admin.from("profiles").select("id").ilike("email", email).maybeSingle() : Promise.resolve({ data: null, error: null }),
+      username ? admin.from("profiles").select("id").ilike("username", username).maybeSingle() : Promise.resolve({ data: null, error: null }),
       admin.from("profiles").select("id").eq("mobile", phone).maybeSingle(),
       checkGreenApiWhatsApp(phone),
     ]);
@@ -65,11 +65,14 @@ export async function POST(request: NextRequest) {
       return registrationResponse(request, { message: "تعذر التحقق من اتصال واتساب حاليًا. حاول بعد قليل." }, 502);
     }
 
+    // Bootstrap the existing authenticated WhatsApp verification flow without
+    // claiming the phone is verified. This internal identifier is not contact data.
+    const loginEmail = email || `${crypto.randomUUID()}@phone.bunya.invalid`;
     const created = await admin.auth.admin.createUser({
-      email,
+      email: loginEmail,
       password,
       email_confirm: true,
-      user_metadata: { full_name: fullName, username },
+      user_metadata: { full_name: fullName, ...(username ? { username } : {}) },
     });
     if (created.error || !created.data.user) {
       const error = created.error || new Error("Supabase returned no user");
@@ -82,6 +85,10 @@ export async function POST(request: NextRequest) {
       return registrationResponse(request, { message: response.message }, response.status);
     }
     try {
+      if (!email) {
+        const profile = await admin.from("profiles").update({ email: null }).eq("id", created.data.user.id);
+        if (profile.error) throw profile.error;
+      }
       const delivery = await issuePhoneVerificationCode({
         userId: created.data.user.id,
         phone,
@@ -91,6 +98,7 @@ export async function POST(request: NextRequest) {
       return registrationResponse(request, {
         created: true,
         verificationSent: true,
+        loginEmail,
         phone: delivery.phone,
         message: delivery.message,
       }, 201);

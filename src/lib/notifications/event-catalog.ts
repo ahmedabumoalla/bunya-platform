@@ -3,6 +3,7 @@ import { adminEventLabels } from "@/lib/admin/event-labels";
 import { compactText, shortReference } from "./compact";
 
 const eventTitles: Record<string, string> = {
+  "admin.managed_quote_submitted": "طلب عرض سعر جديد",
   ...adminEventLabels,
   "ticket.created": "تذكرة دعم جديدة", "ticket.assigned": "بدأت متابعة تذكرتك",
   "ticket.replied": "رد جديد على التذكرة", "ticket.resolved": "تم حل التذكرة",
@@ -81,6 +82,7 @@ const event = (
 });
 
 export const EVENT_DEFINITIONS = [
+  event("admin.managed_quote_submitted", "customer managed quote submission", "exclusive platform owner", "managed-quote-submitted", "/admin/managed-quotes", "high"),
   event(
     "auth.phone_otp",
     "Supabase Send SMS Hook",

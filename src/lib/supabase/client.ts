@@ -1,8 +1,10 @@
 import { createBrowserClient } from "@supabase/ssr";
 import { getSupabasePublicEnv } from "./env";
+import { createArchiveFetch } from "./archive-fetch";
 
 export function createClient() {
   const { url, key } = getSupabasePublicEnv();
+  const archiveFetch = createArchiveFetch(url);
   return createBrowserClient(url, key, { global: { fetch: async (input, init) => {
     const target = new URL(input instanceof Request ? input.url : String(input));
     if (typeof document !== "undefined" && document.cookie.split("; ").some(value => value === "bunya-maintenance-active=1") && target.origin === new URL(url).origin) {
@@ -18,6 +20,6 @@ export function createClient() {
         });
       }
     }
-    return fetch(input, init);
+    return archiveFetch(input, init);
   } } });
 }

@@ -26,9 +26,9 @@ assert.equal(calls.find(item => item.path === 'extensionless').options, undefine
 assert.equal(calls.find(item => item.path === 'cover.jpg').options.transform.width, 640);
 const beforeCache = calls.length;
 await media.signProductImage({ storage }, 'media.mp4');
-assert.equal(calls.length, beforeCache);
+assert.equal(calls.length, beforeCache + 1, 'Reauthorize signing instead of sharing live URLs across sessions');
 assert.equal(await media.signProductImage({ storage }, null, 'fallback'), 'fallback');
-console.log('PASS video MIME/extension detection, direct signing, image transformation and cache');
+console.log('PASS video MIME/extension detection, direct signing, image transformation and signing context isolation');
 
 const ui = load('src/components/home/HomeStorefrontUi.tsx', {
   '@/lib/products/image-urls': media,
@@ -36,6 +36,7 @@ const ui = load('src/components/home/HomeStorefrontUi.tsx', {
   '@/components/i18n/LanguageSwitcher': {},
   '@/lib/auth/public-account': { publicAccountFor: () => ({ signedIn: false, href: '/login', canApplyProvider: true, canApplyContractor: true }) },
   './PublicAccountHeader.module.css': { default: {} },
+  './PublicAccountLink': { PublicAccountLink: () => null },
 });
 for (const mimeType of ['video/mp4', 'video/webm', 'video/quicktime']) {
   const image = { id: 'v', label: 'Product video', alt: 'Product demonstration', tone: 'cement', mimeType, url: 'https://test.invalid/media' };

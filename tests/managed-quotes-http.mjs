@@ -9,7 +9,7 @@ const require = createRequire(import.meta.url);
 function load(file, mocks = {}) {
   const exports = {};
   const source = ts.transpileModule(readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
-  vm.runInNewContext(source, { exports, require: name => Object.hasOwn(mocks, name) ? mocks[name] : require(name), Date, console, Map, URL });
+  vm.runInNewContext(source, { exports, require: name => Object.hasOwn(mocks, name) ? mocks[name] : require(name), Date, console, Map, URL, process });
   return exports;
 }
 const manifest = JSON.parse(readFileSync('src/data/catalog/imported.json', 'utf8'));
@@ -63,6 +63,16 @@ signedIn = true; roles = ['provider']; assert.equal((await route.GET(request(), 
 roles = ['customer']; actor = other; assert.equal((await route.GET(request(), params)).status, 404);
 actor = customer; accountReady = false; assert.equal((await route.GET(request(), params)).status, 403);
 accountReady = true;
+const originalNodeEnv=process.env.NODE_ENV;
+try {
+  process.env.NODE_ENV='development';
+  const local = (origin='http://127.0.0.1:3001',host='127.0.0.1:3001') => new NextRequest('http://localhost:3001/api/managed-quotes',{method:'POST',headers:{origin,host}});
+  assert.equal((await server.managedQuoteContext(local())).userId,customer,'Next loopback normalization preserves local submissions');
+  await assert.rejects(server.managedQuoteContext(local('http://127.0.0.1:3002','127.0.0.1:3002')),error=>error.status===403);
+  await assert.rejects(server.managedQuoteContext(local('http://evil.example','evil.example')),error=>error.status===403);
+  process.env.NODE_ENV='production';
+  await assert.rejects(server.managedQuoteContext(local()),error=>error.status===403);
+} finally {if(originalNodeEnv===undefined)delete process.env.NODE_ENV;else process.env.NODE_ENV=originalNodeEnv;}
 let response = await route.GET(request(), params); let body = await response.json();
 assert.deepEqual(body.request.pricing, []); assert.equal(body.request.total, 0); assert.equal(body.request.terms, '');
 assert.equal(response.headers.get('cache-control'), 'private, no-store');
@@ -89,7 +99,12 @@ await server.submitManagedQuote(ctx, normalized);
 const submit = rpcCalls.find(call => call.name === 'managed_quote_submit');
 assert.equal(submit.payload.p_actor, customer); assert.equal(submit.payload.p_items[0].product_name, first.name);
 assert.ok(!rpcCalls.some(call => ['submit_storefront_rfq', 'submit_customer_rfq'].includes(call.name)), 'Never dispatch new requests to suppliers');
+const deferred=[],notified=[],dispatched=[];
+let notificationQueueFails=false;
 const submitRoute = load('src/app/api/customer/quote-requests/route.ts', {
+  'next/server': { ...require('next/server.js'), after: callback => { deferred.push(callback); } },
+  '@/lib/notifications/managed-quotes': { enqueueManagedQuoteNotification: async (_admin, id) => { if(notificationQueueFails)throw Error('queue unavailable');notified.push(id); return 'notification-id'; } },
+  '@/lib/notifications/dispatcher': { dispatchNotificationEvent: async id => { dispatched.push(id); } },
   '@/lib/quotes/managed-server': server,
   '@/lib/quotes/pending-draft': normalizer,
   '@/lib/auth/phone-verification': { normalizeSaudiPhone: value => /^\+9665\d{8}$/.test(value) ? value : null },
@@ -100,5 +115,10 @@ response = await submitRoute.POST(request('POST', fullDraft));
 assert.equal(response.status, 201);
 body = await response.json(); assert.equal(body.redirectUrl, `/customer/managed-quotes/${quoteId}`);
 assert.equal(body.outsidePricingHours, false);
+assert.deepEqual(notified,[quoteId]);
+await Promise.all(deferred.map(callback=>callback()));
+assert.deepEqual(dispatched,['notification-id']);
+notificationQueueFails=true;
+assert.equal((await submitRoute.POST(request('POST',fullDraft))).status,503,'saved request never falsely claims that notification was prepared');
 assert.ok(!rpcCalls.some(call => ['submit_storefront_rfq', 'submit_customer_rfq'].includes(call.name)));
 console.log('PASS all598 requestable catalog items, canonical SKU trust, role/owner isolation, CSRF, hidden draft pricing, customer-only code, admin confirm/reissue, cache protection and no supplier dispatch.');

@@ -5,9 +5,9 @@ import ts from 'typescript';
 const require = createRequire(import.meta.url);
 function load(path, mocks = {}) {
   const code = ts.transpileModule(readFileSync(path, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
-  const module = { exports: {} };
-  new Function('require', 'module', 'exports', code)(name => name === 'server-only' ? {} : name in mocks ? mocks[name] : require(name), module, module.exports);
-  return module.exports;
+  const loaded = { exports: {} };
+  new Function('require', 'module', 'exports', code)(name => name === 'server-only' ? {} : name in mocks ? mocks[name] : name.endsWith('/archive-fetch') ? load('src/lib/supabase/archive-fetch.ts') : name.endsWith('/archive-origin') ? {archiveProxyOrigin: async () => 'https://example.test'} : name.endsWith('/archive-server') ? {archiveActorStatus: async () => ({active: false})} : require(name), loaded, loaded.exports);
+  return loaded.exports;
 }
 const originalSecret = process.env.SUPABASE_SECRET_KEY;
 process.env.SUPABASE_SECRET_KEY = 'isolated-maintenance-cookie-fixture-not-a-real-key';
@@ -63,7 +63,7 @@ const proxy = load('src/app/api/maintenance/supabase/[...path]/route.ts', {
 });
 async function call(path, method = 'GET', origin = 'https://platform.example') {
   return proxy[method](new Request('https://platform.example/api/maintenance/supabase/' + path.join('/'), {
-    method, headers: { origin, authorization: 'untrusted-incoming-token' }, body: method === 'POST' ? '{}' : undefined,
+    method, headers: { origin, authorization: 'untrusted-incoming-token', 'Accept-Profile':'untrusted_schema', 'Content-Profile':'untrusted_schema' }, body: method === 'POST' ? '{}' : undefined,
   }), { params: Promise.resolve({ path }) });
 }
 for (const path of [['auth','v1','admin','users'],['auth','v1','token'],['rest','v1','..','auth'],['rest','v1','x/y'],['functions','v1','anything']]) {
@@ -76,6 +76,8 @@ const response = await call(['rest','v1','orders'], 'POST');
 assert.equal(response.status, 200);
 assert.equal(requests.at(-1).init.headers.get('authorization'), 'Bearer private-fixture-token');
 assert.equal(requests.at(-1).init.headers.get('apikey'), 'public-key');
+assert.equal(requests.at(-1).init.headers.get('Accept-Profile'),'public','GET schema is explicit and cannot be overridden by caller');
+assert.equal(requests.at(-1).init.headers.get('Content-Profile'),'public','POST schema is explicit even when another schema is the database default');
 assert.equal(response.headers.get('authorization'), null);
 assert.equal(response.headers.get('cache-control'), 'private, no-store');
 active = false;

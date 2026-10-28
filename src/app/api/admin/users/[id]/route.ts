@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { documentQuery, documentSources, fields, overviewSections, recordSources, requireUserDetailAccess, roleNames, rows, translated, UserDetailError, userDetailFailure, userDetailHeaders, userDetailLinks } from "@/lib/admin/user-details";
 import { resolveAuthIdentity } from "@/lib/auth/resolve-identity";
+import { archiveActorStatus } from "@/lib/supabase/archive-server";
+import { ARCHIVE_SCHEMA } from "@/lib/supabase/archive-fetch";
 import { readableText, type AdminRow } from "@/lib/admin/records";
 import type { UserDetailItem, UserDetailOverview, UserDetailPage } from "@/lib/admin/user-details-types";
 
@@ -26,14 +28,15 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       sections.push({ title: "تاريخ الأدوار", fields: roles.map(role => ({ label: `${roleNames[String(role.role)] ?? "دور آخر"}${role.is_primary ? " · أساسي" : ""}`, value: `${fields(role, [["granted_at", "تاريخ التفعيل", "date"]])[0].value}${role.revoked_at ? ` · أُلغي في ${fields(role, [["revoked_at", "تاريخ الإلغاء", "date"]])[0].value}` : " · نشط"}` })) });
       if (authUser.error) throw new Error("Account identity lookup failed");
       const targetUser = authUser.data.user;
-      const targetIdentity = targetUser ? await resolveAuthIdentity(access.admin, targetUser) : null;
+      const archive = access.canImpersonate ? await archiveActorStatus(id) : { active: false, eligible: false };
+      const targetIdentity = targetUser ? await resolveAuthIdentity(archive.active && archive.eligible ? access.admin.schema(ARCHIVE_SCHEMA) : access.admin, targetUser) : null;
       sections.push({ title: "حالة الدخول", fields: fields({ last_sign_in_at: targetUser?.last_sign_in_at, email_confirmed: Boolean(targetUser?.email_confirmed_at), phone_confirmed: Boolean(targetUser?.phone_confirmed_at) }, [["last_sign_in_at", "آخر تسجيل دخول", "date"], ["email_confirmed", "البريد مؤكد", "boolean"], ["phone_confirmed", "الجوال مؤكد", "boolean"]]) });
       result = {
         id, name: String(access.profile.full_name || access.profile.username || "مستخدم المنصة"), email: access.profile.email as string | null, active: access.profile.is_active === true,
         roles: roles.map(role => ({ label: roleNames[String(role.role)] ?? "دور آخر", primary: role.is_primary === true, revoked: Boolean(role.revoked_at) })),
         sections, documentSources: documentSources(links, access.permissions), recordSources: recordSources(id, links, access.permissions).map(({ key, label }) => ({ key, label })),
         canViewActivity: access.permissions.has("audit.read"),
-        canImpersonate: access.actor.details.admin?.roleKey === "super_admin" && id !== access.actor.userId && targetIdentity?.status === "ready" && !targetIdentity.activeRoles.includes("admin") && !targetIdentity.profile?.mustChangePassword && Boolean(targetUser?.email_confirmed_at),
+        canImpersonate: access.canImpersonate && id !== access.actor.userId && targetIdentity?.status === "ready" && Boolean(targetUser?.email_confirmed_at),
       };
     } else if (section === "documents") {
       const source = query.get("source") ?? "files";

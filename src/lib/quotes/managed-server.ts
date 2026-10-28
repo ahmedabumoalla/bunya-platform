@@ -19,7 +19,17 @@ export async function managedQuoteContext(request: NextRequest) {
   if (auth.error || !auth.user) throw new ManagedQuoteError(401, "سجّل دخولك أولًا.");
   if (request.method !== "GET" && !auth.usesBearer) {
     const origin = request.headers.get("origin");
-    if (origin && origin !== request.nextUrl.origin) throw new ManagedQuoteError(403, "مصدر الطلب غير صالح.");
+    let sameOrigin = origin === request.nextUrl.origin;
+    if (!sameOrigin && origin && process.env.NODE_ENV === "development") {
+      try {
+        const source = new URL(origin), target = request.nextUrl;
+        const loopback = new Set(["localhost", "127.0.0.1", "[::1]"]);
+        sameOrigin = loopback.has(source.hostname) && loopback.has(target.hostname)
+          && source.protocol === target.protocol && source.port === target.port
+          && request.headers.get("host") === source.host;
+      } catch { /* Invalid origins stay denied. */ }
+    }
+    if (origin && (!sameOrigin || request.headers.get("sec-fetch-site") === "cross-site")) throw new ManagedQuoteError(403, "مصدر الطلب غير صالح.");
   }
   const identity = await resolveAuthIdentity(auth.supabase, auth.user);
   if (identity.status !== "ready" || identity.profile?.mustChangePassword) throw new ManagedQuoteError(403, "الحساب غير مؤهل لهذه العملية.");

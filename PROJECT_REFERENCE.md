@@ -1,6 +1,41 @@
 # Bunya Platform — Project Reference
 
+## 2026-10-28 - Current production release authorized
+
+Owner requested GitHub/Vercel publication of current web/database fixes and updated DELIVERY_HANDOFF.md. Earlier local-only publication restrictions are superseded; native/store stage remains deferred. Release includes owner-only delegation, frozen operator archive routing, optional registration email/username, owner WhatsApp quote queue and compact quote UI. Sixteen targeted checks, TypeScript and migration hash guard passed22:20-22:24.104 is versioned but still pending Supabase CLI reauthentication; activation must follow matching web publication. Final verified release state is recorded above this entry when complete.
+
+## 2026-10-28 - Managed quote owner notification and compact detail
+
+At21:49 Riyadh the user explicitly approved the real existing-request notice. Actual targeted worker sent it to0508424401: provider submitted, outbox processed/attempts1/no error. Device delivery/read not verified. Missing local CRON_SECRET prevented the first attempt before enqueue; the ignored CLI runner then invoked the unchanged authorized worker directly. No production release or archive activation. This supersedes the pending-approval note below.
+
+Local request submission now queues an idempotent WhatsApp event to the verified active Ahmed super-admin, destination explicitly specified by owner+966508424401. Existing in-app notice remains; repeated submission/provider-success retries do not duplicate sends. Read-only investigation confirmed prior managed flow had no WhatsApp event for the reported request. Explicit approval for one real resend is pending; no messages sent in tests. Build/type/lint/targeted notification+UI+HTTP tests passed20:49-20:53; no release/migration.
+
+Quote detail is bounded/responsive with compact product/contact sections, correct LTR utility typography for BQ/SKU/phones/dates and existing product imagery. Removed requested payment note. Local same-port loopback origin mismatch repaired without relaxing production. Evidence/verification limits in docs/task-state.md.
+
+## 2026-10-28 - Registration email and username optional
+
+Local registration now requires valid Saudi mobile; email and username are optional in UI and API, with validation/uniqueness checks only when supplied. Email-less registrations use an internal random Auth identifier to enter the unchanged authenticated WhatsApp verification flow; profile email remains NULL and phone verification is not bypassed. Initial sign-in consumes the returned login identifier. Targeted registration tests, lint and TypeScript passed. No migration/deployment or real registration/message during testing.
+
+## 2026-10-28 - Local delegated data loading repaired
+
+The maintenance proxy dropped schema headers; archive setup's unordered schema aggregation made admin_archive the API default, causing403 read RPCs/empty tables while archive was inactive. Fixed by explicitly pinning both public profile headers before authorized archive routing, never accepting caller-selected schemas. Local existing delegated polling now200; real upstream tests of the actual forwarding handler verified both restricted actors see6 non-admin users while other administrator identities stay hidden. Targeted HTTP/SQL/lint checks passed; diagnostic sessions revoked. No production release or archive activation.104 schema-order migration is prepared/tested but unapplied because linked CLI now returns403. Details/evidence in docs/task-state.md.
+
+## 2026-10-28 - Frozen operator archive prepared, activation pending
+
+The owner chose keeping all old data and blocking new data for the two directory-restricted operator UUIDs. Snapshot at2026-10-28 14:21:28 Riyadh freezes original rows, updates, counts, read RPCs and29 verified private file copies; business actions become read-only. Original per-account visibility and hidden administrator directory remain. Live self authentication/password lifecycle and Ahmed's audited delegation remain separately authorized.
+
+Migrations101-103 applied; capture/files/API ready, archive active=false. Matching web implementation is local only, production publication/activation confirmation pending under original local-testing scope. Never activate against the old web or recapture. Build,18 SQL groups, transport/security/owner regressions, TypeScript/lint/staticSQL/hash checks passed14:43-14:48; security advisors78 WARN/0 ERROR,3 intentional generic definer-execute warnings reviewed. No browser or active production archive flow tested. Detailed commands/input hashes/evidence and next steps are in docs/task-state.md. Read-only changes may be noticeable; do not promise invisibility.
+
+
+## 2026-10-28 - Local delegation fixes and restricted user-card layout
+
+Migration100 is applied: a service-prepared one-use nonce lets Ahmed's delegated Auth session enter pending-password accounts without altering their onboarding/password metadata; the ordinary user guard and immutable operator/target audit remain. Local user-detail entry needs no reason field, supports admin navigation, and handles local loopback origins correctly. Real local HTTP confirmed administrator and pending-password contractor access; final contractor verification 13:23 Asia/Riyadh passed capability/start/portal/target identity/unchanged metadata/clean exit. Diagnostic sessions were revoked; no business edits. Detailed evidence and test inputs are in docs/task-state.md and tmp/delegated-onboarding-evidence.json.
+
+The two directory-restricted operators see five equally sized metric columns filling the desktop row, with no unused administrator slot; unrestricted view retains six. Existing responsive breakpoints remain. Targeted UI/HTTP tests, TypeScript, scoped lint and CSS parsing passed. Web source remains LOCAL ONLY at http://127.0.0.1:3001, not committed/pushed/deployed; production requires the matching web release alongside applied098/099/100 migrations.
+
 ## 2026-10-27 - Admin-managed material quotes (current behavior)
+
+Released main/origin8536a7b33522c53f90a379dcedaad4b97cde4740 on Vercel dpl_GnrLKWMTStVbS9MQmv4VbJbRfDAP Ready; exact official www.buniahksa.com alias verified 2026-10-27 ~01:16 Asia/Riyadh. Production HTTP checks passed homepage598 products and protected new quote routes/APIs; local3003 remains HTTP200. Published handoff includes the new flow. This verification note is documentation-only after release.
 
 Supersedes the display-only catalog and supplier dispatch described below. All 598 imported products support exact SKU/unit/quantity selection and a combined quote cart. New requests go to authorized administrators with in-app notifications and `/admin/managed-quotes`; customer tracking is `/customer/managed-quotes`. Administrators set line prices, sale/rental duration, warranty, delivery charges/date and terms. Owner clarified: customer acceptance only; payment is coordinated by the administrator outside the platform. No new payment session or supplier quote is created.
 
@@ -1491,3 +1526,14 @@ Previous released history follows.
 ## 2026-10-27 00:30:26 Asia/Riyadh - Local development server
 
 Started Next.js 16.3.4 using Node 24.21.0 in a hidden background process (launcher PID 25700) at http://127.0.0.1:3003. Ports 3000-3002 were occupied; an initial attempt on 3002 failed with EADDRINUSE, then 3003 started successfully. Fresh Invoke-WebRequest GET / returned HTTP 200 and Bunya content. Logs: tmp/next-dev-3003.stdout.log and tmp/next-dev-3003.stderr.log. No application edits or browser checks.
+
+## 2026-10-28 12:02:24 Asia/Riyadh - Local development server
+
+Next.js 16.3.4 running at http://127.0.0.1:3001 in a hidden background process (launcher PID 26644), using Node 24.19.0. Port 3000 belongs to another project. Fresh Invoke-WebRequest GET / returned HTTP 200 with Bunya content. Logs: tmp/next-dev-3001.stdout.log and tmp/next-dev-3001.stderr.log. No application edits or browser checks.
+
+## 2026-10-28 12:15:04 Asia/Riyadh - Administrator directory restriction
+
+The two designated operator UUIDs in migration098 cannot browse other administrator profiles/role memberships/admin_users; own identity remains readable for authentication. Their admins.manage/roles.manage/audit.read capabilities are denied to prevent escalation and audit identity leakage; operational permissions remain. Users UI hides Administration metric/filter and administrative rows. Shared detail/document API authorization now uses session RLS before service-role data access. Migration098 APPLIED and verified on both real accounts; SQL10 groups, HTTP/UI regressions, filters, TypeScript/scoped ESLint, SQL/hash/diff checks passed. Advisors unchanged75 WARN/0 ERROR. Local3001 working. Web changes NOT published: a matching production web release is required for the card/filter and service-role API gate. Full evidence and input hashes in docs/task-state.md and tmp/admin-directory-evidence.json. No browser/native build, real test records or operational mutations.
+## 2026-10-28 12:34:40 Asia/Riyadh - Exclusive Ahmed impersonation
+
+Only verified Ahmed profile UUID8b9f3886-e1b8-4816-9fbb-d425b0753255 may initiate/retain delegated sessions. All active/verified/ready roles including admin targets supported; target permissions (including098 restrictions) remain authoritative. Changes use target business identity with real operator retained in immutable internal audit. Requested concealment was explicitly declined; audit,15-minute expiry,no nesting/self/credential changes remain. Migration099 APPLIED; real linked-schema rehearsal/post-checks and67 SQL groups, HTTP boundary/proxy tests, TypeScript/scoped lint/SQL/hash checks passed. Newer tables now covered by metadata-only delegation audit. Advisors unchanged75 WARN/0 ERROR. Local3001 works, web changes NOT published; matching release needed with098 pending source. Detailed provenance in docs/task-state.md and tmp/owner-impersonation-evidence.json. No real impersonation/login session or business edits performed during verification.

@@ -6,11 +6,13 @@ import WebSocket from "ws";
 import { getSupabasePublicEnv } from "./env";
 import { cookies } from "next/headers";
 import { IMPERSONATION_COOKIE, openImpersonation } from "@/lib/auth/impersonation-cookie";
+import { createArchiveServiceFetch } from "./archive-server";
 
-export function createAdminClient() {
+export function createAdminClient(options: { authControl?: boolean } = {}) {
   const { url } = getSupabasePublicEnv();
   const key = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!key) throw new Error("SUPABASE_SECRET_KEY is not configured.");
+  const transport = options.authControl ? fetch : createArchiveServiceFetch(url);
   return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
     realtime: { transport: WebSocket as unknown as WebSocketLikeConstructor },
@@ -21,7 +23,7 @@ export function createAdminClient() {
       const headers = new Headers(init?.headers || (input instanceof Request ? input.headers : undefined));
       headers.delete("x-bunya-impersonation");
       if (ticket) headers.set("x-bunya-impersonation", ticket.id);
-      return fetch(input, { ...init, headers });
+      return transport(input, { ...init, headers });
     } },
   });
 }

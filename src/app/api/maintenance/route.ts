@@ -25,7 +25,7 @@ export async function DELETE(request: Request) {
       // Exit remains possible after expiry/revocation. Possession of the sealed ticket
       // can only terminate that ticket; it cannot gain an administrator session.
       if (data.user && data.user.id !== ticket.actorId) return NextResponse.json({ message: "الجلسة لا تخص هذا الحساب." }, { status: 403 });
-      const admin = createAdminClient();
+      const admin = createAdminClient({ authControl: true });
       const { error } = await admin.from("admin_impersonation_sessions").update({ ended_at: new Date().toISOString() }).eq("id", ticket.id).is("ended_at", null);
       if (error) throw error;
       await admin.auth.admin.signOut(ticket.accessToken, "local");

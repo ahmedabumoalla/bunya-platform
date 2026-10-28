@@ -12,7 +12,7 @@ function date(value: string) { const parsed = new Date(value); return Number.isN
 function FieldList({ fields }: { fields: UserDetailField[] }) { return <dl className={styles.fields}>{fields.map((field, index) => <div key={`${field.label}-${index}`}><dt>{field.label}</dt><dd dir="auto">{field.value}</dd></div>)}</dl>; }
 
 export function AdminUserDetails({ userId, onClose }: { userId: string; onClose: () => void }) {
-  const titleId = useId(), reasonId = useId(), scopeId = useId();
+  const titleId = useId();
   const dialog = useRef<HTMLElement>(null);
   const [overview, setOverview] = useState<UserDetailOverview | null>(null);
   const [tab, setTab] = useState<Tab>("overview");
@@ -22,8 +22,6 @@ export function AdminUserDetails({ userId, onClose }: { userId: string; onClose:
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
-  const [reason, setReason] = useState("");
-  const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState("");
   const close = useCallback(() => { if (!busy) onClose(); }, [busy, onClose]);
@@ -57,20 +55,20 @@ export function AdminUserDetails({ userId, onClose }: { userId: string; onClose:
     setSource(next === "documents" ? overview?.documentSources[0]?.key ?? "files" : next === "records" ? overview?.recordSources[0]?.key ?? "" : "");
   }
   async function impersonate() {
-    if (busy || reason.trim().length < 8 || reason.trim().length > 500) return;
+    if (busy || !overview?.canImpersonate) return;
     setBusy(true); setActionError("");
     try {
-      const response = await fetch("/api/admin/impersonation", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ targetUserId: userId, reason: reason.trim() }) });
+      const response = await fetch("/api/admin/impersonation", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ targetUserId: userId }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.message || "تعذر بدء الدخول بالنيابة.");
-      if (typeof result.redirectTo !== "string" || !/^\/(customer|merchant|contractor|driver)(\/|$)/.test(result.redirectTo)) throw new Error("تعذر فتح مساحة المستخدم.");
+      if (typeof result.redirectTo !== "string" || !/^\/(admin|customer|merchant|contractor|driver)(\/|$)/.test(result.redirectTo)) throw new Error("تعذر فتح مساحة المستخدم.");
       window.location.assign(result.redirectTo);
     } catch (failure) { setActionError(failure instanceof Error ? failure.message : "تعذر الدخول بالنيابة."); setBusy(false); }
   }
   const sources = tab === "documents" ? overview?.documentSources : overview?.recordSources;
   return createPortal(<div className={`admin-modal-backdrop ${styles.backdrop}`} onMouseDown={event => { if (event.target === event.currentTarget) close(); }}>
     <section ref={dialog} tabIndex={-1} className={styles.dialog} role="dialog" aria-modal="true" aria-labelledby={titleId} dir="rtl" onKeyDown={event => {
-      if (event.key === "Escape" && !busy) { event.stopPropagation(); if (confirm) setConfirm(false); else close(); }
+      if (event.key === "Escape" && !busy) { event.stopPropagation(); close(); }
       if (event.key !== "Tab") return;
       const items = [...event.currentTarget.querySelectorAll<HTMLElement>("button:not(:disabled),a[href],select:not(:disabled),textarea:not(:disabled),[tabindex='0']")].filter(item => item.getClientRects().length);
       const first = items[0], last = items[items.length - 1];
@@ -85,7 +83,6 @@ export function AdminUserDetails({ userId, onClose }: { userId: string; onClose:
       </header>
       <nav className={styles.tabs} aria-label="أقسام ملف المستخدم">{tabs.filter(item => item.key !== "activity" || overview?.canViewActivity).map(item => <button type="button" key={item.key} aria-current={tab === item.key ? "page" : undefined} disabled={!overview && item.key !== "overview"} onClick={() => selectTab(item.key)}>{item.label}</button>)}</nav>
       <div className={styles.body} aria-busy={loading}>
-        {confirm ? <section className={styles.maintenance} aria-labelledby={scopeId}><p className={styles.eyebrow}>صيانة الحساب · للسوبر أدمن فقط</p><h3 id={scopeId}>الدخول بالنيابة عن {overview?.name}</h3><p>ستفتح مساحة هذا المستخدم لمدة تصل إلى 15 دقيقة بصلاحياته الفعلية. أي تعديل أو إجراء سيُحفظ على حسابه، مع توثيق أنك المنفّذ في سجل التدقيق. يظهر شريط للرجوع إلى حساب الإدارة.</p><label htmlFor={reasonId}>سبب الصيانة</label><textarea id={reasonId} value={reason} onChange={event => setReason(event.target.value)} minLength={8} maxLength={500} rows={3} disabled={busy} placeholder="صف المشكلة التي ستعالجها في هذا الحساب" aria-describedby={`${reasonId}-hint`} autoFocus/><small id={`${reasonId}-hint`}>اكتب من 8 إلى 500 حرف. لا تكتب كلمات مرور أو معلومات سرية.</small>{actionError && <p role="alert" className={styles.error}>{actionError}</p>}<div className={styles.actions}><button type="button" className={styles.primary} disabled={busy || reason.trim().length < 8 || reason.trim().length > 500} onClick={() => void impersonate()}>{busy ? "جارٍ فتح حساب المستخدم…" : "تأكيد الدخول بالنيابة"}</button><button type="button" disabled={busy} onClick={() => setConfirm(false)}>إلغاء</button></div></section> : null}
         {error ? <div className={styles.empty} role="alert"><h3>تعذر عرض البيانات</h3><p>{error}</p><button type="button" onClick={() => setRetry(value => value + 1)}>إعادة المحاولة</button></div> : loading ? <div className={styles.empty} role="status"><span className={styles.spinner}/><p>جارٍ تحميل بيانات الحساب…</p></div> : tab === "overview" ? <>
           <p className={styles.hint}>بيانات الحساب المرتبطة مباشرة بالمنصة. المستندات والسجلات تُعرض وفق صلاحياتك الإدارية.</p>
           {overview?.sections.map((section, index) => <section className={styles.section} key={`${section.title}-${index}`}><h3>{section.title}</h3><FieldList fields={section.fields}/></section>)}
@@ -97,7 +94,8 @@ export function AdminUserDetails({ userId, onClose }: { userId: string; onClose:
           {content && content.total > content.pageSize && <nav className={styles.pagination} aria-label="تصفح بيانات المستخدم"><button type="button" disabled={page === 1} onClick={() => setPage(value => value - 1)}>السابق</button><span>صفحة {page} من {Math.ceil(content.total / content.pageSize)}</span><button type="button" disabled={page * content.pageSize >= content.total} onClick={() => setPage(value => value + 1)}>التالي</button></nav>}
         </>}
       </div>
-      <footer className={styles.footer}><div><strong>إدارة الحساب بأمان</strong><small>{overview?.canImpersonate ? "الدخول بالنيابة متاح لحسابك الإداري." : "الدخول بالنيابة متاح للسوبر أدمن للحسابات المؤكدة والجاهزة غير الإدارية."}</small></div><div className={styles.actions}>{overview?.canImpersonate && <button type="button" className={styles.primary} disabled={busy || confirm} onClick={() => { setConfirm(true); setActionError(""); dialog.current?.querySelector(`.${styles.body}`)?.scrollTo({ top: 0 }); }}>الدخول بالنيابة</button>}<button type="button" onClick={close} disabled={busy}>إغلاق</button></div></footer>
+      {actionError && <p role="alert" className={styles.error}>{actionError}</p>}
+      <footer className={styles.footer}><div><strong>إدارة الحساب بأمان</strong><small>{overview?.canImpersonate ? "الدخول بالنيابة متاح لحسابك الإداري." : "الدخول بالنيابة متاح فقط للحساب الإداري المخوّل، ويشمل الحسابات المؤكدة والجاهزة بجميع أدوارها."}</small></div><div className={styles.actions}>{overview?.canImpersonate && <button type="button" className={styles.primary} disabled={busy} onClick={() => void impersonate()}>{busy ? "جارٍ الدخول…" : "الدخول بالنيابة"}</button>}<button type="button" onClick={close} disabled={busy}>إغلاق</button></div></footer>
     </section>
   </div>, document.body);
 }

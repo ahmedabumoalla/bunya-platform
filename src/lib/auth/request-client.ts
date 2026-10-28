@@ -7,6 +7,8 @@ import { getSupabasePublicEnv } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { IMPERSONATION_COOKIE } from "./impersonation-cookie";
+import { createArchiveFetch } from "@/lib/supabase/archive-fetch";
+import { archiveProxyOrigin } from "@/lib/supabase/archive-origin";
 
 export function isLocalAppOrigin(request: NextRequest) {
   const origin = request.headers.get("origin");
@@ -56,7 +58,7 @@ export async function createAuthRequestClient(request: NextRequest) {
         const { url, key } = getSupabasePublicEnv();
         return createTokenClient(url, key, {
           auth: { persistSession: false, autoRefreshToken: false },
-          global: { headers: { Authorization: `Bearer ${token}` } },
+          global: { headers: { Authorization: `Bearer ${token}` }, fetch: createArchiveFetch(url, fetch, archiveProxyOrigin) },
         });
       })()
     : await createClient();

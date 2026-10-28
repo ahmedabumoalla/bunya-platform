@@ -6,6 +6,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getSupabasePublicEnv } from "@/lib/supabase/env";
 import { cookies } from "next/headers";
 import { IMPERSONATION_COOKIE } from "@/lib/auth/impersonation-cookie";
+import { createArchiveFetch } from "@/lib/supabase/archive-fetch";
+import { archiveProxyOrigin } from "@/lib/supabase/archive-origin";
 
 export async function requireJoinReviewer(request?: Request) {
   if ((await cookies()).has(IMPERSONATION_COOKIE)) return { error: "forbidden" as const };
@@ -15,7 +17,7 @@ export async function requireJoinReviewer(request?: Request) {
     const { url, key } = getSupabasePublicEnv();
     return createTokenClient(url, key, {
       auth: { persistSession: false, autoRefreshToken: false },
-      global: { headers: { Authorization: `Bearer ${token}` } },
+      global: { headers: { Authorization: `Bearer ${token}` }, fetch: createArchiveFetch(url, fetch, archiveProxyOrigin) },
     });
   })() : await createClient();
   const { data: userData } = await session.auth.getUser(token || undefined);

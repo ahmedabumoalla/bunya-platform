@@ -1,8 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { normalizeSaudiPhone } from "@/lib/auth/phone-verification";
 import { normalizePendingStorefrontQuote } from "@/lib/quotes/pending-draft";
 import { deletePendingQuote, pendingQuoteCookie, pendingQuoteCookieOptions } from "@/lib/quotes/pending-draft-server";
 import { managedQuoteContext, ManagedQuoteError, submitManagedQuote } from "@/lib/quotes/managed-server";
+import { enqueueManagedQuoteNotification } from "@/lib/notifications/managed-quotes";
+import { dispatchNotificationEvent } from "@/lib/notifications/dispatcher";
 
 export const runtime = "nodejs";
 
@@ -51,6 +53,12 @@ export async function POST(request: NextRequest) {
   try {
     requestId = await submitManagedQuote(context, {
       ...draft, details: { ...details, recipientMobile, siteResponsibleMobile: responsibleMobile, contractorMobile: contractorMobile || "" },
+    });
+    let notificationId: string;
+    try { notificationId = await enqueueManagedQuoteNotification(context.admin, requestId); }
+    catch { throw new ManagedQuoteError(503, "تم حفظ الطلب، لكن تعذر تجهيز إشعار الإدارة. أعد المحاولة لإكمال الإرسال."); }
+    after(async () => {
+      await dispatchNotificationEvent(notificationId).catch(() => console.error("managed_quote_notification_dispatch_failed", { requestId }));
     });
   } catch (error) {
     return NextResponse.json({ message: error instanceof ManagedQuoteError ? error.message : "أعد اختيار المنتج ووحدته ومواصفاته من الكتالوج." }, { status: error instanceof ManagedQuoteError ? error.status : 400 });

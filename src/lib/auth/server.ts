@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { resolveAuthIdentity, roleIsReady } from "./resolve-identity";
 import { routeForRole, type AppRole, type AuthIdentity } from "./types";
+import { getImpersonation } from "./impersonation";
 
 export const getAuthIdentity = cache(async (): Promise<AuthIdentity | null> => {
   const supabase = await createClient();
@@ -17,11 +18,11 @@ export async function requirePortalRole(expectedRole: AppRole) {
   const identity = await getAuthIdentity();
   if (!identity) redirect("/login");
 
+  if (identity.profile?.isActive && identity.profile.mustChangePassword && !(await getImpersonation())) redirect("/account/change-password");
+
   if (identity.status !== "ready" || !identity.primaryRole) {
     redirect(`/login?error=${encodeURIComponent(identity.status)}`);
   }
-
-  if (identity.profile?.mustChangePassword) redirect("/account/change-password");
 
   const professionalCustomerAccess = expectedRole === "customer" && (identity.primaryRole === "contractor" || identity.primaryRole === "provider")
     && identity.activeRoles.includes(identity.primaryRole) && identity.activeRoles.includes("customer")

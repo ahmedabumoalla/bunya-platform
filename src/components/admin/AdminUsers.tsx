@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { createClient } from "@/lib/supabase/client";
 import styles from "./AdminUsers.module.css";
 import { AdminUserDetails } from "./AdminUserDetails";
@@ -54,12 +54,23 @@ export function AdminUsers() {
   const [sort, setSort] = useState<"newest" | "oldest" | "name" | "updated">("newest");
   const [page, setPage] = useState(1);
   const [referenceTime] = useState(() => Date.now());
+  const [canViewAdministrators, setCanViewAdministrators] = useState(false);
+  const visibleRoleOrder = roleOrder.filter(key => key !== "admin" || canViewAdministrators);
 
   useEffect(() => { void (async () => {
     setLoading(true);
+    const capability = await db.rpc("admin_can_view_administrators");
+    if (capability.error) {
+      setError("تعذر التحقق من صلاحيات عرض المستخدمين.");
+      setLoading(false);
+      return;
+    }
+    const canViewAdmins = capability.data === true;
+    setCanViewAdministrators(canViewAdmins);
     const result = await db.from("profiles").select("id,username,full_name,mobile,email,role,is_active,created_at,updated_at,user_roles!user_roles_profile_id_fkey(role,is_primary,revoked_at)").order("created_at", { ascending: false }).limit(2000);
     if (result.error) setError(result.error.message);
-    else setUsers((result.data ?? []) as UserRow[]);
+    // RLS hides other administrators; omit the caller's own admin identity here too.
+    else setUsers(((result.data ?? []) as UserRow[]).filter(user => canViewAdmins || (user.role !== "admin" && !activeRoles(user).some(item => item.role === "admin"))));
     setLoading(false);
   })(); }, []);
 
@@ -101,9 +112,9 @@ export function AdminUsers() {
   return <div className="admin-page-stack">
     <header className="admin-page-header"><div><p>إدارة الهوية والصلاحيات</p><h2>المستخدمون</h2><span>بحث وفلترة موحدة لكل حسابات المنصة وأدوارها النشطة.</span></div><div className={styles.headerCount}><strong>{filtered.length.toLocaleString("ar-SA")}</strong><span>نتيجة مطابقة</span></div></header>
 
-    <section className={styles.metrics} aria-label="ملخص المستخدمين">
+    <section className={styles.metrics} style={{ "--user-metric-columns": visibleRoleOrder.length + 1 } as CSSProperties} aria-label="ملخص المستخدمين">
       <button aria-pressed={role === "all"} className={role === "all" ? styles.selectedMetric : ""} onClick={() => updateFilter(() => setRole("all"))}><span>كل المستخدمين</span><strong>{loading ? "…" : counts.total.toLocaleString("en-US")}</strong><small>{loading ? "…" : counts.active.toLocaleString("en-US")} حساب نشط</small></button>
-      {roleOrder.map(key => <button key={key} aria-pressed={role === key} className={role === key ? styles.selectedMetric : ""} onClick={() => updateFilter(() => setRole(key))}><span>{roleLabels[key]}</span><strong>{loading ? "…" : counts.byRole[key].toLocaleString("en-US")}</strong><small>بدور نشط</small></button>)}
+      {visibleRoleOrder.map(key => <button key={key} aria-pressed={role === key} className={role === key ? styles.selectedMetric : ""} onClick={() => updateFilter(() => setRole(key))}><span>{roleLabels[key]}</span><strong>{loading ? "…" : counts.byRole[key].toLocaleString("en-US")}</strong><small>بدور نشط</small></button>)}
     </section>
 
     <AdminFilterBar
@@ -113,7 +124,7 @@ export function AdminUsers() {
       placeholder="الاسم أو الجوال أو البريد…"
       resultText={loading ? "جارٍ التحميل…" : <>عرض {visible.length ? ((currentPage - 1) * pageSize + 1).toLocaleString("ar-SA") : "0"}–{Math.min(currentPage * pageSize, filtered.length).toLocaleString("ar-SA")} من {filtered.length.toLocaleString("ar-SA")}</>}
       filters={[
-        { key: "role", label: "الدور", value: role, defaultValue: "all", options: [{ value: "all", label: "كل الأدوار" }, ...roleOrder.map(key => ({ value: key, label: roleLabels[key] }))] },
+        { key: "role", label: "الدور", value: role, defaultValue: "all", options: [{ value: "all", label: "كل الأدوار" }, ...visibleRoleOrder.map(key => ({ value: key, label: roleLabels[key] }))] },
         { key: "accountStatus", label: "حالة الحساب", value: accountStatus, defaultValue: "all", options: [{ value: "all", label: "الكل" }, { value: "active", label: "نشط" }, { value: "inactive", label: "موقوف" }] },
         { key: "phoneStatus", label: "رقم الجوال", value: phoneStatus, defaultValue: "all", options: [{ value: "all", label: "الكل" }, { value: "verified", label: "رقم جوال مسجل" }, { value: "missing", label: "بدون رقم جوال" }] },
         { key: "period", label: "تاريخ التسجيل", value: period, defaultValue: "all", options: [{ value: "all", label: "كل الفترات" }, { value: "7", label: "آخر 7 أيام" }, { value: "30", label: "آخر 30 يومًا" }, { value: "90", label: "آخر 90 يومًا" }] },

@@ -32,11 +32,14 @@ export async function requireUserDetailAccess(id: string) {
   const permissions = new Set<string>();
   await Promise.all(keys.map(async key => { const result = await session.rpc("admin_has_permission", { requested_permission: key }); if (!result.error && result.data === true) permissions.add(key); }));
   if (!permissions.has("profiles.read")) throw new UserDetailError(403, "لا تملك صلاحية عرض الحساب.");
-  const admin = createAdminClient();
-  const profile = await admin.from("profiles").select("id,full_name,username,email,mobile,is_active,role,preferred_locale,created_at,updated_at,must_change_password,password_changed_at").eq("id", id).maybeSingle();
+  // Authorize the target through RLS before creating a service-role client.
+  const profile = await session.from("profiles").select("id,full_name,username,email,mobile,is_active,role,preferred_locale,created_at,updated_at,must_change_password,password_changed_at").eq("id", id).maybeSingle();
   if (profile.error) throw new Error("Profile lookup failed");
   if (!profile.data) throw new UserDetailError(404, "الحساب غير موجود.");
-  return { admin, permissions, profile: profile.data as AdminRow, actor: identity };
+  const impersonationCapability = await session.rpc("admin_can_impersonate");
+  const canImpersonate = !impersonationCapability.error && impersonationCapability.data === true;
+  const admin = createAdminClient();
+  return { admin, permissions, profile: profile.data as AdminRow, actor: identity, canImpersonate };
 }
 export type UserDetailAccess = Awaited<ReturnType<typeof requireUserDetailAccess>>;
 async function collectIds(db: DB, table: string, select: string, filter: string, id: string) {

@@ -18,8 +18,6 @@ export function isProductVideo(media: ProductMediaSource) {
     || /\.(mp4|webm|mov)(?:[?#]|$)/i.test(media.storage_path || media.image_url || "");
 }
 
-const signedImageCache = new Map<string, { url: string; expiresAt: number }>();
-
 export async function signProductImage(
   db: SupabaseClient,
   storagePath: string | null | undefined,
@@ -34,15 +32,12 @@ export async function signProductImage(
   const quality = size.quality ?? 70;
   const resize = size.resize ?? "cover";
   const video = isProductVideo({ storage_path: path, mime_type: mimeType });
-  const key = video ? `${path}:video` : `${path}:${width}:${height}:${quality}:${resize}`;
-  const cached = signedImageCache.get(key);
-  if (cached && cached.expiresAt > Date.now()) return cached.url;
-
+  // Signing must use the current authorization context, including delegated and
+  // frozen accounts. A module-global URL cache can cross those boundaries.
   const signed = await db.storage.from("provider-product-images").createSignedUrl(path, 21600, video ? undefined : {
     transform: { width, height, resize, quality },
   });
   const url = signed.data?.signedUrl || fallback;
-  if (url) signedImageCache.set(key, { url, expiresAt: Date.now() + 19_800_000 });
   return url;
 }
 

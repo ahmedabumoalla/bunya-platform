@@ -1,4 +1,5 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
+import { ARCHIVE_ACTORS } from "@/lib/supabase/archive-fetch";
 import {
   isAppRole,
   type AppRole,
@@ -32,7 +33,7 @@ const emptyDetails = (): RoleDetails => ({
   admin: null,
 });
 
-export async function resolveAuthIdentity(supabase: SupabaseClient, user: User): Promise<AuthIdentity> {
+export async function resolveAuthIdentity(supabase: Pick<SupabaseClient, "from" | "rpc">, user: User): Promise<AuthIdentity> {
   const [profileResult, rolesResult] = await Promise.all([
     supabase
       .from("profiles")
@@ -69,7 +70,12 @@ export async function resolveAuthIdentity(supabase: SupabaseClient, user: User):
       }
     : null;
 
-  const details = await loadRoleDetails(supabase, user.id, activeRoles);
+  const details = await loadRoleDetails(supabase, user.id, activeRoles).catch((error) => {
+    // A pending password reset blocks archive membership reads. Preserve the
+    // live self-profile so login can take the user to password completion.
+    if (ARCHIVE_ACTORS.has(user.id) && (!profile?.isActive || profile.mustChangePassword)) return emptyDetails();
+    throw error;
+  });
   const base = {
     userId: user.id,
     authEmail: user.email ?? null,
@@ -88,7 +94,7 @@ export async function resolveAuthIdentity(supabase: SupabaseClient, user: User):
   return { ...base, status: "ready" };
 }
 
-async function loadRoleDetails(supabase: SupabaseClient, userId: string, roles: AppRole[]): Promise<RoleDetails> {
+async function loadRoleDetails(supabase: Pick<SupabaseClient, "from" | "rpc">, userId: string, roles: AppRole[]): Promise<RoleDetails> {
   const details = emptyDetails();
   const wants = (role: AppRole) => roles.includes(role);
 

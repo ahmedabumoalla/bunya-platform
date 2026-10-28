@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getImpersonation, assertMaintenanceOrigin } from "@/lib/auth/impersonation";
 import { getSupabasePublicEnv } from "@/lib/supabase/env";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createArchiveFetch } from "@/lib/supabase/archive-fetch";
 
 export const runtime = "nodejs";
 async function forward(request: Request, context: { params: Promise<{ path: string[] }> }) {
@@ -19,17 +20,19 @@ async function forward(request: Request, context: { params: Promise<{ path: stri
     const ticket = await getImpersonation();
     if (!ticket) return NextResponse.json({ message: "جلسة الصيانة غير موجودة." }, { status: 401 });
     const { url, key } = getSupabasePublicEnv();
-    const headers = new Headers({ apikey: key, Authorization: `Bearer ${ticket.accessToken}` });
+    // Pin the authorized live schema before archive routing. Never inherit a
+    // caller-selected schema or rely on PostgREST's exposed-schema ordering.
+    const headers = new Headers({ apikey: key, Authorization: `Bearer ${ticket.accessToken}`, "Accept-Profile": "public", "Content-Profile": "public" });
     for (const name of ["content-type", "prefer", "range", "range-unit", "accept", "x-upsert", "cache-control"]) {
       const value = request.headers.get(name); if (value) headers.set(name, value);
     }
     const length = Number(request.headers.get("content-length") || 0);
     if (length > 30 * 1024 * 1024) return NextResponse.json({ message: "الملف أكبر من المسموح." }, { status: 413 });
-    const result = await fetch(`${url}/${path.map(encodeURIComponent).join("/")}${new URL(request.url).search}`, {
+    const result = await createArchiveFetch(url, fetch, new URL(request.url).origin)(`${url}/${path.map(encodeURIComponent).join("/")}${new URL(request.url).search}`, {
       method: request.method, headers, cache: "no-store", redirect: "error",
       body: ["GET", "HEAD"].includes(request.method) ? undefined : await request.arrayBuffer(),
     });
-    if (route.startsWith("storage/v1/object/") && !["GET", "HEAD"].includes(request.method)) {
+    if (route.startsWith("storage/v1/object/") && !route.startsWith("storage/v1/object/sign/") && !["GET", "HEAD"].includes(request.method)) {
       // Metadata only: private document contents and signed URLs never enter the audit log.
       const { error } = await createAdminClient().from("audit_logs").insert({
         actor_profile_id: ticket.targetId, entity_table: "storage_objects", entity_id: path[3] || "storage",

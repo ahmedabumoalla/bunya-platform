@@ -12,8 +12,10 @@ import { sendNativePush } from "./native-push";
 import { OFFICIAL_PLATFORM_URL } from "./site-url";
 import { compactEventMessage, notificationEventTitle } from "./event-catalog";
 import { notificationPreview } from "./compact";
+import { MANAGED_QUOTE_OWNER_ID, MANAGED_QUOTE_OWNER_MOBILE, MANAGED_QUOTE_SUBMITTED_EVENT } from "./managed-quotes";
 
 const EVENT_TYPES = [
+  MANAGED_QUOTE_SUBMITTED_EVENT,
   "ticket.created",
   "ticket.assigned",
   "ticket.replied",
@@ -100,6 +102,7 @@ type Recipient = {
   actionUrl?: string;
   entityType?: string;
   summaryContext?: string;
+  reference?: string;
   text: string;
 };
 
@@ -149,7 +152,7 @@ async function dispatchClaimedEvents(
           key = `outbox-${event.id}-${destination}`,
           actionUrl = notificationActionUrl(recipient, event),
           title = notificationEventTitle(event.event_type),
-          message = compactEventMessage(event.event_type, event.aggregate_id, actionUrl, OFFICIAL_PLATFORM_URL, recipient.summaryContext);
+          message = compactEventMessage(event.event_type, recipient.reference ?? event.aggregate_id, actionUrl, OFFICIAL_PLATFORM_URL, recipient.summaryContext);
         if (recipient.profileId) {
           if (recipient.customerProfileId) {
             const persisted = await admin.from("customer_notifications").upsert(
@@ -201,6 +204,11 @@ async function dispatchClaimedEvents(
           }).catch(() => undefined);
         }
         if (recipient.mobile) {
+          const previous = event.event_type === MANAGED_QUOTE_SUBMITTED_EVENT
+            ? await admin.from("notification_provider_submissions").select("status").eq("idempotency_key", `${key}-whatsapp`).maybeSingle()
+            : { data: null, error: null };
+          if (previous.error) throw new Error("managed_quote_submission_lookup_failed");
+          if (previous.data?.status === "submitted") continue;
           const result = await sendGreenApiMessage({
             to: recipient.mobile,
             text: message,
@@ -321,6 +329,20 @@ async function resolveEvent(
   event: Outbox,
 ): Promise<Recipient[]> {
   const site = OFFICIAL_PLATFORM_URL;
+  if (event.event_type === MANAGED_QUOTE_SUBMITTED_EVENT) {
+    const [quote, owner, allowed] = await Promise.all([
+      admin.from("managed_quote_requests").select("id,request_code").eq("id", event.aggregate_id).maybeSingle(),
+      admin.from("admin_users").select("is_active,admin_roles(role_key),profiles(is_active)").eq("profile_id", MANAGED_QUOTE_OWNER_ID).maybeSingle(),
+      admin.rpc("managed_quote_actor_allowed", { p_actor: MANAGED_QUOTE_OWNER_ID, p_kind: "admin" }),
+    ]);
+    if (quote.error || owner.error || allowed.error) throw new Error("managed_quote_notification_recipient_lookup_failed");
+    if (!quote.data || !owner.data?.is_active || !owner.data.profiles?.is_active
+      || owner.data.admin_roles?.role_key !== "super_admin" || allowed.data !== true) return [];
+    // The transaction already persisted the in-app notice. Send only its
+    // WhatsApp counterpart, to the owner's explicitly configured destination.
+    return [{ mobile: MANAGED_QUOTE_OWNER_MOBILE, reference: quote.data.request_code,
+      actionUrl: `/admin/managed-quotes/${quote.data.id}`, entityType: "managed_quote", text: "طلب عرض سعر جديد" }];
+  }
   if (event.event_type === "admin.product_change_requested") {
     const request = await admin
       .from("product_change_requests")
