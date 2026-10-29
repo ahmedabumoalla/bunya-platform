@@ -1,5 +1,11 @@
 # Bunya Platform — Project Reference
 
+## 2026-10-30 02:05 - Speed improvements and quotation section LIVE
+
+Application release279982785503b6c5507bf982dacd65768780d679 published to GitHub and Vercel dpl_9ZjdmfpJQvf6rHVuDgCBnjoeJPYB READY; official domains verified and server function region is now hnd1 beside Supabase. New `/admin/price-quotations` and existing managed quotes render for owner; authenticated catalog/list/options and access restrictions pass on production. Both frozen accounts retain8 visible profiles/Cold River and read-only isolation. No business writes/messages; disposable test sessions revoked.
+
+Same-runner production warm median overview improved owner6.52→0.775s and frozen7.21→0.648s; users/orders HTML and document endpoints also improved (details and3-sample limitations in docs/task-state.md). Shared entry build files reduced about80% raw; this is not total page transfer or browser interaction latency. Local-only/publication-pending notes below are superseded.105 remains applied,104 untouched. No saved production quotation existed for Linux PDF rendering; local PDF tests passed, actual handset delivery remains untested. Management CLI read-only check again403; published Data API works and no new migration or login is needed for this release.
+
 ## 2026-10-30 - Publication approved
 
 Owner explicitly approved GitHub/Vercel publication of the ready performance and independent quotation changes, followed by production verification. Prior publication-pending gate is satisfied. Final source/runtime fingerprints match existing successful build/checks;105 migration already applied and unchanged. Handoff updated. Deployment results will supersede local-only notes below after verification; no native builds or outbound messages authorized by this publication step.
