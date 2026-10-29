@@ -69,6 +69,9 @@ function addViolation(file, source, index, kind, value) {
 
 for (const root of roots) {
   for (const file of await collectFiles(root)) {
+    // This server-only document reproduces the customer's supplied Exclusive
+    // Address stationery. Its PDF brand is independent of Bunya's UI palette.
+    if (file.replaceAll("\\", "/") === "src/lib/quotes/price-quotation-pdf.ts") continue;
     const source = await readFile(file, "utf8");
 
     for (const match of source.matchAll(forbiddenUtility)) {

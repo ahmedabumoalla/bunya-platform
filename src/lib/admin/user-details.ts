@@ -26,17 +26,21 @@ export async function requireUserDetailAccess(id: string) {
   const session = await createClient();
   const { data, error } = await session.auth.getUser();
   if (error || !data.user) throw new UserDetailError(401, "سجّل دخولك أولاً.");
-  const identity = await resolveAuthIdentity(session, data.user);
-  if (identity.status !== "ready" || !identity.activeRoles.includes("admin") || !identity.details.admin) throw new UserDetailError(403, "لا تملك صلاحية عرض الحساب.");
   const keys = ["profiles.read", "reviews.manage", "orders.manage", "sourcing.manage", "projects.manage", "finance.manage", "support.manage", "deliveries.manage", "audit.read", "roles.manage"];
   const permissions = new Set<string>();
-  await Promise.all(keys.map(async key => { const result = await session.rpc("admin_has_permission", { requested_permission: key }); if (!result.error && result.data === true) permissions.add(key); }));
+  // These reads all use the authenticated client's RLS. Do not construct the
+  // privileged client until identity, permission and target visibility pass.
+  const [identity, profile, impersonationCapability] = await Promise.all([
+    resolveAuthIdentity(session, data.user),
+    session.from("profiles").select("id,full_name,username,email,mobile,is_active,role,preferred_locale,created_at,updated_at,must_change_password,password_changed_at").eq("id", id).maybeSingle(),
+    session.rpc("admin_can_impersonate"),
+    Promise.all(keys.map(async key => { const result = await session.rpc("admin_has_permission", { requested_permission: key }); if (!result.error && result.data === true) permissions.add(key); })),
+  ]);
+  if (identity.status !== "ready" || !identity.activeRoles.includes("admin") || !identity.details.admin) throw new UserDetailError(403, "لا تملك صلاحية عرض الحساب.");
   if (!permissions.has("profiles.read")) throw new UserDetailError(403, "لا تملك صلاحية عرض الحساب.");
   // Authorize the target through RLS before creating a service-role client.
-  const profile = await session.from("profiles").select("id,full_name,username,email,mobile,is_active,role,preferred_locale,created_at,updated_at,must_change_password,password_changed_at").eq("id", id).maybeSingle();
   if (profile.error) throw new Error("Profile lookup failed");
   if (!profile.data) throw new UserDetailError(404, "الحساب غير موجود.");
-  const impersonationCapability = await session.rpc("admin_can_impersonate");
   const canImpersonate = !impersonationCapability.error && impersonationCapability.data === true;
   const admin = createAdminClient();
   return { admin, permissions, profile: profile.data as AdminRow, actor: identity, canImpersonate };
@@ -113,33 +117,42 @@ export function translated(value: unknown, fallback = "غير محدد") {
 }
 export async function overviewSections(access: UserDetailAccess, links: UserDetailLinks): Promise<UserDetailSection[]> {
   const { admin, profile } = access;
+  // Independent sections load concurrently instead of a request waterfall.
+  // Each query retains its existing permission gate and explicit field list.
+  const [providersResult, providerDetailsResult, providerApplicationsResult, contractorsResult, specialties, regions, contractorApplicationsResult, administratorsResult, driversResult] = await Promise.all([
+    access.permissions.has("reviews.manage") && links.providerIds.length ? admin.from("providers").select("id,company_name,company_name_en,contact_name,service_cities,mobile,email,status,google_maps_url,review_notes,reviewed_at").in("id", links.providerIds) : { data: [], error: null },
+    access.permissions.has("reviews.manage") && links.providerIds.length ? admin.from("provider_profiles").select("provider_id,public_description,username,delivery_available,commercial_registration_number,vat_number,national_address_short_code,building_number,street_name,district,city,region,postal_code,secondary_number,country,website_url").in("provider_id", links.providerIds) : { data: [], error: null },
+    access.permissions.has("reviews.manage") && links.providerApplicationIds.length ? admin.from("provider_applications").select("id,company_name,company_name_en,contact_name,service_cities,status,created_at,joining_policy_title,joining_policy_version,joining_policy_accepted_at").in("id", links.providerApplicationIds) : { data: [], error: null },
+    access.permissions.has("reviews.manage") && links.contractorIds.length ? admin.from("contractor_profiles").select("display_name,display_name_en,contractor_type,contact_name,username,commercial_name,city,badge,years_experience,summary,phone,email,approval_status,availability,google_maps_url,average_rating,projects_count,directory_visible,professional_links").in("id", links.contractorIds) : { data: [], error: null },
+    access.permissions.has("reviews.manage") && links.contractorIds.length ? admin.from("contractor_profile_specialties").select("specialty_name").in("profile_id", links.contractorIds).order("sort_order") : { data: [], error: null },
+    access.permissions.has("reviews.manage") && links.contractorIds.length ? admin.from("contractor_profile_regions").select("region_name").in("profile_id", links.contractorIds) : { data: [], error: null },
+    access.permissions.has("reviews.manage") && links.contractorApplicationIds.length ? admin.from("contractor_applications").select("id,contractor_type,contractor_name,contractor_name_en,contact_name,requested_username,username_is_custom,email,mobile,status,created_at,joining_policy_id,joining_policy_title,joining_policy_version,joining_policy_body,joining_policy_updated_at,joining_policy_accepted_at,contractor_work_regions(region_name),contractor_specialties(specialty_name)").in("id", links.contractorApplicationIds) : { data: [], error: null },
+    access.permissions.has("roles.manage") ? admin.from("admin_users").select("is_active,last_active_at,role:admin_roles!role_id(name_ar,description)").eq("profile_id", String(profile.id)) : { data: [], error: null },
+    access.permissions.has("deliveries.manage") && links.driverIds.length ? admin.from("provider_drivers").select("full_name,mobile,email,username,status,internal_notes,violations,last_active_at").in("id", links.driverIds) : { data: [], error: null },
+  ]);
   const sections: UserDetailSection[] = [{ title: "بيانات الحساب", fields: fields(profile, [["full_name", "الاسم الكامل"], ["username", "اسم المستخدم"], ["email", "البريد الإلكتروني"], ["mobile", "رقم الجوال"], ["created_at", "تاريخ التسجيل", "date"], ["updated_at", "آخر تحديث", "date"], ["must_change_password", "يلزم تغيير كلمة المرور", "boolean"], ["password_changed_at", "آخر تغيير لكلمة المرور", "date"]]) }];
   if (access.permissions.has("reviews.manage")) {
     if (links.providerIds.length) {
-      const providers = rows(await admin.from("providers").select("id,company_name,company_name_en,contact_name,service_cities,mobile,email,status,google_maps_url,review_notes,reviewed_at").in("id", links.providerIds));
+      const providers = rows(providersResult);
       for (const provider of providers) sections.push({ title: `المنشأة · ${provider.company_name}`, fields: fields(provider, [["company_name", "اسم المنشأة بالعربية"], ["company_name_en", "اسم المنشأة بالإنجليزية"], ["contact_name", "مسؤول التواصل (اختياري)"], ["service_cities", "المدن التي يخدمها المزود"], ["mobile", "الجوال"], ["email", "البريد"], ["status", "حالة المنشأة", "status"], ["google_maps_url", "الموقع"], ["reviewed_at", "وقت المراجعة", "date"], ["review_notes", "ملاحظات المراجعة"]]) });
-      const details = rows(await admin.from("provider_profiles").select("provider_id,public_description,username,delivery_available,commercial_registration_number,vat_number,national_address_short_code,building_number,street_name,district,city,region,postal_code,secondary_number,country,website_url").in("provider_id", links.providerIds));
+      const details = rows(providerDetailsResult);
       for (const detail of details) sections.push({ title: `البيانات التجارية · ${providers.find(row => row.id === detail.provider_id)?.company_name ?? "المنشأة"}`, fields: fields(detail, [["public_description", "نبذة المنشأة"], ["commercial_registration_number", "السجل التجاري"], ["vat_number", "الرقم الضريبي"], ["delivery_available", "التوصيل متاح", "boolean"], ["national_address_short_code", "العنوان المختصر"], ["building_number", "رقم المبنى"], ["street_name", "الشارع"], ["district", "الحي"], ["city", "المدينة"], ["region", "المنطقة"], ["postal_code", "الرمز البريدي"], ["secondary_number", "الرقم الإضافي"], ["country", "الدولة"], ["website_url", "الموقع الإلكتروني"]]) });
     }
     if (links.providerApplicationIds.length) {
-      const applications = rows(await admin.from("provider_applications").select("id,company_name,company_name_en,contact_name,service_cities,status,created_at,joining_policy_title,joining_policy_version,joining_policy_accepted_at").in("id", links.providerApplicationIds));
+      const applications = rows(providerApplicationsResult);
       for (const application of applications) sections.push({ title: `طلب انضمام المزود · ${application.company_name}`, fields: fields(application, [["company_name", "اسم الشركة بالعربية"], ["company_name_en", "اسم الشركة بالإنجليزية"], ["contact_name", "اسم المسؤول (اختياري)"], ["service_cities", "المدن التي يخدمها المزود"], ["status", "حالة الطلب", "status"], ["created_at", "تاريخ التقديم", "date"], ["joining_policy_title", "سياسة الانضمام المقبولة"], ["joining_policy_version", "إصدار السياسة"], ["joining_policy_accepted_at", "وقت الموافقة على السياسة", "date"]]) });
     }
     if (links.contractorIds.length) {
-      const contractors = rows(await admin.from("contractor_profiles").select("display_name,display_name_en,contractor_type,contact_name,username,commercial_name,city,badge,years_experience,summary,phone,email,approval_status,availability,google_maps_url,average_rating,projects_count,directory_visible,professional_links").in("id", links.contractorIds));
+      const contractors = rows(contractorsResult);
       for (const contractor of contractors) sections.push({ title: "هوية المقاول", fields: [
         { label: "نوع المقاول", value: contractor.contractor_type === "individual" ? "فرد" : "شركة / مؤسسة" },
         ...fields(contractor, [["display_name", "الاسم بالعربية"], ["display_name_en", "الاسم بالإنجليزية"], ["contact_name", "مسؤول التواصل (اختياري)"], ["username", "اسم المستخدم"]]),
       ] });
       for (const contractor of contractors) sections.push({ title: "الملف المهني للمقاول", fields: fields(contractor, [["display_name", "اسم العرض"], ["commercial_name", "الاسم التجاري"], ["city", "المدينة"], ["badge", "التصنيف المهني"], ["years_experience", "سنوات الخبرة"], ["summary", "النبذة"], ["phone", "جوال العمل"], ["email", "بريد العمل"], ["approval_status", "حالة الاعتماد", "status"], ["availability", "التوفر", "status"], ["google_maps_url", "الموقع"], ["average_rating", "متوسط التقييم"], ["projects_count", "عدد المشاريع"], ["directory_visible", "ظاهر في الدليل", "boolean"], ["professional_links", "الروابط المهنية"]]) });
-      const [specialties, regions] = await Promise.all([
-        admin.from("contractor_profile_specialties").select("specialty_name").in("profile_id", links.contractorIds).order("sort_order"),
-        admin.from("contractor_profile_regions").select("region_name").in("profile_id", links.contractorIds),
-      ]);
       sections.push({ title: "التخصصات ومناطق العمل", fields: [{ label: "التخصصات", value: rows(specialties).map(row => row.specialty_name).join("، ") || "غير مسجل" }, { label: "مناطق العمل", value: rows(regions).map(row => row.region_name).join("، ") || "غير مسجل" }] });
     }
     if (links.contractorApplicationIds.length) {
-      const applications = rows(await admin.from("contractor_applications").select("id,contractor_type,contractor_name,contractor_name_en,contact_name,requested_username,username_is_custom,email,mobile,status,created_at,joining_policy_id,joining_policy_title,joining_policy_version,joining_policy_body,joining_policy_updated_at,joining_policy_accepted_at,contractor_work_regions(region_name),contractor_specialties(specialty_name)").in("id", links.contractorApplicationIds));
+      const applications = rows(contractorApplicationsResult);
       for (const application of applications) sections.push({ title: `طلب انضمام المقاول · ${application.contractor_name}`, fields: [
         { label: "نوع المقاول", value: application.contractor_type === "individual" ? "فرد" : "شركة / مؤسسة" },
         ...fields(application, [["contractor_name", "الاسم بالعربية"], ["contractor_name_en", "الاسم بالإنجليزية"], ["contact_name", "مسؤول التواصل (اختياري)"], ["requested_username", "اسم المستخدم"], ["username_is_custom", "اسم مستخدم اختاره مقدم الطلب", "boolean"], ["email", "البريد الإلكتروني"], ["mobile", "الجوال"], ["status", "حالة الطلب", "status"], ["created_at", "وقت التقديم", "date"], ["joining_policy_id", "مرجع السياسة"], ["joining_policy_title", "سياسة الانضمام المقبولة"], ["joining_policy_version", "إصدار السياسة"], ["joining_policy_body", "نص السياسة وقت الموافقة"], ["joining_policy_updated_at", "آخر تحديث للسياسة المقبولة", "date"], ["joining_policy_accepted_at", "وقت الموافقة", "date"]]),
@@ -149,11 +162,11 @@ export async function overviewSections(access: UserDetailAccess, links: UserDeta
     }
   }
   if (access.permissions.has("roles.manage")) {
-    const administrators = rows(await admin.from("admin_users").select("is_active,last_active_at,role:admin_roles!role_id(name_ar,description)").eq("profile_id", String(profile.id)));
+    const administrators = rows(administratorsResult);
     for (const administrator of administrators) sections.push({ title: "الدور الإداري", fields: fields(administrator, [["role.name_ar", "الصلاحية الإدارية"], ["role.description", "وصف الدور"], ["is_active", "الوصول الإداري مفعّل", "boolean"], ["last_active_at", "آخر نشاط إداري", "date"]]) });
   }
   if (links.driverIds.length && access.permissions.has("deliveries.manage")) {
-    for (const driver of rows(await admin.from("provider_drivers").select("full_name,mobile,email,username,status,internal_notes,violations,last_active_at").in("id", links.driverIds))) sections.push({ title: "بيانات السائق", fields: fields(driver, [["full_name", "اسم السائق"], ["mobile", "الجوال"], ["email", "البريد"], ["username", "اسم المستخدم"], ["status", "الحالة", "status"], ["violations", "المخالفات"], ["last_active_at", "آخر نشاط", "date"], ["internal_notes", "ملاحظات الإدارة"]]) });
+    for (const driver of rows(driversResult)) sections.push({ title: "بيانات السائق", fields: fields(driver, [["full_name", "اسم السائق"], ["mobile", "الجوال"], ["email", "البريد"], ["username", "اسم المستخدم"], ["status", "الحالة", "status"], ["violations", "المخالفات"], ["last_active_at", "آخر نشاط", "date"], ["internal_notes", "ملاحظات الإدارة"]]) });
   }
   return sections;
 }

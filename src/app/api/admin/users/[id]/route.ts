@@ -11,34 +11,47 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   try {
     const { id } = await context.params;
     const access = await requireUserDetailAccess(id);
-    const links = await userDetailLinks(access, id);
     const query = new URL(request.url).searchParams;
     const section = query.get("section") ?? "overview";
     const page = Number(query.get("page") ?? "1"), pageSize = 15;
     if (!Number.isSafeInteger(page) || page < 1 || page > 1_000_000) throw new UserDetailError(400, "رقم الصفحة غير صالح.");
+    if (!["overview", "documents", "records", "activity"].includes(section)) throw new UserDetailError(400, "القسم غير صالح.");
+    // Audit and directly-owned files do not use provider/contractor/driver links.
+    const needsLinks = section === "overview" || section === "records" || section === "documents" && query.get("source") !== null && query.get("source") !== "files";
+    const linksPromise = needsLinks ? userDetailLinks(access, id) : Promise.resolve({ members: [], providerIds: [], contractorIds: [], driverIds: [], providerApplicationIds: [], contractorApplicationIds: [] });
     const start = (page - 1) * pageSize;
     let result: UserDetailOverview | UserDetailPage;
     if (section === "overview") {
-      const [rolesResult, sections, authUser] = await Promise.all([
+      const [links, rolesResult, sections, login] = await Promise.all([
+        linksPromise,
         access.admin.from("user_roles").select("role,is_primary,revoked_at,granted_at").eq("profile_id", id).order("granted_at", { ascending: false }),
-        overviewSections(access, links),
-        access.admin.auth.admin.getUserById(id),
+        linksPromise.then(links => overviewSections(access, links)),
+        (async () => {
+          const authUser = await access.admin.auth.admin.getUserById(id);
+          if (authUser.error) throw new Error("Account identity lookup failed");
+          const targetUser = authUser.data.user;
+          let canImpersonate = false;
+          if (access.canImpersonate && id !== access.actor.userId && targetUser?.email_confirmed_at) {
+            const archive = await archiveActorStatus(id);
+            const identity = await resolveAuthIdentity(archive.active && archive.eligible ? access.admin.schema(ARCHIVE_SCHEMA) : access.admin, targetUser);
+            canImpersonate = identity.status === "ready";
+          }
+          return { targetUser, canImpersonate };
+        })(),
       ]);
       const roles = rows(rolesResult);
       sections.push({ title: "تاريخ الأدوار", fields: roles.map(role => ({ label: `${roleNames[String(role.role)] ?? "دور آخر"}${role.is_primary ? " · أساسي" : ""}`, value: `${fields(role, [["granted_at", "تاريخ التفعيل", "date"]])[0].value}${role.revoked_at ? ` · أُلغي في ${fields(role, [["revoked_at", "تاريخ الإلغاء", "date"]])[0].value}` : " · نشط"}` })) });
-      if (authUser.error) throw new Error("Account identity lookup failed");
-      const targetUser = authUser.data.user;
-      const archive = access.canImpersonate ? await archiveActorStatus(id) : { active: false, eligible: false };
-      const targetIdentity = targetUser ? await resolveAuthIdentity(archive.active && archive.eligible ? access.admin.schema(ARCHIVE_SCHEMA) : access.admin, targetUser) : null;
+      const { targetUser } = login;
       sections.push({ title: "حالة الدخول", fields: fields({ last_sign_in_at: targetUser?.last_sign_in_at, email_confirmed: Boolean(targetUser?.email_confirmed_at), phone_confirmed: Boolean(targetUser?.phone_confirmed_at) }, [["last_sign_in_at", "آخر تسجيل دخول", "date"], ["email_confirmed", "البريد مؤكد", "boolean"], ["phone_confirmed", "الجوال مؤكد", "boolean"]]) });
       result = {
         id, name: String(access.profile.full_name || access.profile.username || "مستخدم المنصة"), email: access.profile.email as string | null, active: access.profile.is_active === true,
         roles: roles.map(role => ({ label: roleNames[String(role.role)] ?? "دور آخر", primary: role.is_primary === true, revoked: Boolean(role.revoked_at) })),
         sections, documentSources: documentSources(links, access.permissions), recordSources: recordSources(id, links, access.permissions).map(({ key, label }) => ({ key, label })),
         canViewActivity: access.permissions.has("audit.read"),
-        canImpersonate: access.canImpersonate && id !== access.actor.userId && targetIdentity?.status === "ready" && Boolean(targetUser?.email_confirmed_at),
+        canImpersonate: login.canImpersonate,
       };
     } else if (section === "documents") {
+      const links = await linksPromise;
       const source = query.get("source") ?? "files";
       const documents = await documentQuery(access, links, id, source).order("created_at", { ascending: false }).order("id").range(start, start + pageSize - 1);
       const items: UserDetailItem[] = rows(documents).map(row => {
@@ -49,6 +62,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       });
       result = { items, total: documents.count ?? 0, page, pageSize };
     } else if (section === "records") {
+      const links = await linksPromise;
       const source = recordSources(id, links, access.permissions).find(item => item.key === query.get("source"));
       if (!source) throw new UserDetailError(403, "لا تملك صلاحية عرض هذه السجلات.");
       const records = await access.admin.from(source.table).select(source.select, { count: "exact" }).in(source.filter, source.ids).order("created_at", { ascending: false }).order("id").range(start, start + pageSize - 1);

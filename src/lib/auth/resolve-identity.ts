@@ -130,7 +130,7 @@ async function loadRoleDetails(supabase: Pick<SupabaseClient, "from" | "rpc">, u
       wants("admin")
         ? supabase
             .from("admin_users")
-            .select("id,role_id,is_active")
+            .select("id,role_id,is_active,admin_role:admin_roles!role_id(role_key)")
             .eq("profile_id", userId)
             .eq("is_active", true)
             .maybeSingle()
@@ -216,16 +216,10 @@ async function loadRoleDetails(supabase: Pick<SupabaseClient, "from" | "rpc">, u
   }
 
   const adminUser = adminUserResult.data as
-    | { id: string; role_id: string; is_active: boolean }
+    | { id: string; role_id: string; is_active: boolean; admin_role: { role_key: string } | null }
     | null;
   if (adminUser) {
-    const adminRoleResult = await supabase
-      .from("admin_roles")
-      .select("role_key")
-      .eq("id", adminUser.role_id)
-      .maybeSingle();
-    if (adminRoleResult.error) throw new Error("Unable to read the administrator role.");
-    const adminRole = adminRoleResult.data as { role_key: string } | null;
+    const adminRole = adminUser.admin_role;
     if (adminRole) {
       details.admin = { adminUserId: adminUser.id, roleKey: adminRole.role_key };
     }

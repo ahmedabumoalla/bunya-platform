@@ -88,7 +88,7 @@ export function ManagedQuoteDetail({ request, scope, canManage, onChanged }: { r
   ];
   const mapsUrl = typeof details.mapsUrl === "string" && /^https?:\/\//.test(details.mapsUrl) ? details.mapsUrl : null;
   return <>
-    <section className={styles.summary}><div><p className={styles.referenceLabel}>رقم الطلب</p><h2 className={styles.requestCode} dir="ltr">{request.request_code}</h2></div><div className={styles.summaryMeta}><Status value={request.status} /><p className={styles.date}>تاريخ الطلب: {date(request.created_at)}</p></div></section>
+    <section className={styles.summary}><div><p className={styles.referenceLabel}>رقم الطلب</p><h2 className={styles.requestCode} dir="ltr">{request.request_code}</h2></div><div className={styles.summaryMeta}><Status value={request.status} /><p className={styles.date}>تاريخ الطلب: {date(request.created_at)}</p>{scope === "admin" && canManage && <Link className={styles.textLink} href={`/admin/price-quotations/new?request=${request.id}`}>إنشاء عرض PDF للعميل</Link>}</div></section>
     {error && <div className={styles.error} role="alert">{error}</div>}
     <div className={styles.detailGrid}>
     <section className={styles.panel}><div className={styles.panelHeading}><h2>المنتجات المطلوبة</h2><span>{request.items.length} صنف</span></div><div className={styles.items}>{request.items.map(item => {

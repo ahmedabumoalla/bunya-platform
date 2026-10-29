@@ -4,7 +4,6 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { createClient } from "@/lib/supabase/client";
 import { defaultLocale, isAppLocale, languageSwitchingEnabled, localeCookieName, localeDirection, type AppLocale } from "@/lib/i18n/config";
 import { translate, translateStatus, type MessageKey } from "@/lib/i18n/messages";
-import { translateLiteral } from "@/lib/i18n/messages";
 
 type LocaleContextValue = {
   locale: AppLocale;
@@ -27,57 +26,15 @@ export function LocaleProvider({ initialLocale, children }: { initialLocale?: st
 
   useEffect(() => {
     if (locale === "ar") return;
-    const translateElement = (root: ParentNode) => {
-      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-      let node: Node | null;
-      while ((node = walker.nextNode())) {
-        const parent = node.parentElement;
-        if (!parent || parent.closest("script,style,[data-no-localize]") || !node.nodeValue?.trim()) continue;
-        const next = translateLiteral(locale, node.nodeValue);
-        if (next !== node.nodeValue) node.nodeValue = next;
-      }
-      if (root instanceof Element) {
-        for (const attribute of ["placeholder", "title", "aria-label"] as const) {
-          const current = root.getAttribute(attribute);
-          if (!current) continue;
-          const next = translateLiteral(locale, current);
-          if (next !== current) root.setAttribute(attribute, next);
-        }
-      }
-      root.querySelectorAll?.("[placeholder],[title],[aria-label]").forEach((element) => {
-        for (const attribute of ["placeholder", "title", "aria-label"] as const) {
-          const current = element.getAttribute(attribute);
-          if (!current) continue;
-          const next = translateLiteral(locale, current);
-          if (next !== current) element.setAttribute(attribute, next);
-        }
-      });
-    };
-    translateElement(document.body);
-    const observer = new MutationObserver((records) => {
-      for (const record of records) {
-        if (record.type === "characterData" && record.target.parentNode) {
-          translateElement(record.target.parentNode);
-          continue;
-        }
-        if (record.type === "attributes" && record.target instanceof Element) {
-          translateElement(record.target);
-          continue;
-        }
-        for (const node of record.addedNodes) {
-          if (node instanceof Element || node instanceof DocumentFragment) translateElement(node);
-          else if (node.nodeType === Node.TEXT_NODE && node.parentNode) translateElement(node.parentNode);
-        }
-      }
+    let cancelled = false;
+    let disconnect: (() => void) | undefined;
+    // The generated dictionary is large and unused in the default Arabic experience.
+    void import("@/lib/i18n/literal-translations").then(({ observeLiteralTranslations }) => {
+      if (!cancelled) disconnect = observeLiteralTranslations(locale);
+    }).catch(() => {
+      // Keep keyed translations and original content available if this optional chunk cannot load.
     });
-    observer.observe(document.body, {
-      attributes: true,
-      attributeFilter: ["placeholder", "title", "aria-label"],
-      characterData: true,
-      childList: true,
-      subtree: true,
-    });
-    return () => observer.disconnect();
+    return () => { cancelled = true; disconnect?.(); };
   }, [locale]);
 
   const setLocale = useCallback(async (next: AppLocale) => {

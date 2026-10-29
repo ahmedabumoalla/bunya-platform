@@ -50,6 +50,9 @@ export async function archiveResponse(response: Response, baseUrl: string) {
 /** A valid actor JWT is still sent upstream; schema routing cannot grant access. */
 export function createArchiveFetch(baseUrl: string, transport: typeof fetch = fetch, siteOrigin: string | (() => Promise<string>) = ""): typeof fetch {
   const active = new Map<string, string | undefined>();
+  // Share only an in-flight status check for the exact credential. Each data
+  // request still carries its JWT and is independently authorized by the DB.
+  const checking = new Map<string, Promise<{ active: boolean; eligible: boolean; captured_at?: string }>>();
   return async (input, init) => {
     const request = input instanceof Request ? input : null;
     const url = new URL(request?.url ?? String(input));
@@ -69,15 +72,23 @@ export function createArchiveFetch(baseUrl: string, transport: typeof fetch = fe
       return transport(input, { ...init, headers, cache: "no-store" });
     }
     if (!active.has(actor)) {
-      const statusHeaders = new Headers(headers);
-      statusHeaders.set("Content-Type", "application/json");
-      statusHeaders.set("Content-Profile", "public");
-      statusHeaders.set("Accept-Profile", "public");
-      const response = await transport(`${baseUrl}/rest/v1/rpc/admin_archive_status`, { method: "POST", headers: statusHeaders, body: "{}", cache: "no-store" });
-      // Before the versioned migration is installed, preserve the current behavior.
-      if (response.status === 404) return transport(input, init);
-      if (!response.ok) return archiveDenied();
-      const status = await response.json();
+      const credential = headers.get("authorization")!;
+      let pending = checking.get(credential);
+      if (!pending) {
+        const statusHeaders = new Headers(headers);
+        statusHeaders.set("Content-Type", "application/json");
+        statusHeaders.set("Content-Profile", "public");
+        statusHeaders.set("Accept-Profile", "public");
+        pending = (async () => {
+          const response = await transport(`${baseUrl}/rest/v1/rpc/admin_archive_status`, { method: "POST", headers: statusHeaders, body: "{}", cache: "no-store" });
+          // Before the versioned migration is installed, preserve current behavior.
+          if (response.status === 404) return { active: false, eligible: false };
+          if (!response.ok) return { active: true, eligible: false };
+          return await response.json() as { active: boolean; eligible: boolean; captured_at?: string };
+        })().finally(() => checking.delete(credential));
+        checking.set(credential, pending);
+      }
+      const status = await pending;
       if (!status.active) return transport(input, init);
       if (!status.eligible) return archiveDenied();
       active.set(actor, status.captured_at);

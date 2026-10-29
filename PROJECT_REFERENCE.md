@@ -1,5 +1,33 @@
 # Bunya Platform — Project Reference
 
+## 2026-10-30 - Publication approved
+
+Owner explicitly approved GitHub/Vercel publication of the ready performance and independent quotation changes, followed by production verification. Prior publication-pending gate is satisfied. Final source/runtime fingerprints match existing successful build/checks;105 migration already applied and unchanged. Handoff updated. Deployment results will supersede local-only notes below after verification; no native builds or outbound messages authorized by this publication step.
+
+## 2026-10-30 - Shared performance improvements ready locally
+
+Portal views now load on demand and dedicated screens no longer issue unused generic queries. Large literal-translation dictionaries load only for non-Arabic localization; small keyed messages remain synchronous. Shared entry build artifact reduced from2.1MB to415KB raw (520KB→114KB gzip), with feature chunks separate. Account-detail reads are parallel and skip unused relations/target readiness; shared admin role lookup uses one joined query and frozen status checks coalesce only in flight for the same credential. Existing RLS, archive isolation, no-store and owner-only delegation remain intact.
+
+Actual local warm overview median: owner5.98→2.53s; frozen6.64→3.32s (3samples each, not production/browser timing). Final build, focused behavior/security/language/route checks and both real frozen-account reads/write denials pass. Full measurements including one noisy HTML regression and fingerprints are in docs/task-state.md. Production functions independently confirmed in iad1 while Supabase is ap-northeast-1; vercel.json now prepares hnd1 for colocation, still unpublished/unmeasured. No DB changes, business writes/messages or native builds. All performance and earlier quotation source remains local; production publication requires the applied performance skill's explicit deploy gate.
+
+## 2026-10-30 - Explicit Cold River visibility exception
+
+Owner requested النهر البارد لأعمال التكييف (profile10fc486b-247e-44be-a292-148341eadd2a) visible to both frozen operators. Applied a narrowly scoped, audited, one-time snapshot addition via `scripts/grant-cold-river-archive.sql`: account/roles and linked contractor identity/application/taxonomy, safe Auth metadata. No archive recapture, live access, document/transaction copying or changes to unrelated visibility. Original cutoff and read-only restrictions remain intact; future updates stay frozen.
+
+Real production verification2026-10-30 01:30 Riyadh passed for both accounts: target visible in8-profile list and full account overview200; other admins hidden, live target empty, archive writes403. Rehearsal verified existing snapshots/visibility unchanged. Diagnostic sessions revoked, no messages. This data-only change is active without a web deployment; previously implemented quotation UI remains local. Evidence and exact script identity in docs/task-state.md.
+
+## 2026-10-29 - Independent quotations and Exclusive Address PDF
+
+Local `/admin/price-quotations` creates saved quotations by customer mobile, with or without managed request/account, using canonical platform products/SKU/unit/quantity and administrator prices. Includes delivery, VAT, validity, terms, preview/download and explicit PDF WhatsApp send. Existing managed request workflow preserved and renamed in navigation to طلبات عروض الأسعار. Saved contents and sales-policy version are immutable; concurrent/replayed sends are guarded and uncertain submissions cannot automatically resend.
+
+PDF carries شركة العنوان الحصري branding/company details from the supplied invoice and13 sales terms adapted from supplied BRKZ quotation. Reference-specific customer/date/location, BRKZ financing assignment/bank accounts/QR are not copied. Delivery/expiry follow each quotation; Arabic rendered locally and policy accompanies every PDF. Sample `tmp/price-quotation-preview.pdf`.
+
+Supabase access restored through fresh user verification.105 applied and history verified after rollback rehearsal;104 still pending and unchanged. Service-only RLS/invoker authorization excludes frozen actors; archive intact, no retained test rows/messages. Advisors unchanged78WARN/0ERROR. Final build02:51:58, targeted HTTP/UI/PDF/SQL, TypeScript/lint/guards pass. Live local owner list/catalog200, both frozen accounts403; diagnostic sessions revoked. Detailed evidence in docs/task-state.md. Web changes remain local at http://127.0.0.1:3001/admin/price-quotations, NOT published; no real WhatsApp send/browser/mobile builds.
+
+## 2026-10-29 - Remaining migration access check
+
+CLI login accepted the supplied verification code, but project listing omitted linked buniah and database access still returned403. Requested authentication from the Supabase session where buniah is visible.104 remains unapplied; published web and active archive were not changed. No credentials or codes recorded.
+
 ## 2026-10-28 22:29 - Published web and active frozen accounts
 
 GitHub main64be44d905762669267be52e5fa1427f50496920 published; Vercel dpl_AyjoiA52u3672Sj2GPHqqDJfSf8K READY on www.buniahksa.com, exact commit/domain and fresh production build verified. Both restricted accounts' frozen views ACTIVATED22:28 after matching web release, original14:21:28 Riyadh snapshot unchanged. Real production checks passed:7 historical profiles each, frozen RPCs/API/portal work, new quote hidden, live business reads and writes denied. Owner still sees new quote; prior WhatsApp processed once. Diagnostic sessions revoked, no new messages/business writes.

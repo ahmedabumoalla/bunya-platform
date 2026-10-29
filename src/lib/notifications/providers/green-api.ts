@@ -42,7 +42,7 @@ export function sendGreenApiMessage(input:{to:string;text:string;idempotencyKey:
   return input.urgent?work():enqueue(work);
 }
 
-export function sendGreenApiFile(input:{to:string;file:File;caption:string;idempotencyKey:string}) {
+export function sendGreenApiFile(input:{to:string;file:File;caption:string;idempotencyKey:string;attempts?:number}) {
   return enqueue(()=>submitFile(input));
 }
 
@@ -66,12 +66,12 @@ async function submitText(input:{to:string;text:string;idempotencyKey:string;urg
   return retry(async()=>fetch(`${config.apiUrl}/waInstance${config.id}/sendMessage/${config.token}`,{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":input.idempotencyKey},body:JSON.stringify({chatId,message:input.text}),signal:AbortSignal.timeout(input.urgent?7000:12000),cache:"no-store"}),input.urgent?{attempts:1,sendDelay:0}:undefined);
 }
 
-async function submitFile(input:{to:string;file:File;caption:string;idempotencyKey:string}):Promise<ProviderSubmission>{
+async function submitFile(input:{to:string;file:File;caption:string;idempotencyKey:string;attempts?:number}):Promise<ProviderSubmission>{
   const config=configuration();if(!config||!config.mediaUrl)return missing();
   if(!["application/pdf","image/jpeg","image/png"].includes(input.file.type))return {status:"failed",providerMessageId:null,sanitizedError:"unsupported_media_type",submittedAt:null};
   if(input.caption.length>1024)return {status:"failed",providerMessageId:null,sanitizedError:"caption_too_long",submittedAt:null};
   const body=new FormData();body.set("chatId",normalizeWhatsAppChatId(input.to));body.set("caption",input.caption);body.set("file",input.file);
-  return retry(async()=>fetch(`${config.mediaUrl}/waInstance${config.id}/sendFileByUpload/${config.token}`,{method:"POST",headers:{"x-idempotency-key":input.idempotencyKey},body,signal:AbortSignal.timeout(20000),cache:"no-store"}));
+  return retry(async()=>fetch(`${config.mediaUrl}/waInstance${config.id}/sendFileByUpload/${config.token}`,{method:"POST",headers:{"x-idempotency-key":input.idempotencyKey},body,signal:AbortSignal.timeout(20000),cache:"no-store"}), { attempts: input.attempts });
 }
 
 async function retry(operation:()=>Promise<Response>,options?:{attempts?:number;sendDelay?:number}):Promise<ProviderSubmission>{

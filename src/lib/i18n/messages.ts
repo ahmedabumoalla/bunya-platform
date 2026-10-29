@@ -1,7 +1,4 @@
 import type { AppLocale } from "./config";
-import generatedLiteralTranslations from "./literal-translations.generated.json";
-import productChangeTranslations from "./product-change-literals.json";
-import phoneVerificationTranslations from "./phone-verification-literals.json";
 
 export const messages = {
   ar: {
@@ -673,7 +670,7 @@ export function translate(locale: AppLocale, key: MessageKey): string {
   return messages[locale][key] ?? messages.ar[key];
 }
 
-const statusKeys: Record<string, MessageKey> = {
+export const statusKeys: Record<string, MessageKey> = {
   assigned: "statusAssigned",
   picked_up: "statusPickedUp",
   in_transit: "statusInTransit",
@@ -692,79 +689,4 @@ export function translateStatus(locale: AppLocale, value: unknown): string {
   const raw = String(value ?? "");
   const key = statusKeys[raw];
   return key ? translate(locale, key) : raw;
-}
-
-const arabicLiteralKeys = Object.fromEntries(
-  Object.entries(messages.ar).map(([key, value]) => [value, key]),
-) as Record<string, MessageKey>;
-
-const generatedLiterals = {
-  ...generatedLiteralTranslations,
-  ...productChangeTranslations,
-  ...phoneVerificationTranslations,
-} as Record<
-  string,
-  Partial<Record<AppLocale, string>>
->;
-
-const generatedLiteralSources = Object.keys(generatedLiterals)
-  .filter((source) => source.length > 1)
-  .sort((left, right) => right.length - left.length);
-
-function normalizeLiteral(value: string): string {
-  return value.replace(/\s+/g, " ").trim();
-}
-
-function preserveOuterWhitespace(original: string, translated: string): string {
-  const leading = original.match(/^\s*/)?.[0] ?? "";
-  const trailing = original.match(/\s*$/)?.[0] ?? "";
-  return `${leading}${translated}${trailing}`;
-}
-
-const localizedDigitSets: Record<Exclude<AppLocale, "ar">, string> = {
-  en: "0123456789",
-  ur: "۰۱۲۳۴۵۶۷۸۹",
-  hi: "०१२३४५६७८९",
-  bn: "০১২৩৪৫৬৭৮৯",
-  fil: "0123456789",
-};
-
-function localizeNumerals(locale: Exclude<AppLocale, "ar">, value: string): string {
-  const digits = localizedDigitSets[locale];
-  return value
-    .replace(/[\u0660-\u0669\u06f0-\u06f9]/g, (digit) => {
-      const code = digit.charCodeAt(0);
-      const index = code >= 0x06f0 ? code - 0x06f0 : code - 0x0660;
-      return digits[index] ?? digit;
-    })
-    .replaceAll("٬", locale === "ur" ? "،" : ",")
-    .replaceAll("٫", ".");
-}
-
-export function translateLiteral(locale: AppLocale, value: string): string {
-  if (locale === "ar") return value;
-  const normalized = normalizeLiteral(value);
-  if (!normalized) return value;
-  if (!/[\u0600-\u06ff]/.test(normalized)) return value;
-
-  const key = arabicLiteralKeys[normalized];
-  if (key) return preserveOuterWhitespace(value, localizeNumerals(locale, translate(locale, key)));
-
-  const status = statusKeys[normalized];
-  if (status) return preserveOuterWhitespace(value, localizeNumerals(locale, translate(locale, status)));
-
-  const generated = generatedLiterals[normalized]?.[locale];
-  if (generated) return preserveOuterWhitespace(value, localizeNumerals(locale, generated));
-
-  let translated = normalized;
-  for (const source of generatedLiteralSources) {
-    const replacement = generatedLiterals[source]?.[locale];
-    if (replacement && translated.includes(source)) {
-      translated = translated.replaceAll(source, replacement);
-    }
-  }
-  const localized = localizeNumerals(locale, translated);
-  return localized === normalized
-    ? value
-    : preserveOuterWhitespace(value, localized);
 }

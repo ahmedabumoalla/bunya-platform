@@ -102,5 +102,6 @@
   "101_admin_frozen_archive.sql": "5c1714963d2ba2f9be1e486a5b4a59335a1e056c1e3a261d19defcec1ffbd17a",
   "102_admin_archive_api_safe_updates.sql": "08cb4fefaffea0b49e5f9fa6880279de0da829b639194c9e7e536d0fc3af8329",
   "103_admin_archive_password_lifecycle.sql": "98ad038ef3b150f33c65478deefc655e838fe9c7997631b73c2222b43e87023c",
-  "104_admin_archive_schema_order.sql": "5167e6b610417d72e6a3d46c256c1105f5f6a864a2a46e3fc6f71421d6c9f194"
+  "104_admin_archive_schema_order.sql": "5167e6b610417d72e6a3d46c256c1105f5f6a864a2a46e3fc6f71421d6c9f194",
+  "105_price_quotations.sql": "cee2d5bd75dd9a717ad0f9da108b91092413c9682255cb98a377d3e644ae0394"
 }

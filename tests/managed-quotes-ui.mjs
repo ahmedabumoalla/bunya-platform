@@ -89,7 +89,7 @@ find(tree, node => node.type === 'button' && text(node) === 'التالي').prop
 assert.equal(calls.at(-1).url, '/api/managed-quotes?scope=admin&page=1');
 const portal = readFileSync('src/components/database/RoleDatabasePortal.tsx', 'utf8');
 assert.ok(portal.indexOf('if (managedQuoteMatch') < portal.indexOf('if (role === "admin" && pathname === "/admin")'));
-assert.ok(readFileSync('src/lib/admin/navigation.ts', 'utf8').includes('["عروض الأسعار", "/admin/managed-quotes"'));
+assert.ok(readFileSync('src/lib/admin/navigation.ts', 'utf8').includes('["طلبات عروض الأسعار", "/admin/managed-quotes"'));
 assert.ok(!portal.includes('<CustomerRfqForm'), 'Legacy creation form must not submit provider-based RFQs');
 assert.ok(readFileSync('src/app/customer/quote-request/new/page.tsx', 'utf8').includes('redirect("/#products")'));
 for (const file of ['src/components/customer/CustomerWorkspace.tsx', 'src/components/customer/CustomerShell.tsx']) {
