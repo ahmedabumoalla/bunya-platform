@@ -1,3 +1,5 @@
+export type PriceQuotationPricingBasis = "exclusive" | "inclusive";
+
 export type PriceQuotationItem = {
   product_id: string;
   product_name: string;
@@ -12,6 +14,7 @@ export type PriceQuotationItem = {
 };
 
 export type PriceQuotation = {
+  pricing_basis?: PriceQuotationPricingBasis;
   id: string;
   quotation_code: string;
   source_request_id: string | null;
@@ -49,6 +52,7 @@ export type PriceQuotationDraftItem = {
   variant_ids?: string[];
 };
 export type PriceQuotationDraft = {
+  pricing_basis?: PriceQuotationPricingBasis;
   idempotency_key: string;
   source_request_id?: string | null;
   customer_name?: string;

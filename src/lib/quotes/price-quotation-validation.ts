@@ -1,4 +1,4 @@
-import type { PriceQuotationDraft } from "./price-quotation-types";
+import type { PriceQuotationDraft, PriceQuotationPricingBasis } from "./price-quotation-types";
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
@@ -14,6 +14,7 @@ function number(value: unknown, max: number, decimals: number, positive = false)
 
 export function normalizePriceQuotationDraft(value: unknown): PriceQuotationDraft {
   if (!record(value) || typeof value.idempotency_key !== "string" || !uuid.test(value.idempotency_key)) throw new Error("تعذر التعرف على المسودة. أعد فتح إنشاء العرض.");
+  if (value.pricing_basis !== undefined && value.pricing_basis !== "inclusive" && value.pricing_basis !== "exclusive") throw new Error("أساس احتساب الضريبة غير صالح.");
   const source = value.source_request_id == null || value.source_request_id === "" ? null : value.source_request_id;
   if (source !== null && (typeof source !== "string" || !uuid.test(source))) throw new Error("طلب عرض السعر المرتبط غير صالح.");
   const phone = text(value.customer_phone, 30).replace(/[\s()+-]/g, "");
@@ -36,17 +37,26 @@ export function normalizePriceQuotationDraft(value: unknown): PriceQuotationDraf
   if (until && (!Number.isFinite(until.getTime()) || !/^\d{4}-\d{2}-\d{2}(?:T|$)/.test(rawUntil))) throw new Error("تاريخ صلاحية العرض غير صالح.");
   const tax = text(value.customer_tax_number, 15);
   if (tax && !/^\d{15}$/.test(tax)) throw new Error("الرقم الضريبي للعميل يجب أن يتكون من 15 رقمًا، أو اتركه فارغًا.");
-  return { idempotency_key: value.idempotency_key, source_request_id: source, customer_name: text(value.customer_name, 160), customer_phone: `+${digits}`, customer_address: text(value.customer_address, 400), customer_tax_number: tax, delivery_city: text(value.delivery_city, 160), delivery_window: text(value.delivery_window, 240), items, vat_rate: number(value.vat_rate, 100, 2), delivery_fee: number(value.delivery_fee, 10000000, 2), valid_until: until?.toISOString() ?? null, terms: text(value.terms, 3000) };
+  return { ...(value.pricing_basis ? { pricing_basis: value.pricing_basis } : {}), idempotency_key: value.idempotency_key, source_request_id: source, customer_name: text(value.customer_name, 160), customer_phone: `+${digits}`, customer_address: text(value.customer_address, 400), customer_tax_number: tax, delivery_city: text(value.delivery_city, 160), delivery_window: text(value.delivery_window, 240), items, vat_rate: number(value.vat_rate, 100, 2), delivery_fee: number(value.delivery_fee, 10000000, 2), valid_until: until?.toISOString() ?? null, terms: text(value.terms, 3000) };
 }
 
 // All arithmetic is in integer fils; quantity is in thousandths. Round half up
 // once per line, then once for VAT on products and delivery combined.
-export function calculatePriceQuotationTotals(items: { quantity: number; unit_price: number }[], deliveryFee: number, vatRate: number) {
+export function calculatePriceQuotationTotals(items: { quantity: number; unit_price: number }[], deliveryFee: number, vatRate: number, pricingBasis: PriceQuotationPricingBasis = "exclusive") {
   const cents = items.map(item => (BigInt(Math.round(item.quantity * 1000)) * BigInt(Math.round(item.unit_price * 100)) + BigInt(500)) / BigInt(1000));
   const subtotalCents = cents.reduce((sum, item) => sum + item, BigInt(0));
   const deliveryCents = BigInt(Math.round(deliveryFee * 100));
-  const vatCents = ((subtotalCents + deliveryCents) * BigInt(Math.round(vatRate * 100)) + BigInt(5000)) / BigInt(10000);
-  const totalCents = subtotalCents + deliveryCents + vatCents;
+  const rate = BigInt(Math.round(vatRate * 100));
+  const denominator = BigInt(10000) + (pricingBasis === "inclusive" ? rate : BigInt(0));
+  const vatCents = ((subtotalCents + deliveryCents) * rate + denominator / BigInt(2)) / denominator;
+  const totalCents = subtotalCents + deliveryCents + (pricingBasis === "inclusive" ? BigInt(0) : vatCents);
   if (totalCents > BigInt(100000000000)) throw new Error("إجمالي العرض أكبر من الحد المسموح.");
   return { line_totals: cents.map(value => Number(value) / 100), subtotal: Number(subtotalCents) / 100, vat_amount: Number(vatCents) / 100, total: Number(totalCents) / 100 };
+}
+
+/** Import older net prices into the gross-price editor without reinterpreting them. */
+export function priceIncludingVat(netPrice: number, vatRate: number) {
+  const cents = BigInt(Math.round(netPrice * 100));
+  const rate = BigInt(Math.round(vatRate * 100));
+  return Number((cents * (BigInt(10000) + rate) + BigInt(5000)) / BigInt(10000)) / 100;
 }

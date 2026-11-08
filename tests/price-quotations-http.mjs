@@ -96,3 +96,22 @@ const provider=load('src/lib/notifications/providers/green-api.ts',{'server-only
 const providerResult=await provider.sendGreenApiFile({to:'+966500000001',file:new File(['%PDF'],'quotation.pdf',{type:'application/pdf'}),caption:'Test',idempotencyKey:'test',attempts:1});assert.equal(providerResult.status,'failed');assert.equal(providerCalls,1,'File submission with attempts=1 never repeats a potentially accepted request');
 const defaultProviderResult=await provider.sendGreenApiFile({to:'+966500000001',file:new File(['%PDF'],'existing.pdf',{type:'application/pdf'}),caption:'Existing caller',idempotencyKey:'existing'});assert.equal(defaultProviderResult.status,'failed');assert.equal(providerCalls,4,'Existing file callers retain the default three attempts');
 console.log('Price quotation HTTP: authentication/archive denial, canonical catalog and source snapshots, money validation, bounded body, idempotency, private responses and single-attempt WhatsApp lifecycle passed. No real messages.');
+
+// Gross amounts remain the agreed payable amount across API normalization.
+existing=null;
+const inclusiveDraft={...draft,pricing_basis:'inclusive',items:[{...draft.items[0],quantity:2,unit_price:115}],delivery_fee:57.5};
+response=await route.POST(request('POST',inclusiveDraft));assert.equal(response.status,201);
+body=await response.json();assert.equal(body.quotation.pricing_basis,'inclusive');
+assert.equal(body.quotation.subtotal,230);assert.equal(body.quotation.total,287.5);assert.equal(body.quotation.vat_amount,37.5);
+assert.equal(savedPayload.p_payload.items[0].unit_price,115);assert.equal(savedPayload.p_payload.delivery_fee,57.5);
+assert.equal((await route.POST(request('POST',{...inclusiveDraft,pricing_basis:'unknown'}))).status,400);
+for(const [items,delivery,rate,total,vatAmount] of [
+  [[{quantity:210,unit_price:33.04}],0,15,6938.4,905.01],
+  [[{quantity:2.005,unit_price:1},{quantity:3,unit_price:0.01}],0.01,15,2.05,0.27],
+  [[{quantity:3,unit_price:0.01}],0.01,0,0.04,0],
+  [[{quantity:1,unit_price:0}],0,15,0,0],
+]){
+  const actual=validation.calculatePriceQuotationTotals(items,delivery,rate,'inclusive');
+  assert.equal(actual.total,total);assert.equal(actual.vat_amount,vatAmount);
+}
+console.log('PASS inclusive API and money: exact gross totals, delivery, fractional quantities, zero VAT, invalid basis, unchanged legacy default.');

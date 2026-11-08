@@ -1,9 +1,10 @@
-import type { PriceQuotationItem } from "./price-quotation-types";
+import type { PriceQuotationItem, PriceQuotationPricingBasis } from "./price-quotation-types";
 
 export type InvoiceSeller = { name: string; vat_number: string; commercial_registration: string; address: string };
 export type InvoiceBuyer = { name: string; phone: string; address: string; vat_number: string };
 export type PriceInvoiceInput = { invoice_type: "standard" | "simplified"; buyer: InvoiceBuyer; supply_date: string };
 export type PriceInvoice = PriceInvoiceInput & {
+  pricing_basis?: PriceQuotationPricingBasis;
   id: string;
   status: "draft" | "issued";
   invoice_number: string;
@@ -19,5 +20,6 @@ export type PriceInvoice = PriceInvoiceInput & {
   total: number;
   currency: "SAR";
   qr_payload: string;
+  sales_policy: { title: string; body: string }[];
 };
 export type PriceInvoiceSettings = { phase: "unconfigured" | "phase1" | "phase2"; verified_at: string | null; seller: InvoiceSeller };

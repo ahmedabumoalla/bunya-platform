@@ -42,6 +42,7 @@ export async function renderPriceDocumentPdf(input: PriceQuotation | PriceInvoic
     source_request_code: input.quotation_code, valid_until: null, terms: "",
   } : input;
   const draft = invoice?.status === "draft";
+  const inclusive = quote.pricing_basis === "inclusive";
   const documentTitle = invoice ? invoice.invoice_type === "standard" ? "فاتورة ضريبية" : "فاتورة ضريبية مبسطة" : "عرض سعر";
   const documentSubtitle = invoice ? invoice.invoice_type === "standard" ? "Tax invoice" : "Simplified tax invoice" : "Quotation";
   const bodyTop = draft ? 164 : 128;
@@ -108,7 +109,7 @@ export async function renderPriceDocumentPdf(input: PriceQuotation | PriceInvoic
   top += cardHeight + 18;
   // Left-to-right column positions, with the product description on the RTL side.
   const widths = [91, 80, 66, CONTENT - 261, 24];
-  const labels = ["الإجمالي قبل الضريبة", "سعر الوحدة", "الكمية / الوحدة", "المنتج والمواصفات", "م"];
+  const labels = [inclusive ? "الإجمالي شامل الضريبة" : "الإجمالي قبل الضريبة", inclusive ? "سعر الوحدة شامل الضريبة" : "سعر الوحدة", "الكمية / الوحدة", "المنتج والمواصفات", "م"];
   async function tableHeader() {
     let x = MARGIN;
     for (let i = 0; i < widths.length; i++) { box(page, x, top, widths[i], 30, TEAL); await put(page, labels[i], x + 5, top + 9, widths[i] - 10, 8, "#ffffff", "center"); x += widths[i]; }
@@ -148,20 +149,53 @@ export async function renderPriceDocumentPdf(input: PriceQuotation | PriceInvoic
       if (consumed < height) { page = await newPage(); top = bodyTop; await tableHeader(); }
     }
   }
-  if (top + 170 > 760) { page = await newPage(); top = bodyTop; }
+  // Keep the invoice totals and its source quotation's complete policy together.
+  // Compact RTL columns use the blank area instead of a dedicated policy page.
+  const policyGap = 18, policyWidth = (CONTENT - policyGap) / 2;
+  const invoicePolicy = invoice ? await Promise.all(invoice.sales_policy.map((section, index) =>
+    text(`${index + 1}. ${section.title}: ${section.body}`, policyWidth, 7.5))) : [];
+  const columnHeight = (blocks: Text[]) => blocks.reduce((sum, block) => sum + block.height + 3, 0);
+  let policySplit = 0, policyHeight = 0;
+  if (invoicePolicy.length) {
+    policyHeight = Infinity;
+    for (let split = 1; split <= invoicePolicy.length; split++) {
+      const height = Math.max(columnHeight(invoicePolicy.slice(0, split)), columnHeight(invoicePolicy.slice(split)));
+      if (height < policyHeight) { policySplit = split; policyHeight = height; }
+    }
+    policyHeight += 32;
+  }
+  if (top + Math.max(170, 140 + policyHeight) > 760) { page = await newPage(); top = bodyTop; }
   top += 16;
   if (invoice && qrPng) {
     const qr = await pdf.embedPng(qrPng);
     page.drawImage(qr, { x: MARGIN + 37, y: PAGE_HEIGHT - top - 102, width: 102, height: 102 });
     await put(page, draft ? "رمز معاينة" : "رمز الفاتورة الضريبية", MARGIN + 10, top + 110, 156, 8, MUTED, "center");
   }
-  const totals = [["الإجمالي قبل الضريبة", quote.subtotal], ["التوصيل قبل الضريبة", quote.delivery_fee], [`ضريبة القيمة المضافة (${inlineValue(`${quote.vat_rate}٪`)})`, quote.vat_amount], ["الإجمالي شامل الضريبة — ر.س", quote.total]] as const;
+  // Keep a net taxable breakdown even when item prices were entered gross.
+  // Allocate the total's rounded tax exactly, rather than round each unit net
+  // and inadvertently change the customer's agreed gross amount.
+  const deliveryNet = inclusive ? Math.round(quote.delivery_fee * 100 / (1 + quote.vat_rate / 100)) / 100 : quote.delivery_fee;
+  const subtotalNet = inclusive ? (Math.round(quote.total * 100) - Math.round(quote.vat_amount * 100) - Math.round(deliveryNet * 100)) / 100 : quote.subtotal;
+  const totals = [["المنتجات قبل الضريبة", subtotalNet], ["التوصيل قبل الضريبة", deliveryNet], [`ضريبة القيمة المضافة (${inlineValue(`${quote.vat_rate}٪`)})`, quote.vat_amount], ["الإجمالي شامل الضريبة — ر.س", quote.total]] as const;
   for (const [index, [label, value]] of totals.entries()) {
     const x = PAGE_WIDTH - MARGIN - 340;
     box(page, x, top, 340, 31, index === 3 ? "#dff0f2" : index % 2 ? PALE : "#ffffff");
     await put(page, label, x + 106, top + 10, 224, 10);
     await put(page, money(value), x + 10, top + 9, 92, index === 3 ? 13 : 10, INK, "left");
     top += 31;
+  }
+  if (invoicePolicy.length) {
+    top += 12;
+    await put(page, "سياسة البيع", MARGIN, top, CONTENT, 10, TEAL);
+    top += 20;
+    for (const [column, blocks] of [invoicePolicy.slice(0, policySplit), invoicePolicy.slice(policySplit)].entries()) {
+      const x = column === 0 ? MARGIN + policyWidth + policyGap : MARGIN;
+      let policyTop = top;
+      for (const block of blocks) {
+        draw(page, block, x, policyTop, policyWidth);
+        policyTop += block.height + 3;
+      }
+    }
   }
   // The sales policy always travels inside the PDF, including forwarded copies.
   if (!invoice) { page = await newPage("سياسة البيع"); top = 132; }

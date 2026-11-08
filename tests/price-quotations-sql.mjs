@@ -15,6 +15,7 @@ create table public.admin_role_permissions(role_id uuid,permission_id uuid);
 create table public.user_roles(profile_id uuid,role text,revoked_at timestamptz);
 create table public.customer_profiles(profile_id uuid);
 create table auth.users(id uuid,phone_confirmed_at timestamptz);
+create table public.audit_logs(actor_profile_id uuid,entity_table text,entity_id text,action text,new_data jsonb);
 create table public.managed_quote_requests(id uuid primary key,request_code text);
 create table private.admin_archive_state(active boolean);
 insert into private.admin_archive_state values(true);
@@ -32,6 +33,8 @@ insert into admin_users select id,'${id(10)}',true from profiles where id<>'${id
 insert into user_roles select id,'admin',null from profiles where id<>'${id(2)}';
 insert into managed_quote_requests values('${id(20)}','BQ-REAL');`);
 await db.exec(readFileSync('supabase/migrations/105_price_quotations.sql', 'utf8'));
+await db.exec(readFileSync('supabase/migrations/107_price_quotation_invoices.sql', 'utf8'));
+await db.exec(readFileSync('supabase/migrations/109_price_quotation_inclusive_pricing.sql', 'utf8'));
 const payload = {customer_phone:'+966500000001',policy_version:'exclusive-address-sales-v1',items:[{product_id:'brkz-real',product_name:'Real item',unit:'piece',sku:'SKU',quantity:2.125,unit_price:12.34,line_total:26.22,attributes:[],notes:''}],subtotal:26.22,delivery_fee:10,vat_rate:15,vat_amount:5.43,total:41.65,terms:'Terms'};
 const create = (key = 30, actor = id(1), data = payload, fingerprint = 'a'.repeat(64)) => scalar('select public.price_quotation_create($1,$2,$3,$4)',[actor,id(key),fingerprint,data]);
 const claim = (quote, token=50, actor=id(1)) => scalar('select public.price_quotation_claim_send($1,$2,$3)',[actor,quote,id(token)]);
@@ -54,7 +57,7 @@ await test('private table RLS and RPC privileges deny anon and authenticated mut
 await test('standalone quote needs only phone, preserves exact totals and is idempotent',async()=>{
   const quote=await create();assert.equal(await create(),quote);
   const row=(await db.query('select * from public.price_quotations where id=$1',[quote])).rows[0];
-  assert.equal(row.customer_name,'');assert.equal(row.source_request_id,null);assert.equal(Number(row.total),41.65);assert.match(row.quotation_code,/^QUO-\d{8}-[A-F0-9]{12}$/);
+  assert.equal(row.pricing_basis,'exclusive');assert.equal(row.customer_name,'');assert.equal(row.source_request_id,null);assert.equal(Number(row.total),41.65);assert.match(row.quotation_code,/^QUO-\d{8}-[A-F0-9]{12}$/);
   assert.equal(await scalar('select count(*)::integer from public.price_quotation_events'),1);
   await rejects(()=>create(30,id(1),payload,'b'.repeat(64)),/Idempotency conflict/);
 });

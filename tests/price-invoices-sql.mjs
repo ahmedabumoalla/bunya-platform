@@ -36,7 +36,16 @@ const input={invoice_type:'standard',supply_date:'2026-11-08',buyer:{name:'مؤ�
 const quote=async(key=20,data=quoteData)=>scalar('select price_quotation_create($1,$2,$3,$4)',[id(1),id(key),'a'.repeat(64),data]);
 const issue=(q,data=input,actor=id(1),fingerprint='b'.repeat(64))=>scalar('select price_quotation_issue_invoice($1,$2,$3,$4)',[actor,q,fingerprint,data]);
 const configure=async()=>{await db.exec(`reset role;update price_invoice_settings set phase='phase1',verified_at=now(),configured_by='${id(1)}' where singleton;set local role service_role;`);};
-let passed=0;
+// Exercise the forward migration against already persisted legacy snapshots.
+await configure();const historicalQuote=await quote(98);const historicalInvoice=await issue(historicalQuote);
+const historicalBefore=(await db.query('select to_jsonb(q) as quote,to_jsonb(i) as invoice from price_quotations q join price_invoices i on i.quotation_id=q.id where q.id=$1',[historicalQuote])).rows[0];
+await db.exec('reset role');
+await db.exec(readFileSync('supabase/migrations/109_price_quotation_inclusive_pricing.sql','utf8'));
+const historicalAfter=(await db.query('select to_jsonb(q) as quote,to_jsonb(i) as invoice from price_quotations q join price_invoices i on i.quotation_id=q.id where q.id=$1',[historicalQuote])).rows[0];
+for(const kind of ['quote','invoice']){assert.equal(historicalAfter[kind].pricing_basis,'exclusive');delete historicalAfter[kind].pricing_basis;assert.deepEqual(historicalAfter[kind],historicalBefore[kind]);}
+// Local PGlite fixtures only; never executed against a remote database.
+await db.exec("reset role;truncate price_quotation_events,price_invoices,price_quotations,audit_logs;update price_invoice_settings set phase='unconfigured',verified_at=null,configured_by=null");
+let passed=1;console.log('PASS forward109 preserves every historical quotation/invoice field with exclusive default');
 async function test(name,body){await db.exec('begin;set local role service_role;');try{await body();passed++;console.log(`PASS ${name}`);}finally{await db.exec('rollback');}}
 async function rejects(body,pattern=/./){await db.exec('savepoint rejection');try{await assert.rejects(body,pattern);}finally{await db.exec('rollback to savepoint rejection');}}
 await test('unconfigured and Phase2 cannot issue; trusted role cannot alter company setup',async()=>{
@@ -72,5 +81,34 @@ await test('invalid buyer, missing supply date, forged line totals and unsupport
  for(const data of [{...input,buyer:{...input.buyer,vat_number:''}},{...input,buyer:{...input.buyer,address:''}},{...input,supply_date:''},{...input,supply_date:'2026-02-30'},{...input,invoice_type:'simplified'},{...input,items:[{...items[0],quantity:1}]}])await rejects(()=>issue(q,data));
  const zero=await quote(21,{...quoteData,vat_rate:0,vat_amount:0,total:36.22});await rejects(()=>issue(zero),/standard-rate/);
  assert.equal(await scalar('select count(*)::int from price_invoices'),0);
+});
+await test('inclusive quotation preserves entered gross amounts and invoice inherits basis',async()=>{
+ await configure();const grossItems=[{...items[0],quantity:2,unit_price:115,line_total:230}];
+ const data={...quoteData,pricing_basis:'inclusive',items:grossItems,subtotal:230,delivery_fee:57.5,vat_amount:37.5,total:287.5};
+ const q=await quote(70,data);assert.equal(await quote(70,data),q);
+ const saved=(await db.query('select * from price_quotations where id=$1',[q])).rows[0];
+ assert.equal(saved.pricing_basis,'inclusive');assert.equal(Number(saved.subtotal),230);assert.equal(Number(saved.delivery_fee),57.5);assert.equal(Number(saved.total),287.5);assert.equal(Number(saved.vat_amount),37.5);
+ const inv=await issue(q,{...input,items:grossItems,pricing_basis:'exclusive'});assert.equal(await issue(q,{...input,items:grossItems}),inv);
+ const row=(await db.query('select * from price_invoices where id=$1',[inv])).rows[0];
+ assert.equal(row.pricing_basis,'inclusive');assert.deepEqual(row.items,grossItems);assert.equal(Number(row.total),287.5);assert.equal(Number(row.vat_amount),37.5);assert.equal(Number(row.delivery_fee),57.5);
+ await rejects(()=>issue(q,{...input,items:grossItems},id(1),'c'.repeat(64)),/different data/);
+ await db.exec('reset role');await rejects(()=>db.query("update price_invoices set pricing_basis='exclusive' where id=$1",[inv]),/immutable/);
+});
+await test('inclusive fractional and multiple lines round gross first, extracting VAT once',async()=>{
+ await configure();const fractional=[{...items[0],quantity:2.125,unit_price:12.34,line_total:26.22},{...items[0],quantity:0.333,unit_price:1,line_total:0.33},{...items[0],quantity:0.333,unit_price:1,line_total:0.33}];
+ const q=await quote(71,{...quoteData,pricing_basis:'inclusive',items:fractional,subtotal:26.88,delivery_fee:0.01,vat_amount:3.51,total:26.89});
+ const inv=await issue(q,{...input,items:fractional});const row=(await db.query('select * from price_invoices where id=$1',[inv])).rows[0];
+ assert.equal(Number(row.total),26.89);assert.equal(Number(row.vat_amount),3.51);assert.equal(row.pricing_basis,'inclusive');
+ const zero=await quote(72,{...quoteData,pricing_basis:'inclusive',vat_rate:0,vat_amount:0,total:36.22});
+ assert.equal(Number(await scalar('select total from price_quotations where id=$1',[zero])),36.22);await rejects(()=>issue(zero),/standard-rate/);
+});
+await test('inclusive formula cannot add tax twice, forge amounts or bypass database constraints',async()=>{
+ const grossItems=[{...items[0],quantity:2,unit_price:115,line_total:230}];
+ const data={...quoteData,pricing_basis:'inclusive',items:grossItems,subtotal:230,delivery_fee:57.5,vat_amount:37.5,total:287.5};
+ for(const patch of [{pricing_basis:'unknown'},{vat_amount:43.13,total:330.63},{vat_amount:37.49},{total:287.51},{delivery_fee:57.501},{items:[{...grossItems[0],line_total:229.99}]}])await rejects(()=>quote(73,{...data,...patch}));
+ const q=await quote(74,data);
+ await rejects(()=>db.query("update price_quotations set total=330.63,vat_amount=43.13 where id=$1",[q]),/check constraint/);
+ await rejects(()=>db.query("update price_quotations set pricing_basis='exclusive' where id=$1",[q]),/check constraint/);
+ await rejects(()=>db.query("update price_quotations set pricing_basis='invalid' where id=$1",[q]),/check constraint/);
 });
 await db.close();console.log(`Price invoice SQL PASS: ${passed} groups.`);

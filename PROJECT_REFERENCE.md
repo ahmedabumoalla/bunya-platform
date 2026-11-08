@@ -1,5 +1,11 @@
 # Bunya Platform — Project Reference
 
+## 2026-11-09 00:07 - Inclusive quotation pricing; inline invoice policy; approval diagnosis
+
+Creation now treats unit prices and delivery as VAT-inclusive, extracting included tax once.109 APPLIED with default-exclusive historical compatibility and server/DB verification; invoices inherit source basis. Existing quotes retain original money. Invoice PDFs show all13 original source policy clauses beneath totals in two RTL columns, without a standalone policy page. Local build/targeted UI/API/SQL/PDF+QR checks and live rollback rehearsal pass; security advisors unchanged78/0ERROR. Web publication pending; evidence in docs/task-state.md.
+
+Read-only production diagnosis for «شركة مكان المستقبل للتطوير العقاري» approval: submitted mobile belongs to existing active phone-verified customer «مكان المستقبل». Current API creates another Auth account, then finalizer rejects duplicate identity and safely removes it. Request stayspending,originalcustomer unchanged,no approval/onboarding delivery. Correct future path requires verified linking to existing account and existing-account approval (preserve customer/password/history); not implemented or approved during diagnosis.
+
 ## 2026-11-08 23:50 - Phase 1 tax invoice issuance ENABLED LIVE
 
 Owner explicitly confirmed company is currently Phase1/not required Phase2. Data migration108 applied with seller/active-owner guards and audit recording owner confirmation (not independent authority clearance). Existing standard/simplified final issuance with invoice number and tax TLV QR is now enabled. Preview remains a preview; user must click explicit final-issue button to create a real invoice.
