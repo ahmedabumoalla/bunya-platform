@@ -7,6 +7,7 @@ import type { PriceQuotation } from "./price-quotation-types";
 import type { PriceInvoice } from "./price-invoice-types";
 import { priceQuotationPolicy } from "./price-quotation-policy";
 import { quotationItemPresentation } from "./price-quotation-presentation";
+import { priceInvoiceBreakdown } from "./price-invoice-breakdown";
 
 const PAGE_WIDTH = 595.28, PAGE_HEIGHT = 841.89, MARGIN = 28, CONTENT = PAGE_WIDTH - MARGIN * 2;
 const SCALE = 3;
@@ -43,6 +44,7 @@ export async function renderPriceDocumentPdf(input: PriceQuotation | PriceInvoic
   } : input;
   const draft = invoice?.status === "draft";
   const inclusive = quote.pricing_basis === "inclusive";
+  const invoiceMoney = invoice ? priceInvoiceBreakdown(invoice) : null;
   const documentTitle = invoice ? invoice.invoice_type === "standard" ? "فاتورة ضريبية" : "فاتورة ضريبية مبسطة" : "عرض سعر";
   const documentSubtitle = invoice ? invoice.invoice_type === "standard" ? "Tax invoice" : "Simplified tax invoice" : "Quotation";
   const bodyTop = draft ? 164 : 128;
@@ -97,23 +99,30 @@ export async function renderPriceDocumentPdf(input: PriceQuotation | PriceInvoic
   const seller = invoice ? [invoice.seller.name, `السجل التجاري: ${inlineValue(invoice.seller.commercial_registration)}`, `الرقم الضريبي: ${inlineValue(invoice.seller.vat_number)}`, invoice.seller.address]
     : ["شركة العنوان الحصري", `السجل التجاري: ${inlineValue("5850157983")}`, `الرقم الضريبي: ${inlineValue("312872746700003")}`, `العنوان الوطني: ${inlineValue("AKAA8043")}`, "8043 حي الخالدية، خميس مشيط 62411", "الرقم الإضافي: 3076 — المملكة العربية السعودية"];
   const customer = [quote.customer_name || "العميل", `الجوال: ${inlineValue(quote.customer_phone)}`, ...(quote.customer_tax_number ? [`الرقم الضريبي: ${inlineValue(quote.customer_tax_number)}`] : []), ...(quote.customer_address ? [quote.customer_address] : []), ...(quote.source_request_code ? [`مرجع الطلب: ${inlineValue(quote.source_request_code)}`] : [])];
-  const sellerBlocks = await Promise.all(seller.map(line => text(line, half - 20, 9)));
-  const customerBlocks = await Promise.all(customer.map(line => text(line, half - 20, 9)));
-  const cardHeight = 43 + Math.max(...[sellerBlocks, customerBlocks].map(blocks => blocks.reduce((height, block) => height + block.height + 7, 0)));
+  const cardSpacing = invoice ? 4 : 7;
+  const sellerBlocks = await Promise.all(seller.map(line => text(line, half - 20, invoice ? 8.5 : 9)));
+  const customerBlocks = await Promise.all(customer.map(line => text(line, half - 20, invoice ? 8.5 : 9)));
+  const cardHeight = (invoice ? 37 : 43) + Math.max(...[sellerBlocks, customerBlocks].map(blocks => blocks.reduce((height, block) => height + block.height + cardSpacing, 0)));
   for (const [x, title, blocks] of [[MARGIN + half + gap, "بيانات البائع", sellerBlocks], [MARGIN, invoice ? "بيانات المشتري" : "بيانات العميل", customerBlocks]] as const) {
     box(page, x, top, half, cardHeight); box(page, x, top, half, 26, TEAL);
     await put(page, title, x + 10, top + 7, half - 20, 10, "#ffffff");
-    let rowTop = top + 38;
-    for (const block of blocks) { draw(page, block, x + 10, rowTop, half - 20); rowTop += block.height + 7; }
+    let rowTop = top + (invoice ? 33 : 38);
+    for (const block of blocks) { draw(page, block, x + 10, rowTop, half - 20); rowTop += block.height + cardSpacing; }
   }
-  top += cardHeight + 18;
+  top += cardHeight + (invoice ? 12 : 18);
   // Left-to-right column positions, with the product description on the RTL side.
-  const widths = [91, 80, 66, CONTENT - 261, 24];
-  const labels = [inclusive ? "الإجمالي شامل الضريبة" : "الإجمالي قبل الضريبة", inclusive ? "سعر الوحدة شامل الضريبة" : "سعر الوحدة", "الكمية / الوحدة", "المنتج والمواصفات", "م"];
+  const widths = invoice ? [67, 67, 49, 35, 40, 35, 59, CONTENT - 370, 18] : [91, 80, 66, CONTENT - 261, 24];
+  const labels = invoice
+    ? ["الإجمالي شامل الضريبة", "الإجمالي قبل الضريبة", "مبلغ الضريبة", "نسبة الضريبة", "الكمية", "الوحدة", inclusive ? "سعر الوحدة شامل الضريبة" : "سعر الوحدة قبل الضريبة", "المنتج والمواصفات", "م"]
+    : [inclusive ? "الإجمالي شامل الضريبة" : "الإجمالي قبل الضريبة", inclusive ? "سعر الوحدة شامل الضريبة" : "سعر الوحدة", "الكمية / الوحدة", "المنتج والمواصفات", "م"];
+  const descriptionColumn = invoice ? 7 : 3;
+  const cellPadding = invoice ? 4 : 7;
+  const headerBlocks = await Promise.all(labels.map((label, index) => text(label, widths[index] - (invoice ? 6 : 10), invoice ? 7.5 : 8, "#ffffff", "center")));
+  const headerHeight = Math.max(30, ...headerBlocks.map(block => block.height + 12));
   async function tableHeader() {
     let x = MARGIN;
-    for (let i = 0; i < widths.length; i++) { box(page, x, top, widths[i], 30, TEAL); await put(page, labels[i], x + 5, top + 9, widths[i] - 10, 8, "#ffffff", "center"); x += widths[i]; }
-    top += 30;
+    for (let i = 0; i < widths.length; i++) { box(page, x, top, widths[i], headerHeight, TEAL); draw(page, headerBlocks[i], x, top + (headerHeight - headerBlocks[i].height) / 2, widths[i], "center"); x += widths[i]; }
+    top += headerHeight;
   }
   if (top > 650) { page = await newPage(); top = bodyTop; }
   await tableHeader();
@@ -122,9 +131,13 @@ export async function renderPriceDocumentPdf(input: PriceQuotation | PriceInvoic
   const items = invoice ? quote.items : quote.items.map(quotationItemPresentation);
   for (const [index, item] of items.entries()) {
     const description = [item.product_name, ...(item.sku ? [inlineValue(`SKU: ${item.sku}`)] : []), ...item.attributes.map(attribute => `${attribute.label}: ${inlineValue(attribute.value)}`), ...(item.notes ? [item.notes] : [])].join("\n");
-    const blocks = await Promise.all([money(item.line_total), money(item.unit_price), `${item.quantity}\n${item.unit}`, description, String(index + 1)].map((value, i) => text(value, widths[i] - 14, 9, INK, i === 3 ? "right" : "center")));
+    const lineMoney = invoiceMoney?.lines[index];
+    const values = lineMoney
+      ? [money(lineMoney.gross), money(lineMoney.net), money(lineMoney.vat), `${quote.vat_rate}%`, String(item.quantity), item.unit, money(item.unit_price), description, String(index + 1)]
+      : [money(item.line_total), money(item.unit_price), `${item.quantity}\n${item.unit}`, description, String(index + 1)];
+    const blocks = await Promise.all(values.map((value, i) => text(value, widths[i] - cellPadding * 2, invoice ? 8 : 9, INK, i === descriptionColumn ? "right" : "center")));
     const height = Math.max(42, ...blocks.map(block => block.height + 20));
-    if (top + height > 760 && top > bodyTop + 30) { page = await newPage(); top = bodyTop; await tableHeader(); }
+    if (top + height > 760 && top > bodyTop + headerHeight) { page = await newPage(); top = bodyTop; await tableHeader(); }
     // Very long item notes/specifications continue across pages without clipping.
     let consumed = 0;
     while (consumed < height) {
@@ -133,14 +146,14 @@ export async function renderPriceDocumentPdf(input: PriceQuotation | PriceInvoic
       for (let i = 0; i < widths.length; i++) {
         box(page, x, top, widths[i], fragment, index % 2 ? PALE : "#ffffff");
         const block = blocks[i];
-        if (consumed === 0 && block.height + 10 <= fragment) draw(page, block, x + 7, top + 10, widths[i] - 14, i === 3 ? "right" : "center");
+        if (consumed === 0 && block.height + 10 <= fragment) draw(page, block, x + cellPadding, top + 10, widths[i] - cellPadding * 2, i === descriptionColumn ? "right" : "center");
         else if (block.height > consumed) {
           // Crop only overflowing text images; normal rows remain one PDF image.
           const cropTop = Math.max(0, Math.round(consumed * SCALE));
           const cropHeight = Math.min(Math.round(block.height * SCALE) - cropTop, Math.floor((fragment - 10) * SCALE));
           if (cropHeight > 0) {
             const cropped = await sharp(block.png).extract({ left: 0, top: cropTop, width: Math.round(block.width * SCALE), height: cropHeight }).png().toBuffer();
-            draw(page, { image: await pdf.embedPng(cropped), width: block.width, height: cropHeight / SCALE, png: cropped }, x + 7, top + 5, widths[i] - 14, i === 3 ? "right" : "center");
+            draw(page, { image: await pdf.embedPng(cropped), width: block.width, height: cropHeight / SCALE, png: cropped }, x + cellPadding, top + 5, widths[i] - cellPadding * 2, i === descriptionColumn ? "right" : "center");
           }
         }
         x += widths[i];
@@ -149,7 +162,7 @@ export async function renderPriceDocumentPdf(input: PriceQuotation | PriceInvoic
       if (consumed < height) { page = await newPage(); top = bodyTop; await tableHeader(); }
     }
   }
-  // Keep the invoice totals and its source quotation's complete policy together.
+  // Keep the invoice totals and its sales policy together.
   // Compact RTL columns use the blank area instead of a dedicated policy page.
   const policyGap = 18, policyWidth = (CONTENT - policyGap) / 2;
   const invoicePolicy = invoice ? await Promise.all(invoice.sales_policy.map((section, index) =>
@@ -164,7 +177,7 @@ export async function renderPriceDocumentPdf(input: PriceQuotation | PriceInvoic
     }
     policyHeight += 32;
   }
-  if (top + Math.max(170, 140 + policyHeight) > 760) { page = await newPage(); top = bodyTop; }
+  if (top + Math.max(170, 141 + policyHeight) > 760) { page = await newPage(); top = bodyTop; }
   top += 16;
   if (invoice && qrPng) {
     const qr = await pdf.embedPng(qrPng);
@@ -174,15 +187,17 @@ export async function renderPriceDocumentPdf(input: PriceQuotation | PriceInvoic
   // Keep a net taxable breakdown even when item prices were entered gross.
   // Allocate the total's rounded tax exactly, rather than round each unit net
   // and inadvertently change the customer's agreed gross amount.
-  const deliveryNet = inclusive ? Math.round(quote.delivery_fee * 100 / (1 + quote.vat_rate / 100)) / 100 : quote.delivery_fee;
-  const subtotalNet = inclusive ? (Math.round(quote.total * 100) - Math.round(quote.vat_amount * 100) - Math.round(deliveryNet * 100)) / 100 : quote.subtotal;
-  const totals = [["المنتجات قبل الضريبة", subtotalNet], ["التوصيل قبل الضريبة", deliveryNet], [`ضريبة القيمة المضافة (${inlineValue(`${quote.vat_rate}٪`)})`, quote.vat_amount], ["الإجمالي شامل الضريبة — ر.س", quote.total]] as const;
+  const deliveryNet = invoiceMoney ? invoiceMoney.delivery.net : inclusive ? Math.round(quote.delivery_fee * 100 / (1 + quote.vat_rate / 100)) / 100 : quote.delivery_fee;
+  const subtotalNet = invoiceMoney ? invoiceMoney.productsNet : inclusive ? (Math.round(quote.total * 100) - Math.round(quote.vat_amount * 100) - Math.round(deliveryNet * 100)) / 100 : quote.subtotal;
+  const totals = [[invoice ? "إجمالي المنتجات قبل الضريبة" : "المنتجات قبل الضريبة", subtotalNet], [invoice ? "رسوم التوصيل قبل الضريبة" : "التوصيل قبل الضريبة", deliveryNet], ...(invoiceMoney ? [["الإجمالي قبل الضريبة", invoiceMoney.net] as const] : []), [`ضريبة القيمة المضافة (${inlineValue(`${quote.vat_rate}٪`)})`, quote.vat_amount], ["الإجمالي شامل الضريبة — ر.س", quote.total]] as const;
+  const totalRowHeight = invoice ? 25 : 31;
   for (const [index, [label, value]] of totals.entries()) {
     const x = PAGE_WIDTH - MARGIN - 340;
-    box(page, x, top, 340, 31, index === 3 ? "#dff0f2" : index % 2 ? PALE : "#ffffff");
-    await put(page, label, x + 106, top + 10, 224, 10);
-    await put(page, money(value), x + 10, top + 9, 92, index === 3 ? 13 : 10, INK, "left");
-    top += 31;
+    const final = index === totals.length - 1;
+    box(page, x, top, 340, totalRowHeight, final ? "#dff0f2" : index % 2 ? PALE : "#ffffff");
+    await put(page, label, x + 106, top + (invoice ? 7 : 10), 224, invoice ? 9.5 : 10);
+    await put(page, money(value), x + 10, top + (invoice ? 6 : 9), 92, final ? invoice ? 12 : 13 : 10, INK, "left");
+    top += totalRowHeight;
   }
   if (invoicePolicy.length) {
     top += 12;

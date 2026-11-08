@@ -14,10 +14,11 @@ function load(file, mocks = {}) {
   return exports;
 }
 const policy = load('src/lib/quotes/price-quotation-policy.ts');
+const invoicePolicy = load('src/lib/quotes/price-invoice-policy.ts');
 const presentation = load('src/lib/quotes/price-quotation-presentation.ts');
 const renderedText=[];
 const recordingSharp=(input,...args)=>{if(input?.text)renderedText.push(input.text.text);return sharp(input,...args);};
-const stationery = load('src/lib/quotes/price-quotation-pdf.ts', {'server-only':{}, './price-quotation-policy':policy,'./price-quotation-presentation':presentation,sharp:recordingSharp});
+const stationery = load('src/lib/quotes/price-quotation-pdf.ts', {'server-only':{}, './price-quotation-policy':policy,'./price-quotation-presentation':presentation,'./price-invoice-breakdown':load('src/lib/quotes/price-invoice-breakdown.ts'),sharp:recordingSharp});
 const {renderPriceInvoicePdf} = load('src/lib/quotes/price-invoice-pdf.ts', {'server-only':{},'./price-quotation-pdf':stationery});
 const {priceInvoiceQr} = load('src/lib/quotes/price-invoice-validation.ts');
 
@@ -28,7 +29,7 @@ const invoice = {
   buyer:{name:'شركة تجريبية — للمعاينة فقط',phone:'+966500000000',address:'الرياض — عنوان تجريبي',vat_number:'310000000000003'},
   items:[{product_id:'preview',product_name:'مكعبات فلين',sku:'EPS-01-20020-12',unit:'حبة',quantity:210,unit_price:33.04,line_total:6938.4,attributes:[{label:'مقاس',value:'200 × 40 × 20 mm'},{label:'نوع',value:'ضغط 12'}],notes:''}],
   subtotal:6938.4,delivery_fee:0,vat_rate:15,vat_amount:1040.76,total:7979.16,currency:'SAR',qr_payload:'',
-  sales_policy:policy.priceQuotationPolicy({delivery_fee:0,delivery_city:'الرياض',delivery_window:'ثلاثة أيام',valid_until:'2026-11-12T20:59:00Z'}),
+  sales_policy:invoicePolicy.priceInvoicePolicy(),
 };
 invoice.qr_payload = priceInvoiceQr({seller_name:invoice.seller.name,seller_vat:invoice.seller.vat_number,issued_at:invoice.issued_at,total:invoice.total,vat_amount:invoice.vat_amount});
 const expectedFields = [invoice.seller.name,invoice.seller.vat_number,new Date(invoice.issued_at).toISOString(),invoice.total.toFixed(2),invoice.vat_amount.toFixed(2)];
@@ -67,6 +68,8 @@ for(const type of ['standard','simplified']) {
   const bytes=await renderPriceInvoicePdf({...invoice,invoice_type:type,buyer:type==='simplified'?{...invoice.buyer,name:'عميل نقدي',vat_number:''}:invoice.buyer});
   const pdf=await PDFDocument.load(bytes);
   assert.equal(pdf.getPageCount(),1,'all sales terms share the invoice page, with no dedicated policy page');
+  for(const label of ['الوحدة','الكمية','نسبة الضريبة','مبلغ الضريبة','الإجمالي قبل الضريبة','الإجمالي شامل الضريبة','سعر الوحدة قبل الضريبة'])assert.ok(renderedText.some(text=>text.includes(label)),label+' is included in the invoice table');
+  for(const value of ['210','33.04','1,040.76','6,938.40','7,979.16'])assert.ok(renderedText.some(text=>text.includes(value)),value+' is included in the financial breakdown');
   assert.ok(renderedText.some(text=>text.includes('سياسة البيع')));
   for(const section of invoice.sales_policy)assert.ok(renderedText.some(text=>text.includes(section.title+': '+section.body)),section.title+' is rendered completely');
   assert.match(pdf.getTitle(), type==='standard'?/فاتورة ضريبية INV-/:/فاتورة ضريبية مبسطة INV-/);

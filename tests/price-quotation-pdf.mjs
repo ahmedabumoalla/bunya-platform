@@ -65,7 +65,7 @@ function load(file, mocks = {}) {
 }
 const policy = load('src/lib/quotes/price-quotation-policy.ts');
 const presentation = load('src/lib/quotes/price-quotation-presentation.ts');
-const { renderPriceQuotationPdf } = load('src/lib/quotes/price-quotation-pdf.ts', { 'server-only': {}, './price-quotation-policy': policy, './price-quotation-presentation':presentation, sharp: verifiedSharp });
+const { renderPriceQuotationPdf } = load('src/lib/quotes/price-quotation-pdf.ts', { 'server-only': {}, './price-quotation-policy': policy, './price-quotation-presentation':presentation, './price-invoice-breakdown':load('src/lib/quotes/price-invoice-breakdown.ts'), sharp: verifiedSharp });
 const nextConfig = load('next.config.ts').default;
 for (const route of ['/api/price-quotations/*/pdf', '/api/price-quotations/*/send']) {
   assert.ok(nextConfig.outputFileTracingIncludes[route].includes('./' + fontPath), `${route} bundles the PDF font`);

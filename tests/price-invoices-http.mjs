@@ -15,9 +15,12 @@ const calls=[];
 const context={userId:id,db:{rpc:async()=>({data:permission,error:null})},admin:{from(table){const q={select(){return q},eq(){return q},single:async()=>({data:{phase,verified_at:phase==='phase1'?'2026-11-08T00:00:00Z':null,seller},error:null}),maybeSingle:async()=>({data:table==='price_invoices'?invoice:null,error:null})};return q},rpc:async(name,payload)=>{calls.push({name,payload});if(rpcError)return {error:rpcError};invoice={...payload.p_input,id,invoice_number:'INV-20261108-000001',issued_at:'2026-11-08T20:30:00Z',quotation_id:id,quotation_code:quotation.quotation_code,seller,items:quotation.items,subtotal:26.22,delivery_fee:10,vat_rate:15,vat_amount:5.43,total:41.65,currency:'SAR',request_fingerprint:payload.p_fingerprint,created_by:id};return {data:id,error:null}}}};
 const quotes={priceQuotationContext:async()=>{if(!auth)throw new ManagedQuoteError(401,'Login');return context},readPriceQuotation:async(_c,q)=>{if(q!==id)throw new ManagedQuoteError(404,'Not found');return quotation},priceQuotationResponse:(data,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'private, no-store'}}),priceQuotationFailure:error=>Response.json({message:error.message},{status:error.status||500}),readPriceQuotationBody:async req=>{if(!req.headers.get('content-type')?.includes('application/json'))throw new ManagedQuoteError(415,'Invalid content type');return req.json()}};
 const validation=load('src/lib/quotes/price-invoice-validation.ts');
-const policy=load('src/lib/quotes/price-quotation-policy.ts');
+const policy=load('src/lib/quotes/price-invoice-policy.ts');
+assert.equal(policy.priceInvoicePolicy().length,10);
+assert.ok(!policy.priceInvoicePolicy().some(section=>/صلاحية العرض|السعر المقدم قابل للتعديل/.test(section.title+' '+section.body)),'Invoice terms must not inherit quotation validity or price changes');
+assert.ok(policy.priceInvoicePolicy().some(section=>section.title==='تأكيد الاستلام'&&section.body.includes('لا يثبت استلام البضاعة')),'Printing an invoice does not fabricate a delivery acknowledgement');
 quotation.delivery_city='الرياض';quotation.delivery_window='ثلاثة أيام';quotation.valid_until='2026-11-12T20:59:00Z';
-const server=load('src/lib/quotes/price-invoice-server.ts',{'server-only':{},'./managed-server':{ManagedQuoteError},'./price-quotation-server':quotes,'./price-invoice-validation':validation,'./price-quotation-policy':policy});
+const server=load('src/lib/quotes/price-invoice-server.ts',{'server-only':{},'./managed-server':{ManagedQuoteError},'./price-quotation-server':quotes,'./price-invoice-validation':validation,'./price-invoice-policy':policy});
 let rendered;
 const common={'@/lib/quotes/price-quotation-server':quotes,'@/lib/quotes/price-invoice-server':server,'@/lib/quotes/managed-server':{ManagedQuoteError},'@/lib/quotes/price-invoice-pdf':{renderPriceInvoicePdf:async row=>{rendered=row;return new Uint8Array([37,80,68,70]);}}};
 const route=load('src/app/api/price-quotations/[id]/invoice/route.ts',common),pdf=load('src/app/api/price-quotations/[id]/invoice/pdf/route.ts',common),preview=load('src/app/api/price-quotations/[id]/invoice/preview/route.ts',common);
@@ -27,7 +30,7 @@ const request=(method='GET',body)=>new NextRequest('https://example.com/api/pric
 auth=false;assert.equal((await route.GET(request(),params)).status,401);auth=true;permission=false;assert.equal((await route.POST(request('POST',input),params)).status,403);permission=true;
 assert.equal((await route.POST(request('POST',input),params)).status,409);assert.equal(calls.length,0);
 assert.equal((await preview.POST(request('POST',input),params)).status,200);assert.equal(rendered.status,'draft');assert.equal(rendered.qr_payload,'');assert.equal(calls.length,0);
-assert.deepEqual(rendered.sales_policy,policy.priceQuotationPolicy(quotation),'preview carries exact versioned source policy including delivery and expiry');
+assert.deepEqual(rendered.sales_policy,policy.priceInvoicePolicy(),'preview carries invoice-specific sales and receipt terms');
 phase='phase2';assert.equal((await route.POST(request('POST',input),params)).status,409);assert.equal((await preview.POST(request('POST',input),params)).status,200);assert.equal(calls.length,0);
 phase='phase1';assert.equal((await pdf.GET(request(),params)).status,404);
 let response=await route.POST(request('POST',{...input,items:[{forged:true}],total:1,seller:{name:'forged'}}),params);assert.equal(response.status,201);
@@ -35,7 +38,7 @@ let body=await response.json();assert.equal(body.invoice.total,41.65);assert.equ
 const qr=Buffer.from(body.invoice.qr_payload,'base64'),decoded=[];for(let p=0;p<qr.length;){const tag=qr[p++],size=qr[p++];decoded.push([tag,qr.subarray(p,p+size).toString('utf8')]);p+=size;}
 assert.deepEqual(decoded,[[1,seller.name],[2,seller.vat_number],[3,'2026-11-08T20:30:00.000Z'],[4,'41.65'],[5,'5.43']]);
 response=await pdf.GET(request(),params);assert.equal(response.status,200);assert.equal(response.headers.get('cache-control'),'private, no-store');assert.equal(rendered.status,'issued');
-assert.deepEqual(rendered.sales_policy,policy.priceQuotationPolicy(quotation),'issued PDF carries the same immutable source policy');
+assert.deepEqual(rendered.sales_policy,policy.priceInvoicePolicy(),'issued PDF carries invoice-specific terms without quotation validity');
 rpcError={code:'23505'};assert.equal((await route.POST(request('POST',input),params)).status,409);rpcError={code:'42501'};assert.equal((await route.POST(request('POST',input),params)).status,403);rpcError=null;
 for(const invalid of [{...input,buyer:{...input.buyer,vat_number:''}},{...input,supply_date:'2026-02-30'},{...input,invoice_type:'simplified'}])assert.equal((await route.POST(request('POST',invalid),params)).status,400);
 quotation.vat_rate=0;assert.equal((await route.POST(request('POST',input),params)).status,409);assert.equal((await preview.POST(request('POST',input),params)).status,409);

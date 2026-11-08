@@ -1,5 +1,13 @@
 # Bunya Platform — Project Reference
 
+## 2026-11-09 00:19 - Invoice terms and detailed tax table ready
+
+Invoice-specific10-clause policy replaces quotation terms; covers seller supply duties, inspection/signedreceipt,buyer-causeddamage,limiteddiscretionaryreturns and mandatorySaudi statutoryrights. Officialreferences/legal-reviewlimits in docs/invoice-sales-policy.md. Printing doesnotprove receipt/acceptance or retroactively amend contracts. Fullinvoicecolumns unit/unitprice/qty/VATrate/VATamount/net/gross and separatebottom5rows. Integerfils allocation reconciles line+deliveryVAT with originalsavedinvoice/QR. TargetedHTTP/PDF/math/quotationregressions,lint,build+types andvisualPDF checksPASS; no DB or fiscalrecords changed. Webpublication pending.
+
+## 2026-11-09 00:09 - Inclusive pricing and invoice policy LIVE
+
+Published96628481da701e823477825c880ca0d32255fec7; Vercel dpl_HfHfzd6zqKzCXtNUWYT3Xz1tfiK1 READY and officialdomain independently verified. Actual existing issuedinvoice and preview now show all13policyclauses belowtotals ononepage; actualQR/money unchanged, bothLinuxPDFs visually checked. Authenticatedcomposer+deployedassets confirminclusiveunit/deliverylabels. Invoicecount1→1/noissuance/messages,temporarysessionrevoked.109 alreadyapplied; nooldamountsreinterpreted. Evidence docs/task-state.md. Earlier pendingwebnotes superseded; contractorapproval issue remains diagnosedonly.
+
 ## 2026-11-09 00:07 - Inclusive quotation pricing; inline invoice policy; approval diagnosis
 
 Creation now treats unit prices and delivery as VAT-inclusive, extracting included tax once.109 APPLIED with default-exclusive historical compatibility and server/DB verification; invoices inherit source basis. Existing quotes retain original money. Invoice PDFs show all13 original source policy clauses beneath totals in two RTL columns, without a standalone policy page. Local build/targeted UI/API/SQL/PDF+QR checks and live rollback rehearsal pass; security advisors unchanged78/0ERROR. Web publication pending; evidence in docs/task-state.md.
