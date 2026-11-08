@@ -9,6 +9,7 @@ import { renderPriceQuotationPdf } from "./price-quotation-pdf";
 import { sendGreenApiFile } from "@/lib/notifications/providers/green-api";
 import type { PriceQuotation, PriceQuotationItem } from "./price-quotation-types";
 import { PRICE_QUOTATION_POLICY_VERSION } from "./price-quotation-policy";
+import { quotationItemPresentation } from "./price-quotation-presentation";
 
 export async function priceQuotationContext(request: NextRequest) {
   if (request.headers.get("sec-fetch-site") === "cross-site") throw new ManagedQuoteError(403, "مصدر الطلب غير صالح.");
@@ -41,7 +42,7 @@ export function visiblePriceQuotation(row: PriceQuotation & Record<string, unkno
   const { id, quotation_code, source_request_id, source_request_code, customer_name, customer_phone, customer_address, customer_tax_number, delivery_city, delivery_window, policy_version, items, subtotal, vat_rate, vat_amount, delivery_fee, total, valid_until, terms, created_at, send_status, sent_at, send_error } = row;
   // A worker interrupted after provider submission cannot be retried safely.
   const stale = send_status === "sending" && Date.parse(String(row.send_started_at)) < Date.now() - 120000;
-  return { id, quotation_code, source_request_id, source_request_code, customer_name, customer_phone, customer_address, customer_tax_number, delivery_city, delivery_window, policy_version, items, subtotal: Number(subtotal), vat_rate: Number(vat_rate), vat_amount: Number(vat_amount), delivery_fee: Number(delivery_fee), total: Number(total), valid_until, terms, created_at, send_status: stale ? "uncertain" : send_status, sent_at, send_error: stale ? "submission_unconfirmed" : send_error };
+  return { id, quotation_code, source_request_id, source_request_code, customer_name, customer_phone, customer_address, customer_tax_number, delivery_city, delivery_window, policy_version, items: items.map(quotationItemPresentation), subtotal: Number(subtotal), vat_rate: Number(vat_rate), vat_amount: Number(vat_amount), delivery_fee: Number(delivery_fee), total: Number(total), valid_until, terms, created_at, send_status: stale ? "uncertain" : send_status, sent_at, send_error: stale ? "submission_unconfirmed" : send_error };
 }
 
 export async function readPriceQuotation(context: ManagedQuoteContext, id: string) {
@@ -68,7 +69,7 @@ export async function createPriceQuotation(context: ManagedQuoteContext, input: 
     if (item.source_item_id) {
       const original = source?.items.find(line => line.id === item.source_item_id && line.product_id === item.product_id);
       if (!original || original.unit !== item.unit || original.sku !== item.sku) throw new ManagedQuoteError(400, "المنتج المحدد لا يطابق الطلب المرتبط.");
-      items.push({ product_id: original.product_id, product_name: original.product_name, sku: original.sku, unit: original.unit, attributes: original.attributes, quantity: item.quantity, unit_price: item.unit_price, notes: item.notes ?? "", line_total: 0 });
+      items.push(quotationItemPresentation({ product_id: original.product_id, product_name: original.product_name, category: original.category, sku: original.sku, unit: original.unit, attributes: original.attributes, quantity: item.quantity, unit_price: item.unit_price, notes: item.notes ?? "", line_total: 0 }));
     } else items.push({ ...await canonicalPriceQuotationItem(context, item, index), line_total: 0 });
   }
   let totals;

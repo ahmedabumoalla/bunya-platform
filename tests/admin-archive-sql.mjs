@@ -274,4 +274,59 @@ await test('frozen delegated target cannot complete password lifecycle even with
   await db.query("select set_config('request.jwt.claims',$1,true),set_config('request.path','/rpc/complete_temporary_password_change',true),set_config('request.method','POST',true)",[JSON.stringify({sub:actors[0],role:'authenticated',session_id:id(93)})]);
   await denied(()=>scalar('select public.guard_admin_archive_request()'));
 });
+const restoreSql=readFileSync('supabase/migrations/106_restore_designated_administrators.sql','utf8').replace(/^begin;$/m,'').replace(/^commit;$/m,'');
+const prepareRestoration=async()=>{
+  await db.query('update auth.users set email=$1 where id=$2',['farraamjad@gmail.com',actors[0]]);
+  await db.query('update auth.users set email=$1 where id=$2',['hakimnaes@gmail.com',actors[1]]);
+  await db.exec("alter table push_subscriptions add column updated_at timestamptz;alter table audit_logs alter column entity_id type text using entity_id::text;update private.admin_archive_state set captured_at='2026-10-28T11:21:28.966975Z' where singleton");
+};
+await test('106 restores both operators live RLS, management, notifications, Storage and Realtime',async()=>{
+  await prepareRestoration();
+  const snapshot=await scalar('select jsonb_agg(to_jsonb(i)) from admin_archive.items i');
+  const ownerBefore=await scalar('select to_jsonb(a) from admin_users a where profile_id=$1',[owner]);
+  await db.exec(restoreSql);
+  assert.equal(await scalar('select active from private.admin_archive_state'),false);
+  assert.deepEqual(await scalar('select jsonb_agg(to_jsonb(i)) from admin_archive.items i'),snapshot);
+  assert.deepEqual(await scalar('select to_jsonb(a) from admin_users a where profile_id=$1',[owner]),ownerBefore);
+  assert.equal(await scalar('select count(*)::int from push_subscriptions where active'),2);
+  for(const actor of actors){
+    await as(actor,'authenticated',{'content-profile':'public'});
+    assert.equal((await scalar('select public.admin_archive_status()')).active,false);
+    assert.equal(await scalar('select public.admin_can_view_administrators()'),true);
+    for(const p of ['roles.manage','admins.manage','audit.read','profiles.read','finance.manage'])assert.equal(await scalar('select public.admin_has_permission($1)',[p]),true);
+    assert.equal(await scalar('select count(*)::int from profiles where role=\'admin\''),3);
+    assert.ok(await scalar('select count(*)::int from public.items')>0);
+    assert.equal((await rows("update public.items set title='Live update' where id=$1 returning id",[id(21)])).length,1);
+    await db.query("select set_config('request.path','/items',true),set_config('request.method','PATCH',true)");
+    await scalar('select public.guard_admin_archive_request()');
+    assert.ok(await scalar('select count(*)::int from storage.objects')>0);
+    assert.equal(await scalar('select count(*)::int from admin_archive.items'),0);
+    await as();
+    assert.equal((await rows('insert into notifications(id,profile_id,title) values(gen_random_uuid(),$1,\'Restored\') returning id',[actor])).length,1);
+    assert.equal((await rows('insert into realtime.subscription(id,claims) values($1,jsonb_build_object(\'sub\',$2::text)) returning id',[actor===actors[0]?20:21,actor])).length,1);
+  }
+  assert.equal(await scalar("select count(*)::int from audit_logs where action='admin_live_access_restored'"),2);
+  await as(customer,'authenticated');
+  assert.equal(await scalar('select public.is_admin()'),false);
+  assert.equal(await scalar('select public.admin_has_permission(\'admins.manage\')'),false);
+  assert.equal(await scalar('select count(*)::int from items'),0);
+});
+await test('106 is idempotent and records restoration without duplicate audit events',async()=>{
+  await prepareRestoration();await db.exec(restoreSql);await db.exec(restoreSql);
+  assert.equal(await scalar("select count(*)::int from audit_logs where action='admin_live_access_restored'"),2);
+  assert.equal(await scalar('select count(*)::int from admin_users where is_active'),3);
+});
+await test('106 refuses unexpected target identity or prior archive state',async()=>{
+  await prepareRestoration();
+  await db.query('update auth.users set email=\'different@example.invalid\' where id=$1',[actors[0]]);
+  await db.exec('savepoint bad_identity');
+  await assert.rejects(()=>db.exec(restoreSql),/identity or existing administrator role mismatch/);
+  await db.exec('rollback to savepoint bad_identity');
+  assert.equal(await scalar('select active from private.admin_archive_state'),true);
+  await db.query('update auth.users set email=\'farraamjad@gmail.com\' where id=$1',[actors[0]]);
+  await db.exec("update private.admin_archive_state set captured_at=now() where singleton;savepoint bad_cutoff");
+  await assert.rejects(()=>db.exec(restoreSql),/Expected original archive state missing/);
+  await db.exec('rollback to savepoint bad_cutoff');
+  assert.equal(await scalar('select count(*)::int from admin_users where is_active'),1);
+});
 await db.close();console.log(`Admin archive SQL PASS: ${passed} groups.`);

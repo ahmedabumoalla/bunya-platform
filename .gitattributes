@@ -13,3 +13,5 @@ supabase/migrations/093_professional_customer_accounts.sql text eol=lf
 supabase/migrations/094_contractor_platform_conversations.sql text eol=crlf
 supabase/migrations/095_restrict_conversation_helpers.sql text eol=lf
 supabase/migrations/096_admin_attention_counts.sql text eol=lf
+supabase/migrations/106_restore_designated_administrators.sql text eol=lf
+supabase/migrations/107_price_quotation_invoices.sql text eol=lf

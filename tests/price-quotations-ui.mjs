@@ -26,6 +26,7 @@ function sourceModule(file) {
   vm.runInNewContext(code + (file.endsWith('PriceQuotations.tsx') ? '\nexports.ProductPicker = ProductPicker; exports.PriceQuotationList = PriceQuotationList;' : ''), {
     exports, require: name => name === 'react' ? hooks : name === 'next/link' ? { __esModule: true, default: ({ children, ...props }) => React.createElement('a', props, children) }
       : name === 'next/navigation' ? { useRouter: () => ({ push: url => pushed.push(url) }) }
+      : name === './PriceInvoiceConversion' ? { PriceInvoiceConversion: () => null }
       : name.endsWith('.module.css') ? { __esModule: true, default: new Proxy({}, { get: (_, key) => key }) }
       : name.startsWith('@/lib/quotes/') ? sourceModule(`${name.replace('@/', 'src/')}.ts`) : require(name),
     AbortController, URLSearchParams, setTimeout, clearTimeout, crypto: { randomUUID }, window: { location: { get search() { return locationSearch; } } },
@@ -161,7 +162,8 @@ assert.equal(added.sku, 'ST-16'); assert.equal(added.unit, 'قطعة'); assert.e
 
 reset(); added = null;
 const supplier = { ...product, id: 'supplier-product', units: ['طن', 'قطعة'], measurements: [{ id: 'measure-ton', label: '12 متر', unit: 'طن' }, { id: 'measure-piece', label: '6 متر', unit: 'قطعة' }], variants: [
-  { id: 'red', sku: 'RED', attributes: [{ label: 'اللون', value: 'أحمر' }] }, { id: 'blue', sku: 'BLUE', attributes: [{ label: 'اللون', value: 'أزرق' }] }, { id: 'brand', sku: 'BRAND', attributes: [{ label: 'المصنع', value: 'المصنع' }] },
+  { id: 'red', sku: 'RED', attributes: [{ label: 'اللون', value: 'أحمر' }] }, { id: 'blue', sku: 'BLUE', attributes: [{ label: 'اللون', value: 'أزرق' }] },
+  { id: 'brand', sku: 'OPTION-1', attributes: [], selection_keys: ['العلامة التجارية'] }, { id: 'brand-two', sku: 'OPTION-2', attributes: [], selection_keys: ['العلامة التجارية'] },
 ] };
 handler = () => ({ body: { products: [supplier], hasMore: false } });
 tree = render(ProductPicker, pickerProps); effects[0](); await new Promise(resolve => setTimeout(resolve, 300)); tree = render(ProductPicker, pickerProps);
@@ -172,7 +174,11 @@ assert.ok(text(tree).includes('اختر قيمة لكل نوع'));
 field(tree, 'اللون: أحمر').props.onChange({ target: { checked: true } }); tree = render(ProductPicker, pickerProps);
 field(tree, 'اللون: أزرق').props.onChange({ target: { checked: true } }); tree = render(ProductPicker, pickerProps);
 assert.equal(field(tree, 'اللون: أحمر').props.checked, false, 'Choosing another color replaces conflicting attribute');
-field(tree, 'المصنع: المصنع').props.onChange({ target: { checked: true } }); tree = render(ProductPicker, pickerProps);
+find(tree, node => node.type === 'button' && text(node) === 'إضافة إلى العرض').props.onClick(); tree = render(ProductPicker, pickerProps);
+assert.equal(added, null, 'Hidden brand labels still require a canonical variant selection');
+field(tree, 'OPTION-2').props.onChange({ target: { checked: true } }); tree = render(ProductPicker, pickerProps);
+field(tree, 'OPTION-1').props.onChange({ target: { checked: true } }); tree = render(ProductPicker, pickerProps);
+assert.equal(field(tree, 'OPTION-2').props.checked, false, 'Hidden brand choices retain mutual exclusion without displaying brand values');
 field(tree, 'الوحدة').props.onChange({ target: { value: 'قطعة' } }); tree = render(ProductPicker, pickerProps);
 assert.equal(field(tree, 'القياس').props.value, 'measure-piece', 'Unit change resets measurement to a matching option');
 find(tree, node => node.type === 'button' && text(node) === 'إضافة إلى العرض').props.onClick();

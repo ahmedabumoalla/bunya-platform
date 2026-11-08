@@ -7,6 +7,8 @@ import type { ManagedQuote } from "@/lib/quotes/managed-types";
 import type { PriceQuotation, PriceQuotationCatalogProduct, PriceQuotationDraftItem } from "@/lib/quotes/price-quotation-types";
 import { priceQuotationPolicy, type PriceQuotationPolicyInput } from "@/lib/quotes/price-quotation-policy";
 import { calculatePriceQuotationTotals } from "@/lib/quotes/price-quotation-validation";
+import { quotationItemPresentation } from "@/lib/quotes/price-quotation-presentation";
+import { PriceInvoiceConversion } from "./PriceInvoiceConversion";
 import styles from "./PriceQuotations.module.css";
 
 const base = "/admin/price-quotations";
@@ -90,7 +92,7 @@ export function PriceQuotationDetail({ id }: { id: string }) {
     {loading ? <p className={styles.empty} role="status">جارٍ تحميل عرض السعر…</p> : quotation ? <>
       <section className={styles.summary}><div><p>عرض سعر</p><h2 className={styles.number} dir="ltr">{quotation.quotation_code}</h2><p>صدر في {date(quotation.created_at)} · صالح حتى {date(quotation.valid_until)}</p></div><SendStatus value={quotation.send_status} /></section>
       <div className={styles.layout}><section className={styles.panel}><h2>بيانات العميل</h2><dl className={styles.facts}><div><dt>الاسم</dt><dd>{quotation.customer_name || "غير محدد"}</dd></div><div><dt>رقم واتساب</dt><dd><bdi className={styles.number}>{quotation.customer_phone}</bdi></dd></div>{quotation.customer_address && <div><dt>العنوان</dt><dd>{quotation.customer_address}</dd></div>}{quotation.customer_tax_number && <div><dt>الرقم الضريبي</dt><dd><bdi className={styles.number}>{quotation.customer_tax_number}</bdi></dd></div>}</dl>{quotation.source_request_id && <Link className={styles.textLink} href={`/admin/managed-quotes/${quotation.source_request_id}`}>الطلب المرتبط: <bdi>{quotation.source_request_code}</bdi></Link>}<h2 className={styles.sectionTitle}>المنتجات والأسعار</h2><div className={styles.lines}>{quotation.items.map((item, index) => <article className={styles.savedLine} key={index}><div><h3>{item.product_name}</h3><p>{item.attributes.map(attribute => `${attribute.label}: ${attribute.value}`).join(" · ")}</p>{item.sku && <bdi className={styles.number}>{item.sku}</bdi>}{item.notes && <p className={styles.preLine}>{item.notes}</p>}<p>{item.quantity} {item.unit} × {money(item.unit_price)} قبل الضريبة</p></div><strong>{money(item.line_total)}</strong></article>)}</div>{quotation.terms && <><h2 className={styles.sectionTitle}>ملاحظات إضافية</h2><p className={styles.preLine}>{quotation.terms}</p></>}<SalesPolicy quote={quotation} /></section>
-      <aside className={styles.side}><Totals subtotal={quotation.subtotal} delivery={quotation.delivery_fee} vatRate={quotation.vat_rate} vat={quotation.vat_amount} total={quotation.total} /><section className={styles.panel}><h2>ملف عرض السعر</h2><p>باسم شركة العنوان الحصري، متضمنًا بيانات العميل والمنتجات والإجمالي.</p><div className={styles.actions}><a href={`${api}/${quotation.id}/pdf`} target="_blank" rel="noopener noreferrer">معاينة PDF</a><a href={`${api}/${quotation.id}/pdf?download=1`}>تنزيل PDF</a></div><div className={styles.sendBox}><p>الإرسال إلى <bdi className={styles.number}>{quotation.customer_phone}</bdi></p>{canSend && <button className={styles.primary} disabled={busy} onClick={() => void send()}>{busy ? "جارٍ إرسال الملف…" : quotation.send_status === "failed" ? "إعادة إرسال PDF إلى واتساب" : "إرسال PDF إلى واتساب"}</button>}{quotation.send_status === "submitted" && <p className={styles.hint}>قَبِل مزود واتساب الملف بتاريخ {date(quotation.sent_at)}. تأكيد القراءة غير متاح هنا.</p>}{["uncertain", "sending"].includes(quotation.send_status) && <p className={styles.hint}>جارٍ التحقق من حالة الإرسال. راجع واتساب العميل قبل إنشاء عرض آخر لتجنب تكرار الرسالة.</p>}<button disabled={busy} onClick={() => setRefresh(value => value + 1)}>تحديث الحالة</button></div></section></aside></div>
+      <aside className={styles.side}><Totals subtotal={quotation.subtotal} delivery={quotation.delivery_fee} vatRate={quotation.vat_rate} vat={quotation.vat_amount} total={quotation.total} /><section className={styles.panel}><h2>ملف عرض السعر</h2><p>باسم شركة العنوان الحصري، متضمنًا بيانات العميل والمنتجات والإجمالي.</p><div className={styles.actions}><a href={`${api}/${quotation.id}/pdf`} target="_blank" rel="noopener noreferrer">معاينة PDF</a><a href={`${api}/${quotation.id}/pdf?download=1`}>تنزيل PDF</a></div><div className={styles.sendBox}><p>الإرسال إلى <bdi className={styles.number}>{quotation.customer_phone}</bdi></p>{canSend && <button className={styles.primary} disabled={busy} onClick={() => void send()}>{busy ? "جارٍ إرسال الملف…" : quotation.send_status === "failed" ? "إعادة إرسال PDF إلى واتساب" : "إرسال PDF إلى واتساب"}</button>}{quotation.send_status === "submitted" && <p className={styles.hint}>قَبِل مزود واتساب الملف بتاريخ {date(quotation.sent_at)}. تأكيد القراءة غير متاح هنا.</p>}{["uncertain", "sending"].includes(quotation.send_status) && <p className={styles.hint}>جارٍ التحقق من حالة الإرسال. راجع واتساب العميل قبل إنشاء عرض آخر لتجنب تكرار الرسالة.</p>}<button disabled={busy} onClick={() => setRefresh(value => value + 1)}>تحديث الحالة</button></div></section><PriceInvoiceConversion quotation={quotation} /></aside></div>
     </> : <button onClick={() => setRefresh(value => value + 1)}>إعادة المحاولة</button>}
   </>;
 }
@@ -124,7 +126,7 @@ export function PriceQuotationComposer() {
     setCustomer({ name: String(request.details.recipientName || ""), phone: String(request.details.recipientMobile || ""), address: String(request.details.locationHint || ""), tax: "" });
     setLines(request.items.map((item, index) => {
       const pricing = request.pricing.find(value => value.item_id === item.id);
-      return { key: `source-${index}`, source_item_id: item.id, product_id: item.product_id, product_name: item.product_name, sku: item.sku, unit: item.unit, attributes: item.attributes, quantity: item.quantity, quantityText: String(item.quantity), unit_price: pricing?.unit_price ?? 0, priceText: pricing ? String(pricing.unit_price) : "", notes: item.notes };
+      return { ...quotationItemPresentation(item), key: `source-${index}`, source_item_id: item.id, quantityText: String(item.quantity), unit_price: pricing?.unit_price ?? 0, priceText: pricing ? String(pricing.unit_price) : "" };
     }));
     setDelivery(String(request.delivery_fee)); setVatRate(String(request.pricing.length ? request.vat_rate : 15)); setTerms(request.terms || "");
     setDeliveryCity(String(request.details.city || "")); setDeliveryWindow("");
@@ -235,7 +237,8 @@ function ProductPicker({ disabled, onAdd }: { disabled: boolean; onAdd: (line: E
     const picked = selected.variants.filter(variant => variant.id && variantIds.includes(variant.id));
     const measurement = selected.measurements?.find(value => value.id === measurementId && value.unit === unit);
     const attributes = imported ? selected.variants.find(variant => variant.sku === sku)?.attributes || [] : picked.flatMap(variant => variant.attributes);
-    if (!imported && selected.variants.length && (!picked.length || selected.variants.some(variant => variant.attributes.some(attribute => !attributes.some(value => value.label === attribute.label))))) { setError("اختر قيمة لكل نوع من مواصفات المنتج."); return; }
+    const pickedKeys = picked.flatMap(variant => variant.selection_keys ?? variant.attributes.map(attribute => attribute.label));
+    if (!imported && selected.variants.length && (!picked.length || selected.variants.some(variant => (variant.selection_keys ?? variant.attributes.map(attribute => attribute.label)).some(key => !pickedKeys.includes(key))))) { setError("اختر قيمة لكل نوع من مواصفات المنتج."); return; }
     if (!imported && selected.measurements?.some(value => value.unit === unit) && !measurement) { setError("اختر قياسًا متاحًا لهذه الوحدة."); return; }
     onAdd({ key: crypto.randomUUID(), product_id: selected.id, product_name: selected.name, sku, unit, measurement_id: imported ? undefined : measurement?.id, variant_ids: imported ? undefined : variantIds, quantity: 1, quantityText: "1", unit_price: 0, priceText: "", notes: "", attributes: measurement ? [{ label: "القياس", value: measurement.label }, ...attributes] : attributes });
     setSelected(null);
@@ -243,7 +246,11 @@ function ProductPicker({ disabled, onAdd }: { disabled: boolean; onAdd: (line: E
   function changeUnit(value: string) { setUnit(value); setMeasurementId(selected?.measurements?.find(measurement => measurement.unit === value)?.id || ""); }
   function toggleVariant(id: string, checked: boolean) {
     const chosen = selected?.variants.find(variant => variant.id === id);
-    setVariantIds(current => checked ? [...current.filter(value => !selected?.variants.find(variant => variant.id === value)?.attributes.some(attribute => chosen?.attributes.some(other => other.label === attribute.label))), id] : current.filter(value => value !== id));
+    const chosenKeys = chosen?.selection_keys ?? chosen?.attributes.map(attribute => attribute.label) ?? [];
+    setVariantIds(current => checked ? [...current.filter(value => {
+      const previous = selected?.variants.find(variant => variant.id === value);
+      return !(previous?.selection_keys ?? previous?.attributes.map(attribute => attribute.label) ?? []).some(key => chosenKeys.includes(key));
+    }), id] : current.filter(value => value !== id));
   }
   return <div className={styles.picker}>
     <label className={styles.field}><span>البحث في منتجات المنصة</span><input type="search" value={query} maxLength={100} onChange={event => setQuery(event.target.value)} placeholder="اسم المنتج أو التصنيف أو رمز المنتج" /></label>

@@ -1,0 +1,39 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import vm from 'node:vm';
+import ts from 'typescript';
+import { NextRequest } from 'next/server.js';
+const require=createRequire(import.meta.url);
+function load(path,mocks={},globals={}) {const exports={};vm.runInNewContext(ts.transpileModule(readFileSync(path,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText,{exports,require:name=>Object.hasOwn(mocks,name)?mocks[name]:require(name),Date,Map,Set,URL,process,console,Buffer,TextDecoder,File,Uint8Array,Response,...globals});return exports;}
+class ManagedQuoteError extends Error {constructor(status,message){super(message);this.status=status;}}
+const id='00000000-0000-4000-8000-000000000001';
+let permission=true,auth=true,phase='unconfigured',invoice=null,rpcError=null;
+const seller={name:'شركة العنوان الحصري',vat_number:'312872746700003',commercial_registration:'5850157983',address:'الخالدية، خميس مشيط'};
+const quotation={id,quotation_code:'QUO-20261108-TEST',customer_phone:'+966500000001',items:[{product_id:id,product_name:'مواد',sku:'X',unit:'حبة',quantity:2.125,unit_price:12.34,line_total:26.22,attributes:[],notes:''}],subtotal:26.22,delivery_fee:10,vat_rate:15,vat_amount:5.43,total:41.65};
+const calls=[];
+const context={userId:id,db:{rpc:async()=>({data:permission,error:null})},admin:{from(table){const q={select(){return q},eq(){return q},single:async()=>({data:{phase,verified_at:phase==='phase1'?'2026-11-08T00:00:00Z':null,seller},error:null}),maybeSingle:async()=>({data:table==='price_invoices'?invoice:null,error:null})};return q},rpc:async(name,payload)=>{calls.push({name,payload});if(rpcError)return {error:rpcError};invoice={...payload.p_input,id,invoice_number:'INV-20261108-000001',issued_at:'2026-11-08T20:30:00Z',quotation_id:id,quotation_code:quotation.quotation_code,seller,items:quotation.items,subtotal:26.22,delivery_fee:10,vat_rate:15,vat_amount:5.43,total:41.65,currency:'SAR',request_fingerprint:payload.p_fingerprint,created_by:id};return {data:id,error:null}}}};
+const quotes={priceQuotationContext:async()=>{if(!auth)throw new ManagedQuoteError(401,'Login');return context},readPriceQuotation:async(_c,q)=>{if(q!==id)throw new ManagedQuoteError(404,'Not found');return quotation},priceQuotationResponse:(data,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'private, no-store'}}),priceQuotationFailure:error=>Response.json({message:error.message},{status:error.status||500}),readPriceQuotationBody:async req=>{if(!req.headers.get('content-type')?.includes('application/json'))throw new ManagedQuoteError(415,'Invalid content type');return req.json()}};
+const validation=load('src/lib/quotes/price-invoice-validation.ts');
+const server=load('src/lib/quotes/price-invoice-server.ts',{'server-only':{},'./managed-server':{ManagedQuoteError},'./price-quotation-server':quotes,'./price-invoice-validation':validation});
+let rendered;
+const common={'@/lib/quotes/price-quotation-server':quotes,'@/lib/quotes/price-invoice-server':server,'@/lib/quotes/managed-server':{ManagedQuoteError},'@/lib/quotes/price-invoice-pdf':{renderPriceInvoicePdf:async row=>{rendered=row;return new Uint8Array([37,80,68,70]);}}};
+const route=load('src/app/api/price-quotations/[id]/invoice/route.ts',common),pdf=load('src/app/api/price-quotations/[id]/invoice/pdf/route.ts',common),preview=load('src/app/api/price-quotations/[id]/invoice/preview/route.ts',common);
+const params={params:Promise.resolve({id})};
+const input={invoice_type:'standard',supply_date:'2026-11-08',buyer:{name:'شركة العميل',phone:'+966500000001',address:'الرياض',vat_number:'300000000000003'}};
+const request=(method='GET',body)=>new NextRequest('https://example.com/api/price-quotations/'+id+'/invoice',{method,headers:body?{'content-type':'application/json'}:{},...(body?{body:JSON.stringify(body)}:{})});
+auth=false;assert.equal((await route.GET(request(),params)).status,401);auth=true;permission=false;assert.equal((await route.POST(request('POST',input),params)).status,403);permission=true;
+assert.equal((await route.POST(request('POST',input),params)).status,409);assert.equal(calls.length,0);
+assert.equal((await preview.POST(request('POST',input),params)).status,200);assert.equal(rendered.status,'draft');assert.equal(rendered.qr_payload,'');assert.equal(calls.length,0);
+phase='phase2';assert.equal((await route.POST(request('POST',input),params)).status,409);assert.equal((await preview.POST(request('POST',input),params)).status,200);assert.equal(calls.length,0);
+phase='phase1';assert.equal((await pdf.GET(request(),params)).status,404);
+let response=await route.POST(request('POST',{...input,items:[{forged:true}],total:1,seller:{name:'forged'}}),params);assert.equal(response.status,201);
+let body=await response.json();assert.equal(body.invoice.total,41.65);assert.equal(body.invoice.status,'issued');assert.deepEqual(calls[0].payload.p_input.items,quotation.items);assert.equal(body.invoice.request_fingerprint,undefined);assert.equal(body.invoice.created_by,undefined);
+const qr=Buffer.from(body.invoice.qr_payload,'base64'),decoded=[];for(let p=0;p<qr.length;){const tag=qr[p++],size=qr[p++];decoded.push([tag,qr.subarray(p,p+size).toString('utf8')]);p+=size;}
+assert.deepEqual(decoded,[[1,seller.name],[2,seller.vat_number],[3,'2026-11-08T20:30:00.000Z'],[4,'41.65'],[5,'5.43']]);
+response=await pdf.GET(request(),params);assert.equal(response.status,200);assert.equal(response.headers.get('cache-control'),'private, no-store');assert.equal(rendered.status,'issued');
+rpcError={code:'23505'};assert.equal((await route.POST(request('POST',input),params)).status,409);rpcError={code:'42501'};assert.equal((await route.POST(request('POST',input),params)).status,403);rpcError=null;
+for(const invalid of [{...input,buyer:{...input.buyer,vat_number:''}},{...input,supply_date:'2026-02-30'},{...input,invoice_type:'simplified'}])assert.equal((await route.POST(request('POST',invalid),params)).status,400);
+quotation.vat_rate=0;assert.equal((await route.POST(request('POST',input),params)).status,409);assert.equal((await preview.POST(request('POST',input),params)).status,409);
+assert.throws(()=>validation.priceInvoiceQr({seller_name:'ا'.repeat(128),seller_vat:seller.vat_number,issued_at:'2026-11-08',total:1,vat_amount:0.15}),/الحد المسموح/);
+console.log('Price invoices HTTP PASS: auth/finance/phase gates, nonissued previews, canonical immutable fields, exact UTF8 TLV, PDF access, invalid inputs.');

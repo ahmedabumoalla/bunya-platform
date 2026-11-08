@@ -1,5 +1,25 @@
 # Bunya Platform — Project Reference
 
+## 2026-11-08 23:42 - Invoice schema applied; web release underway
+
+107 applied after successful live rollback rehearsal; exact hash/history verified,104 untouched. Company phase remains unconfigured and invoice count0; full experimental previews are permitted, final issuance stays disabled. Both admins remain restored (archive inactive). Security advisors unchanged78/0ERROR. All40 source/config/dependency fingerprints still match passing final tests/build. Web publication and real Linux PDF verification follow; earlier authentication block is resolved.
+
+## 2026-11-08 - Quotation document fixes and invoice preview ready locally
+
+Quotation PDFs now use bundled IBM Plex Arabic/Latin glyphs, corrected bidi and balanced spacing. Nonsteel brands removed from creation options, descriptions and PDF display; steel brands and all money/SKUs/specs preserved. Supplier variant group selection remains valid; raw catalog/old stored snapshots unchanged.
+
+Added Convert to invoice with standard/simplified full experimental PDF preview (visible preview label and PREVIEW_ONLY QR). User's earlier request to imply unverified authority approval was declined; latest intent is previewing the model. Final tax issuance is disabled until company phase/seller verification; new107 immutable invoice pipeline supports Phase1 only. No Phase2 integration/authority approval or actual invoice issuance claimed.
+
+Final local build, targeted quotation/invoice SQL/HTTP/UI/PDF checks and actual embedded QR decoding pass23:33-23:35 Riyadh.107 remains unapplied because management connection again403 and no longer lists buniah; fresh login code requested. Web changes NOT published yet; complete107 rehearsal/apply then publish/verify.106 administrator restoration is already LIVE and unaffected. Source/evidence and pending steps in docs/task-state.md; preview tmp/price-invoice-draft-preview.pdf.
+
+## 2026-11-08 - Both administrators restored LIVE
+
+Owner requested full removal of the two operators' archive/directory/notification restrictions. Migration106 APPLIED and independently verified for farraamjad@gmail.com (7f4152b6-63d2-49ec-866f-681a3308f670) and hakimnaes@gmail.com (d5b7d59e-3a22-4d59-8096-d546c9bd8c4e): archive inactive, existing super_admin memberships active, administrator directory/management permissions restored. Original archive data stays untouched; owner-only impersonation remains.104 still unapplied/unrelated.
+
+Actual production23:26 Riyadh: both see15 live profiles, newer quote data,50 notifications, successful management/quotation APIs and Realtime subscription.23 SQL regression groups and live rollback rehearsal pass; security advisors unchanged78/0ERROR. No real message/business write, test sessions revoked. No registered push devices currently exist for these accounts; handset delivery untested. Users with an already-open archive view should refresh the page. Details/evidence in docs/task-state.md. This supersedes earlier entries describing these accounts as frozen.
+
+In progress: quotation PDF glyph/layout fix, remove nonsteel brands, invoice conversion preview for both buyer types. Company fiscal phase unconfirmed: previews must visibly remain previews; no claimed ZATCA approval or real invoice issuance while unconfigured.
+
 ## 2026-10-30 02:05 - Speed improvements and quotation section LIVE
 
 Application release279982785503b6c5507bf982dacd65768780d679 published to GitHub and Vercel dpl_9ZjdmfpJQvf6rHVuDgCBnjoeJPYB READY; official domains verified and server function region is now hnd1 beside Supabase. New `/admin/price-quotations` and existing managed quotes render for owner; authenticated catalog/list/options and access restrictions pass on production. Both frozen accounts retain8 visible profiles/Cold River and read-only isolation. No business writes/messages; disposable test sessions revoked.

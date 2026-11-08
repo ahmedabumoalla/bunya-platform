@@ -8,6 +8,7 @@ const require=createRequire(import.meta.url);
 function load(path,mocks={},globals={}) {const exports={};vm.runInNewContext(ts.transpileModule(readFileSync(path,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText,{exports,require:name=>Object.hasOwn(mocks,name)?mocks[name]:require(name),Date,Map,Set,URL,process,console,TextDecoder,File,Uint8Array,Response,...globals});return exports;}
 const manifest=JSON.parse(readFileSync('src/data/catalog/imported.json','utf8')),options=JSON.parse(readFileSync('src/data/catalog/quote-options.json','utf8'));
 const validation=load('src/lib/quotes/price-quotation-validation.ts');
+const presentation=load('src/lib/quotes/price-quotation-presentation.ts');
 const managedCatalog=load('src/lib/quotes/managed-catalog.ts',{'server-only':{},'@/data/catalog/imported.json':manifest,'@/data/catalog/quote-options.json':options});
 class ManagedQuoteError extends Error {constructor(status,message){super(message);this.status=status;}}
 const id='00000000-0000-4000-8000-000000000001', sourceId='00000000-0000-4000-8000-000000000002';
@@ -22,10 +23,10 @@ const db={
 const context={userId:id,canManage:true,admin:db};
 const source={id:sourceId,request_code:'BQ-ORIGINAL',items:[{id:'line-1',product_id:'historical-product',product_name:'Historical canonical product',unit:'قطعة',sku:'OLD',attributes:[{label:'Size',value:'10'}]}]};
 const managed={ManagedQuoteError,managedQuoteId:/^[a-f0-9-]{36}$/,managedQuoteContext:async()=>{if(!authenticated)throw new ManagedQuoteError(401,'Login');return {...context,canManage};},readManagedQuote:async(_ctx,key)=>{if(key!==sourceId)throw new ManagedQuoteError(404,'Not found');return source;}};
-const catalog=load('src/lib/quotes/price-quotation-catalog.ts',{'server-only':{},'@/data/catalog/imported.json':manifest,'@/data/catalog/quote-options.json':options,'./managed-server':managed,'./managed-catalog':managedCatalog});
+const catalog=load('src/lib/quotes/price-quotation-catalog.ts',{'server-only':{},'@/data/catalog/imported.json':manifest,'@/data/catalog/quote-options.json':options,'./managed-server':managed,'./managed-catalog':managedCatalog,'./price-quotation-presentation':presentation});
 let renderCalls=0,catalogCalls=0;
 const pdfRenderer={renderPriceQuotationPdf:async()=>{renderCalls++;return new Uint8Array([37,80,68,70]);}};
-const server=load('src/lib/quotes/price-quotation-server.ts',{'server-only':{},'./managed-server':managed,'@/lib/supabase/archive-server':{archiveActorStatus:async()=>({active:frozen})},'./price-quotation-validation':validation,'./price-quotation-catalog':catalog,'./price-quotation-policy':{PRICE_QUOTATION_POLICY_VERSION:'exclusive-address-sales-v1'},'./price-quotation-pdf':pdfRenderer,'@/lib/notifications/providers/green-api':{sendGreenApiFile:async payload=>{sent.push(payload);return {status:providerStatus,providerMessageId:providerStatus==='submitted'?'provider-id':null,sanitizedError:providerError};}}});
+const server=load('src/lib/quotes/price-quotation-server.ts',{'server-only':{},'./managed-server':managed,'@/lib/supabase/archive-server':{archiveActorStatus:async()=>({active:frozen})},'./price-quotation-validation':validation,'./price-quotation-catalog':catalog,'./price-quotation-presentation':presentation,'./price-quotation-policy':{PRICE_QUOTATION_POLICY_VERSION:'exclusive-address-sales-v1'},'./price-quotation-pdf':pdfRenderer,'@/lib/notifications/providers/green-api':{sendGreenApiFile:async payload=>{sent.push(payload);return {status:providerStatus,providerMessageId:providerStatus==='submitted'?'provider-id':null,sanitizedError:providerError};}}});
 const route=load('src/app/api/price-quotations/route.ts',{'@/lib/quotes/price-quotation-server':server,'@/lib/quotes/managed-server':managed});
 const detail=load('src/app/api/price-quotations/[id]/route.ts',{'@/lib/quotes/price-quotation-server':server});
 const sendRoute=load('src/app/api/price-quotations/[id]/send/route.ts',{'@/lib/quotes/price-quotation-server':server});
@@ -64,7 +65,28 @@ assert.equal((await route.POST(new NextRequest('https://example.com/api/price-qu
 assert.equal((await route.POST(request('POST',{...draft,terms:'x'.repeat(110000)}))).status,413);
 const half=validation.calculatePriceQuotationTotals([{quantity:0.005,unit_price:1}],0,0);assert.equal(half.subtotal,0.01);
 assert.throws(()=>validation.calculatePriceQuotationTotals([{quantity:1000000,unit_price:10000000}],0,15));
-for(const entry of manifest.products){const choice=options[entry.id][0];const item=await catalog.canonicalPriceQuotationItem(context,{product_id:entry.id,sku:choice?.sku??'',unit:entry.units[0]||'تحددها الإدارة',quantity:1,unit_price:1},0);assert.equal(item.product_name,entry.name);}
+for(const entry of manifest.products){const choice=options[entry.id][0];const item=await catalog.canonicalPriceQuotationItem(context,{product_id:entry.id,sku:choice?.sku??'',unit:entry.units[0]||'تحددها الإدارة',quantity:1,unit_price:1},0);assert.ok(item.product_name);assert.equal(item.category,entry.category);assert.equal(item.sku,choice?.sku??'');assert.deepEqual(JSON.parse(JSON.stringify(item.attributes)),(choice?.attributes??[]).filter(attribute=>entry.category==='الحديد'||!['العلامة التجارية','الماركة'].includes(attribute.label)));}
+const insulation=manifest.products.find(entry=>entry.name==='مكعبات فلين');assert.ok(insulation);
+const insulatedOptions=await catalog.priceQuotationCatalog(context,'',insulation.id);
+assert.ok(insulatedOptions.products[0].variants.every(choice=>choice.attributes.every(attribute=>attribute.label!=='العلامة التجارية')));
+assert.deepEqual(insulatedOptions.products[0].variants.map(choice=>choice.sku),options[insulation.id].map(choice=>choice.sku));
+const foam=manifest.products.find(entry=>entry.name==='بخاخ فوم أسمكو');assert.ok(foam);
+const cleanFoam=await catalog.priceQuotationCatalog(context,'',foam.id);assert.equal(cleanFoam.products[0].name,'بخاخ فوم');
+const originalItem={product_id:insulation.id,product_name:insulation.name,sku:options[insulation.id][0].sku,unit:'حبة',quantity:210,unit_price:33.04,line_total:6938.40,attributes:options[insulation.id][0].attributes,notes:''};
+const originalSnapshot=JSON.stringify(originalItem);
+const projected=server.visiblePriceQuotation({...row,items:[originalItem]});
+assert.equal(JSON.stringify(originalItem),originalSnapshot,'Presentation never rewrites stored snapshot inputs');
+assert.equal(projected.items[0].attributes.some(attribute=>attribute.label==='العلامة التجارية'),false);
+assert.equal(projected.items[0].line_total,6938.40);assert.equal(projected.items[0].sku,originalItem.sku);
+const supplierSteel=presentation.quotationItemPresentation({...originalItem,product_id:sourceId,category:'الحديد',attributes:[{label:'Brand',value:'Hadeed'},{label:'قطر',value:'12 ملم'}]});assert.equal(supplierSteel.attributes.length,2);
+const cuttingTool=presentation.quotationItemPresentation({...originalItem,product_name:'اسطوانة قص حديد أسمكو',attributes:[{label:'الماركة',value:'أسمكو'},{label:'مقاس',value:'4'}]});assert.equal(cuttingTool.product_name,'اسطوانة قص حديد');assert.equal(cuttingTool.attributes.length,1);
+const supplierCatalogProduct={id:sourceId,name:'غراء أسمكو',base_unit:'حبة',sku:'GLUE',product_categories:{name:'مواد البناء'},product_variants:[{attributes:{'العلامة التجارية':'أسمكو'},is_active:true}]};
+const supplierCatalogContext={...context,admin:{from(table){const data=table==='products'?[supplierCatalogProduct]:table==='product_variants'?[{id,sku:'GLUE-1',attributes:{'العلامة التجارية':'أسمكو','الحجم':'750 مل'}}]:[];const q={select(){return q;},eq(){return q;},neq(){return q;},ilike(){return q;},order(){return q;},limit(){return q;},then(resolve){return Promise.resolve(resolve({data,count:data.length,error:null}));}};return q;}}};
+const supplierCatalog=await catalog.priceQuotationCatalog(supplierCatalogContext,'',sourceId);
+assert.equal(supplierCatalog.products[0].name,'غراء');
+assert.deepEqual(JSON.parse(JSON.stringify(supplierCatalog.products[0].variants[0].attributes)),[{label:'الحجم',value:'750 مل'}]);
+assert.deepEqual(Array.from(supplierCatalog.products[0].variants[0].selection_keys),['العلامة التجارية','الحجم']);
+assert.equal(supplierCatalogProduct.name,'غراء أسمكو','Source product metadata stays untouched');
 const supplierProduct={id:sourceId,name:'Supplier canonical',sku:'BASE'},supplierVariants=[{id,sku:'RED'},{id:sourceId,sku:'BIG'}];let supplierInput;
 const supplierContext={...context,admin:{from(table){const q={select(){return q;},eq(){return q;},async maybeSingle(){return {data:supplierProduct,error:null};},then(resolve){return Promise.resolve(resolve({data:table==='product_variants'?supplierVariants:[],error:null}));}};return q;},async rpc(_name,input){supplierInput=input;return {data:{product_name:supplierProduct.name,unit:'box',quantity:2,measurement:'20cm',variant_selections:[{attributes:{Color:'Red'}},{attributes:{Size:'Big'}}],product_specifications_snapshot:['Manufacturer']},error:null};}}};
 const supplierItem=await catalog.canonicalPriceQuotationItem(supplierContext,{product_id:sourceId,sku:'',variant_ids:[id,sourceId],measurement_id:id,unit:'box',quantity:2,unit_price:20},0);assert.equal(supplierInput.p_item.measurement_id,id);assert.deepEqual(supplierInput.p_item.variant_ids,[id,sourceId]);assert.equal(supplierItem.sku,'RED / BIG');assert.equal(supplierItem.attributes.length,4);

@@ -1,6 +1,7 @@
 export type PriceQuotationItem = {
   product_id: string;
   product_name: string;
+  category?: string;
   sku: string;
   unit: string;
   quantity: number;
@@ -68,7 +69,7 @@ export type PriceQuotationCatalogProduct = {
   name: string;
   category: string;
   units: string[];
-  variants: { id?: string; sku: string; attributes: { label: string; value: string }[] }[];
+  variants: { id?: string; sku: string; attributes: { label: string; value: string }[]; selection_keys?: string[] }[];
   measurements?: { id: string; label: string; unit: string }[];
   image_url: string;
 };
