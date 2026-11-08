@@ -2,6 +2,8 @@
 
 ## 2026-11-09 - Plain receipt phrase replaces acknowledgement
 
+Follow-up invoice columns RTL: product, unit, quantity, net unit price, VAT rate/amount, net/gross totals. Gross-input quotations retain their original stored amounts; invoice unit-price display derives net with up to6 decimals. Creation remains inclusive.
+
 Also removed the caption beneath the invoice QR at the owner's request; QR itself unchanged.
 
 Owner's final wording: «تم استلام البضاعة بحالتها الأصلية ومطابقة للمواصفات الواردة في الفاتورة وبحالة ممتازة». v3 prints this sentence only: no heading, name, signature or receipt-date fields. Financial table/QR and delivery records unchanged. Focused PDF/HTTP checks passed; publication pending. Older policy/acknowledgement notes are superseded.

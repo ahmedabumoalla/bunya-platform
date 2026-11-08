@@ -111,9 +111,9 @@ export async function renderPriceDocumentPdf(input: PriceQuotation | PriceInvoic
   }
   top += cardHeight + (invoice ? 12 : 18);
   // Left-to-right column positions, with the product description on the RTL side.
-  const widths = invoice ? [67, 67, 49, 35, 40, 35, 59, CONTENT - 370, 18] : [91, 80, 66, CONTENT - 261, 24];
+  const widths = invoice ? [67, 67, 49, 35, 59, 40, 35, CONTENT - 370, 18] : [91, 80, 66, CONTENT - 261, 24];
   const labels = invoice
-    ? ["الإجمالي شامل الضريبة", "الإجمالي قبل الضريبة", "مبلغ الضريبة", "نسبة الضريبة", "الكمية", "الوحدة", inclusive ? "سعر الوحدة شامل الضريبة" : "سعر الوحدة قبل الضريبة", "المنتج والمواصفات", "م"]
+    ? ["الإجمالي شامل الضريبة", "الإجمالي قبل الضريبة", "مبلغ الضريبة", "نسبة الضريبة", "سعر الوحدة قبل الضريبة", "الكمية", "الوحدة", "المنتج والمواصفات", "م"]
     : [inclusive ? "الإجمالي شامل الضريبة" : "الإجمالي قبل الضريبة", inclusive ? "سعر الوحدة شامل الضريبة" : "سعر الوحدة", "الكمية / الوحدة", "المنتج والمواصفات", "م"];
   const descriptionColumn = invoice ? 7 : 3;
   const cellPadding = invoice ? 4 : 7;
@@ -132,8 +132,10 @@ export async function renderPriceDocumentPdf(input: PriceQuotation | PriceInvoic
   for (const [index, item] of items.entries()) {
     const description = [item.product_name, ...(item.sku ? [inlineValue(`SKU: ${item.sku}`)] : []), ...item.attributes.map(attribute => `${attribute.label}: ${inlineValue(attribute.value)}`), ...(item.notes ? [item.notes] : [])].join("\n");
     const lineMoney = invoiceMoney?.lines[index];
+    const unitNet = inclusive ? item.unit_price / (1 + quote.vat_rate / 100) : item.unit_price;
+    const unitNetText = unitNet.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: inclusive ? 6 : 2 });
     const values = lineMoney
-      ? [money(lineMoney.gross), money(lineMoney.net), money(lineMoney.vat), `${quote.vat_rate}%`, String(item.quantity), item.unit, money(item.unit_price), description, String(index + 1)]
+      ? [money(lineMoney.gross), money(lineMoney.net), money(lineMoney.vat), `${quote.vat_rate}%`, unitNetText, String(item.quantity), item.unit, description, String(index + 1)]
       : [money(item.line_total), money(item.unit_price), `${item.quantity}\n${item.unit}`, description, String(index + 1)];
     const blocks = await Promise.all(values.map((value, i) => text(value, widths[i] - cellPadding * 2, invoice ? 8 : 9, INK, i === descriptionColumn ? "right" : "center")));
     const height = Math.max(42, ...blocks.map(block => block.height + 20));

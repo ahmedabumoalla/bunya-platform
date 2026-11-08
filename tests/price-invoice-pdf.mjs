@@ -98,7 +98,7 @@ const grossBytes=await renderPriceInvoicePdf(grossInvoice);
 const grossPdf=await PDFDocument.load(grossBytes);
 assert.equal(grossPdf.getPageCount(),1);
 assert.deepEqual(decodedQrImages(grossPdf),[invoice.qr_payload]);
-assert.ok(renderedText.some(text=>text.includes('سعر الوحدة شامل الضريبة')));
+assert.ok(renderedText.some(text=>text.includes('سعر الوحدة قبل الضريبة')));
 assert.ok(renderedText.some(text=>text.includes('6,938.40')),'net taxable breakdown stays exact');
 for(const section of invoice.sales_policy)assert.ok(renderedText.some(text=>text.replaceAll('\u200f','').includes(section.body)));
 writeFileSync('tmp/price-invoice-inclusive-preview.pdf',grossBytes);
