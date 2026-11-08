@@ -16,9 +16,9 @@ const context={userId:id,db:{rpc:async()=>({data:permission,error:null})},admin:
 const quotes={priceQuotationContext:async()=>{if(!auth)throw new ManagedQuoteError(401,'Login');return context},readPriceQuotation:async(_c,q)=>{if(q!==id)throw new ManagedQuoteError(404,'Not found');return quotation},priceQuotationResponse:(data,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'private, no-store'}}),priceQuotationFailure:error=>Response.json({message:error.message},{status:error.status||500}),readPriceQuotationBody:async req=>{if(!req.headers.get('content-type')?.includes('application/json'))throw new ManagedQuoteError(415,'Invalid content type');return req.json()}};
 const validation=load('src/lib/quotes/price-invoice-validation.ts');
 const policy=load('src/lib/quotes/price-invoice-policy.ts');
-assert.equal(policy.priceInvoicePolicy().length,10);
+assert.equal(policy.priceInvoicePolicy().length,1);
 assert.ok(!policy.priceInvoicePolicy().some(section=>/صلاحية العرض|السعر المقدم قابل للتعديل/.test(section.title+' '+section.body)),'Invoice terms must not inherit quotation validity or price changes');
-assert.ok(policy.priceInvoicePolicy().some(section=>section.title==='تأكيد الاستلام'&&section.body.includes('لا يثبت استلام البضاعة')),'Printing an invoice does not fabricate a delivery acknowledgement');
+assert.ok(policy.priceInvoicePolicy()[0].body.includes('التوقيع: ........................'),'Receipt acknowledgement is blank for the actual recipient to sign');
 quotation.delivery_city='الرياض';quotation.delivery_window='ثلاثة أيام';quotation.valid_until='2026-11-12T20:59:00Z';
 const server=load('src/lib/quotes/price-invoice-server.ts',{'server-only':{},'./managed-server':{ManagedQuoteError},'./price-quotation-server':quotes,'./price-invoice-validation':validation,'./price-invoice-policy':policy});
 let rendered;

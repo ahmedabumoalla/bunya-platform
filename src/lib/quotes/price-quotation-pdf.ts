@@ -164,9 +164,10 @@ export async function renderPriceDocumentPdf(input: PriceQuotation | PriceInvoic
   }
   // Keep the invoice totals and its sales policy together.
   // Compact RTL columns use the blank area instead of a dedicated policy page.
-  const policyGap = 18, policyWidth = (CONTENT - policyGap) / 2;
+  const singlePolicy = invoice?.sales_policy.length === 1;
+  const policyGap = 18, policyWidth = singlePolicy ? CONTENT : (CONTENT - policyGap) / 2;
   const invoicePolicy = invoice ? await Promise.all(invoice.sales_policy.map((section, index) =>
-    text(`${index + 1}. ${section.title}: ${section.body}`, policyWidth, 7.5))) : [];
+    text(singlePolicy ? section.body : `${index + 1}. ${section.title}: ${section.body}`, policyWidth, singlePolicy ? 9.5 : 7.5))) : [];
   const columnHeight = (blocks: Text[]) => blocks.reduce((sum, block) => sum + block.height + 3, 0);
   let policySplit = 0, policyHeight = 0;
   if (invoicePolicy.length) {
@@ -201,10 +202,10 @@ export async function renderPriceDocumentPdf(input: PriceQuotation | PriceInvoic
   }
   if (invoicePolicy.length) {
     top += 12;
-    await put(page, "سياسة البيع", MARGIN, top, CONTENT, 10, TEAL);
+    await put(page, singlePolicy && invoice ? invoice.sales_policy[0].title : "سياسة البيع", MARGIN, top, CONTENT, 10, TEAL);
     top += 20;
     for (const [column, blocks] of [invoicePolicy.slice(0, policySplit), invoicePolicy.slice(policySplit)].entries()) {
-      const x = column === 0 ? MARGIN + policyWidth + policyGap : MARGIN;
+      const x = singlePolicy ? MARGIN : column === 0 ? MARGIN + policyWidth + policyGap : MARGIN;
       let policyTop = top;
       for (const block of blocks) {
         draw(page, block, x, policyTop, policyWidth);

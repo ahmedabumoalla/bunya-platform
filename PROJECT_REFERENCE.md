@@ -1,5 +1,13 @@
 # Bunya Platform — Project Reference
 
+## 2026-11-09 - Receipt acknowledgement replaces long policy
+
+Ownerrequestedonlyreceipt ingoodcondition/matchinginvoicespecifications. Newv2singlefirst-personacknowledgement hasblankrecipientname/signature/date andprintsfullwidthundertotals; no signedreceipt/deliverystatusisassumed. Old10clausesremovedfrominvoices;financialcolumns/QRunchanged. FocusedPDF/HTTP/lintchecksPASS;publicationpending. Earlierlongpolicyentriesarehistory.
+
+## 2026-11-09 00:21 - Invoice policy and item tax breakdown LIVE
+
+Publisheda62d4da4ab9161d3d8baa528a6a72e0897e066bf; Vercel dpl_AAcH19HPDjHnmfNbTZPyNFcQEGhN READY with officialalias verified. Actualexistinginvoice andpreview show10invoice-specificpolicyclauses,unit/unitprice/quantity/VATrate/VATamount/net/grosscolumns and5rowsummary ononepage. VisuallyinspectedactualLinuxPDFs; QR/moneyunchanged,invoicecount1→1,noissuance/messages,sessionrevoked. No DBchange. Officialsources/legalreviewlimits docs/invoice-sales-policy.md; terms donotwaive mandatoryrights or inferdelivery/acceptance. Earlierpendingpublication superseded; details docs/task-state.md.
+
 ## 2026-11-09 00:19 - Invoice terms and detailed tax table ready
 
 Invoice-specific10-clause policy replaces quotation terms; covers seller supply duties, inspection/signedreceipt,buyer-causeddamage,limiteddiscretionaryreturns and mandatorySaudi statutoryrights. Officialreferences/legal-reviewlimits in docs/invoice-sales-policy.md. Printing doesnotprove receipt/acceptance or retroactively amend contracts. Fullinvoicecolumns unit/unitprice/qty/VATrate/VATamount/net/gross and separatebottom5rows. Integerfils allocation reconciles line+deliveryVAT with originalsavedinvoice/QR. TargetedHTTP/PDF/math/quotationregressions,lint,build+types andvisualPDF checksPASS; no DB or fiscalrecords changed. Webpublication pending.

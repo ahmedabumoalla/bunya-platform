@@ -1,5 +1,9 @@
 # Invoice sales policy
 
+## Current owner instruction — 2026-11-09
+
+The owner rejected the long terms and requested only acknowledgement of receiving goods in good condition matching the invoice specifications. `exclusive-address-invoice-receipt-v2` now prints that single first-person acknowledgement, with blank recipient name/signature/receipt date. No electronic signature or delivery status is created. The previous researched policy below is superseded and no longer printed.
+
 Updated 2026-11-09 (Asia/Riyadh). Applies to the invoice presentation, separately from the quotation policy in `price-quotation-policy.ts`.
 
 The owner requested seller protection, inspection and acknowledgement on delivery, and restrictions on returns. The invoice wording defines supply scope, purchaser handling responsibilities, documented receipt, returns, defects and statutory rights. It does not claim government approval or guarantee freedom from disputes. This is an engineering implementation of a researched draft, not a Saudi lawyer's legal opinion; qualified local counsel should review it against the actual sale channels, goods and contracts.

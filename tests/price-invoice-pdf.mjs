@@ -70,8 +70,8 @@ for(const type of ['standard','simplified']) {
   assert.equal(pdf.getPageCount(),1,'all sales terms share the invoice page, with no dedicated policy page');
   for(const label of ['الوحدة','الكمية','نسبة الضريبة','مبلغ الضريبة','الإجمالي قبل الضريبة','الإجمالي شامل الضريبة','سعر الوحدة قبل الضريبة'])assert.ok(renderedText.some(text=>text.includes(label)),label+' is included in the invoice table');
   for(const value of ['210','33.04','1,040.76','6,938.40','7,979.16'])assert.ok(renderedText.some(text=>text.includes(value)),value+' is included in the financial breakdown');
-  assert.ok(renderedText.some(text=>text.includes('سياسة البيع')));
-  for(const section of invoice.sales_policy)assert.ok(renderedText.some(text=>text.includes(section.title+': '+section.body)),section.title+' is rendered completely');
+  assert.ok(renderedText.some(text=>text.includes('إقرار استلام البضاعة')));
+  for(const section of invoice.sales_policy)assert.ok(renderedText.some(text=>text.replaceAll('\u200f','').includes(section.body)),section.title+' is rendered completely');
   assert.match(pdf.getTitle(), type==='standard'?/فاتورة ضريبية INV-/:/فاتورة ضريبية مبسطة INV-/);
   const decoded=decodedQrImages(pdf);
   assert.deepEqual(decoded,[invoice.qr_payload],'the actual PDF embeds a digitally decodable tax QR with the saved payload');
@@ -98,6 +98,6 @@ assert.equal(grossPdf.getPageCount(),1);
 assert.deepEqual(decodedQrImages(grossPdf),[invoice.qr_payload]);
 assert.ok(renderedText.some(text=>text.includes('سعر الوحدة شامل الضريبة')));
 assert.ok(renderedText.some(text=>text.includes('6,938.40')),'net taxable breakdown stays exact');
-for(const section of invoice.sales_policy)assert.ok(renderedText.some(text=>text.includes(section.title+': '+section.body)));
+for(const section of invoice.sales_policy)assert.ok(renderedText.some(text=>text.replaceAll('\u200f','').includes(section.body)));
 writeFileSync('tmp/price-invoice-inclusive-preview.pdf',grossBytes);
 console.log('PASS gross-priced invoice: inclusive column labels, exact net/tax breakdown, unchanged total/QR, all policy terms on same page.');
