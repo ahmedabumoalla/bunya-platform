@@ -1,5 +1,13 @@
 # Bunya Platform — Project Reference
 
+## 2026-11-09 - Plain receipt phrase replaces acknowledgement
+
+Owner's final wording: «تم استلام البضاعة بحالتها الأصلية ومطابقة للمواصفات الواردة في الفاتورة وبحالة ممتازة». v3 prints this sentence only: no heading, name, signature or receipt-date fields. Financial table/QR and delivery records unchanged. Focused PDF/HTTP checks passed; publication pending. Older policy/acknowledgement notes are superseded.
+
+## 2026-11-09 00:33 - Short receipt acknowledgement LIVE
+
+Published 7f087b120c581c36a045b76017c58deae5f6a16d; Vercel dpl_evNLzbBgD2SrFTdXmZA2meCNj6vP READY and official alias verified. Invoice now prints only the requested good-condition/specification acknowledgement with blank recipient name, signature and receipt date. Actual issued PDF visually verified; one-page issued/preview PDFs and QR pass, invoice count unchanged1, no issuance/messages, session revoked. Full tax table remains unchanged. Earlier ten-clause policy is no longer printed; details/evidence in docs/task-state.md.
+
 ## 2026-11-09 - Receipt acknowledgement replaces long policy
 
 Ownerrequestedonlyreceipt ingoodcondition/matchinginvoicespecifications. Newv2singlefirst-personacknowledgement hasblankrecipientname/signature/date andprintsfullwidthundertotals; no signedreceipt/deliverystatusisassumed. Old10clausesremovedfrominvoices;financialcolumns/QRunchanged. FocusedPDF/HTTP/lintchecksPASS;publicationpending. Earlierlongpolicyentriesarehistory.

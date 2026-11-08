@@ -202,8 +202,8 @@ export async function renderPriceDocumentPdf(input: PriceQuotation | PriceInvoic
   }
   if (invoicePolicy.length) {
     top += 12;
-    await put(page, singlePolicy && invoice ? invoice.sales_policy[0].title : "سياسة البيع", MARGIN, top, CONTENT, 10, TEAL);
-    top += 20;
+    const policyTitle = singlePolicy && invoice ? invoice.sales_policy[0].title : "سياسة البيع";
+    if (policyTitle) { await put(page, policyTitle, MARGIN, top, CONTENT, 10, TEAL); top += 20; }
     for (const [column, blocks] of [invoicePolicy.slice(0, policySplit), invoicePolicy.slice(policySplit)].entries()) {
       const x = singlePolicy ? MARGIN : column === 0 ? MARGIN + policyWidth + policyGap : MARGIN;
       let policyTop = top;

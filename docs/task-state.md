@@ -1,3 +1,11 @@
+## 2026-11-09 - Owner's final single receipt phrase
+
+Owner explicitly removed acknowledgement heading and recipient/signature/date fields, then supplied final receipt phrase including originalcondition, matchinginvoicespecifications and excellentcondition. v3 now prints only that sentence belowtotals; no title/extra fields and no delivery-state mutation. Focused invoicePDF/HTTP checks pass; financialtables,values andQR unchanged. Deployment follows. Previous v2 acknowledgement is superseded.
+
+## 2026-11-09 00:33 Asia/Riyadh - Single receipt acknowledgement LIVE
+
+Published 7f087b120c581c36a045b76017c58deae5f6a16d. Vercel dpl_evNLzbBgD2SrFTdXmZA2meCNj6vP READY; official www alias independently verified. Production issued PDF and preview HTTP200, one page and one acknowledgement, original total/decoded QR preserved. Actual issued PDF visually checked: full-width receipt statement and blank recipient name/signature/date, no overlap. Invoice count1→1, no issuance/messages, temporary session revoked, anon401. Evidence and current source/config hashes: tmp/invoice-receipt-production-evidence.json; actual PDF/PNG: tmp/invoice-receipt-production.*. Vercel built final source; no redundant local full build. No database or delivery-state changes. Earlier long-policy notes are superseded; post-release record is documentation only.
+
 ## 2026-11-09 - Single receipt acknowledgement ready
 
 Owner rejected lengthy policy; replaced all10clauses with one acknowledgement: goodsreceived in goodcondition matchinginvoicespecifications, plusblankrecipientname/signature/receiptdate. Full-width9.5ptblock underexistingtotals; no receipt/signature/status fabricated. Financialtable,money,QR unchanged. RUN/PASS currentNode24 invoicePDFstandard/simplified/draft/inclusive1page+QR,HTTP,scopedESLint,diffcheck. InitialPDFassert required stripping existingRTLnewline markers to compare multiline text; correctedassertionpasses. No newDBchanges or localfullbuild warranted; Vercelpublication/verification follows. Previouspolicyresearch retainedashistory,notprinted.

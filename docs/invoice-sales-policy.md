@@ -2,7 +2,7 @@
 
 ## Current owner instruction — 2026-11-09
 
-The owner rejected the long terms and requested only acknowledgement of receiving goods in good condition matching the invoice specifications. `exclusive-address-invoice-receipt-v2` now prints that single first-person acknowledgement, with blank recipient name/signature/receipt date. No electronic signature or delivery status is created. The previous researched policy below is superseded and no longer printed.
+The owner rejected the long terms, acknowledgement heading and signature fields. `exclusive-address-invoice-receipt-v3` prints only: «تم استلام البضاعة بحالتها الأصلية ومطابقة للمواصفات الواردة في الفاتورة وبحالة ممتازة». No heading, recipient/date/signature fields, electronic signature or delivery-state update is created. The previous researched policy below is superseded and no longer printed.
 
 Updated 2026-11-09 (Asia/Riyadh). Applies to the invoice presentation, separately from the quotation policy in `price-quotation-policy.ts`.
 

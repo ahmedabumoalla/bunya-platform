@@ -70,7 +70,8 @@ for(const type of ['standard','simplified']) {
   assert.equal(pdf.getPageCount(),1,'all sales terms share the invoice page, with no dedicated policy page');
   for(const label of ['الوحدة','الكمية','نسبة الضريبة','مبلغ الضريبة','الإجمالي قبل الضريبة','الإجمالي شامل الضريبة','سعر الوحدة قبل الضريبة'])assert.ok(renderedText.some(text=>text.includes(label)),label+' is included in the invoice table');
   for(const value of ['210','33.04','1,040.76','6,938.40','7,979.16'])assert.ok(renderedText.some(text=>text.includes(value)),value+' is included in the financial breakdown');
-  assert.ok(renderedText.some(text=>text.includes('إقرار استلام البضاعة')));
+  assert.ok(renderedText.some(text=>text.includes('تم استلام البضاعة بحالتها الأصلية ومطابقة للمواصفات الواردة في الفاتورة وبحالة ممتازة')));
+  assert.ok(!renderedText.some(text=>/إقرار استلام|اسم المستلم|التوقيع|تاريخ الاستلام/.test(text)));
   for(const section of invoice.sales_policy)assert.ok(renderedText.some(text=>text.replaceAll('\u200f','').includes(section.body)),section.title+' is rendered completely');
   assert.match(pdf.getTitle(), type==='standard'?/فاتورة ضريبية INV-/:/فاتورة ضريبية مبسطة INV-/);
   const decoded=decodedQrImages(pdf);
