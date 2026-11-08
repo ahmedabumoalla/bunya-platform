@@ -15,3 +15,4 @@ supabase/migrations/095_restrict_conversation_helpers.sql text eol=lf
 supabase/migrations/096_admin_attention_counts.sql text eol=lf
 supabase/migrations/106_restore_designated_administrators.sql text eol=lf
 supabase/migrations/107_price_quotation_invoices.sql text eol=lf
+supabase/migrations/108_enable_confirmed_phase_one_invoices.sql text eol=lf

@@ -1,5 +1,17 @@
 # Bunya Platform — Project Reference
 
+## 2026-11-08 23:50 - Phase 1 tax invoice issuance ENABLED LIVE
+
+Owner explicitly confirmed company is currently Phase1/not required Phase2. Data migration108 applied with seller/active-owner guards and audit recording owner confirmation (not independent authority clearance). Existing standard/simplified final issuance with invoice number and tax TLV QR is now enabled. Preview remains a preview; user must click explicit final-issue button to create a real invoice.
+
+Verified production readiness200/phase1 for owner and both restored admins; invoice_count0, no issue endpoint called/messages sent, diagnostic sessions revoked. Live rollback rehearsal, SQL/hash guards and phase-ready UI test pass. No application/RLS/grant change or new build needed.104 stays unapplied. Evidence in docs/task-state.md; prior unconfigured notes below superseded.
+
+## 2026-11-08 23:44 - Quotation corrections and invoice preview LIVE
+
+Published94faded300a28a4b6a7081dd7f300147f7b4ca9c; Vercel dpl_Hav3evv3MjUdxooLyVV7U4LD6XPG READY and official www.buniahksa.com alias independently verified. Quotation detail now offers Convert to invoice with full standard/simplified experimental previews. Missing Latin glyph boxes/layout corrected on actual production Linux PDF; nonsteel brands omitted and steel brands retained.
+
+Verified real reported quotation and its invoice preview via authenticated production APIs:200, proper pages/private-no-store, preview QR digitally decoded and both documents visually checked. Anonymous invoice access401, invoice_count0, company phase still unconfigured; no fiscal issuance/messages, test session revoked. Both admin accounts remain fully restored.106/107 applied,104 untouched. Earlier local-only/auth-blocked/release-pending notes below are superseded. Actual PDFs/evidence and final source identities in docs/task-state.md.
+
 ## 2026-11-08 23:42 - Invoice schema applied; web release underway
 
 107 applied after successful live rollback rehearsal; exact hash/history verified,104 untouched. Company phase remains unconfigured and invoice count0; full experimental previews are permitted, final issuance stays disabled. Both admins remain restored (archive inactive). Security advisors unchanged78/0ERROR. All40 source/config/dependency fingerprints still match passing final tests/build. Web publication and real Linux PDF verification follow; earlier authentication block is resolved.
