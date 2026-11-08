@@ -183,7 +183,6 @@ export async function renderPriceDocumentPdf(input: PriceQuotation | PriceInvoic
   if (invoice && qrPng) {
     const qr = await pdf.embedPng(qrPng);
     page.drawImage(qr, { x: MARGIN + 37, y: PAGE_HEIGHT - top - 102, width: 102, height: 102 });
-    await put(page, draft ? "رمز معاينة" : "رمز الفاتورة الضريبية", MARGIN + 10, top + 110, 156, 8, MUTED, "center");
   }
   // Keep a net taxable breakdown even when item prices were entered gross.
   // Allocate the total's rounded tax exactly, rather than round each unit net

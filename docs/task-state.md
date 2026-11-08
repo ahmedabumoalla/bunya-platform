@@ -1,5 +1,7 @@
 ## 2026-11-09 - Owner's final single receipt phrase
 
+Follow-up: removed the caption beneath the invoice QR as explicitly requested; QR pixels/data and draft banner remain unchanged. Final PDF regression rerun before publishing this follow-up.
+
 Owner explicitly removed acknowledgement heading and recipient/signature/date fields, then supplied final receipt phrase including originalcondition, matchinginvoicespecifications and excellentcondition. v3 now prints only that sentence belowtotals; no title/extra fields and no delivery-state mutation. Focused invoicePDF/HTTP checks pass; financialtables,values andQR unchanged. Deployment follows. Previous v2 acknowledgement is superseded.
 
 ## 2026-11-09 00:33 Asia/Riyadh - Single receipt acknowledgement LIVE

@@ -72,6 +72,7 @@ for(const type of ['standard','simplified']) {
   for(const value of ['210','33.04','1,040.76','6,938.40','7,979.16'])assert.ok(renderedText.some(text=>text.includes(value)),value+' is included in the financial breakdown');
   assert.ok(renderedText.some(text=>text.includes('تم استلام البضاعة بحالتها الأصلية ومطابقة للمواصفات الواردة في الفاتورة وبحالة ممتازة')));
   assert.ok(!renderedText.some(text=>/إقرار استلام|اسم المستلم|التوقيع|تاريخ الاستلام/.test(text)));
+  assert.ok(!renderedText.some(text=>text.includes('رمز الفاتورة الضريبية')));
   for(const section of invoice.sales_policy)assert.ok(renderedText.some(text=>text.replaceAll('\u200f','').includes(section.body)),section.title+' is rendered completely');
   assert.match(pdf.getTitle(), type==='standard'?/فاتورة ضريبية INV-/:/فاتورة ضريبية مبسطة INV-/);
   const decoded=decodedQrImages(pdf);

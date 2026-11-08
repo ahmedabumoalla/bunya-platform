@@ -2,6 +2,8 @@
 
 ## 2026-11-09 - Plain receipt phrase replaces acknowledgement
 
+Also removed the caption beneath the invoice QR at the owner's request; QR itself unchanged.
+
 Owner's final wording: «تم استلام البضاعة بحالتها الأصلية ومطابقة للمواصفات الواردة في الفاتورة وبحالة ممتازة». v3 prints this sentence only: no heading, name, signature or receipt-date fields. Financial table/QR and delivery records unchanged. Focused PDF/HTTP checks passed; publication pending. Older policy/acknowledgement notes are superseded.
 
 ## 2026-11-09 00:33 - Short receipt acknowledgement LIVE
