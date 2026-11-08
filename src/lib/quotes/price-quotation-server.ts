@@ -42,7 +42,7 @@ export function visiblePriceQuotation(row: PriceQuotation & Record<string, unkno
   const { id, quotation_code, source_request_id, source_request_code, customer_name, customer_phone, customer_address, customer_tax_number, delivery_city, delivery_window, policy_version, items, subtotal, vat_rate, vat_amount, delivery_fee, total, valid_until, terms, created_at, send_status, sent_at, send_error } = row;
   // A worker interrupted after provider submission cannot be retried safely.
   const stale = send_status === "sending" && Date.parse(String(row.send_started_at)) < Date.now() - 120000;
-  return { pricing_basis: row.pricing_basis ?? "exclusive", id, quotation_code, source_request_id, source_request_code, customer_name, customer_phone, customer_address, customer_tax_number, delivery_city, delivery_window, policy_version, items: items.map(quotationItemPresentation), subtotal: Number(subtotal), vat_rate: Number(vat_rate), vat_amount: Number(vat_amount), delivery_fee: Number(delivery_fee), total: Number(total), valid_until, terms, created_at, send_status: stale ? "uncertain" : send_status, sent_at, send_error: stale ? "submission_unconfirmed" : send_error };
+  return { customer_id: row.customer_id ?? null, customer_number: row.customer_number ?? null, pricing_basis: row.pricing_basis ?? "exclusive", id, quotation_code, source_request_id, source_request_code, customer_name, customer_phone, customer_address, customer_tax_number, delivery_city, delivery_window, policy_version, items: items.map(quotationItemPresentation), subtotal: Number(subtotal), vat_rate: Number(vat_rate), vat_amount: Number(vat_amount), delivery_fee: Number(delivery_fee), total: Number(total), valid_until, terms, created_at, send_status: stale ? "uncertain" : send_status, sent_at, send_error: stale ? "submission_unconfirmed" : send_error };
 }
 
 export async function readPriceQuotation(context: ManagedQuoteContext, id: string) {
@@ -76,6 +76,7 @@ export async function createPriceQuotation(context: ManagedQuoteContext, input: 
   try { totals = calculatePriceQuotationTotals(items, draft.delivery_fee, draft.vat_rate, draft.pricing_basis); } catch (error) { throw new ManagedQuoteError(400, error instanceof Error ? error.message : "إجمالي العرض غير صالح."); }
   items.forEach((item, index) => { item.line_total = totals.line_totals[index]; });
   const result = await context.admin.rpc("price_quotation_create", { p_actor: context.userId, p_key: draft.idempotency_key, p_fingerprint: fingerprint, p_payload: { ...draft, policy_version: PRICE_QUOTATION_POLICY_VERSION, items, source_request_code: source?.request_code ?? null, subtotal: totals.subtotal, vat_amount: totals.vat_amount, total: totals.total } });
+  if (result.error?.code === "22023") throw new ManagedQuoteError(400, "رقم الجوال لا يطابق العميل المحدد. أعد اختيار العميل أو اختر عميلًا جديدًا.");
   if (result.error) throw new ManagedQuoteError(result.error.code === "23505" ? 409 : 503, result.error.code === "23505" ? "هذه المسودة محفوظة ببيانات مختلفة." : "تعذر حفظ عرض السعر. أعد المحاولة.");
   return readPriceQuotation(context, String(result.data));
 }

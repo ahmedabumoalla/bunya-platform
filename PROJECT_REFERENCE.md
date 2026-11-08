@@ -1,5 +1,15 @@
 # Bunya Platform — Project Reference
 
+## 2026-11-09 02:52 - Saved customer database activated
+
+Management login restored;110 applied and history recorded after successful rollback rehearsal. One existing customer backfilled and quotation linked. Independent hashes/counts prove issued financial data, invoice numbering, Auth/roles and notifications unchanged. RLS/service-only access verified; security advisors unchanged;104 untouched. Existing successful local build/tests reused only after exact source/config/dependency/font fingerprint comparison. Header and customer UI publication pending below release workflow.
+
+## 2026-11-09 00:58 - Saved sales customers/header ready; DB access pending
+
+Implemented invoice seller data beneath logo, aligned title/number/dates and بيانات العميل with stable customer number. Added reusable customer search/autofill and atomic saving with quotes; private sales registry110 stores name/mobile/address/tax details and CUS number, without Auth accounts/messages. Existing quotes populate registry; issued invoices retain financial snapshots and legacy customer number resolves by actual buyer phone. New invoice reference snapshots remain stable. Local build/types/lint/UI/API/PDF/QR/SQL tests and visual header review pass; exact evidence in docs/task-state.md.
+
+110 remains unapplied because management API/advisors returned403 before execution. User login code requested; application changes are NOT published pending live rehearsal/apply. Prepared transaction-safe rehearsal and verification scripts are in tmp; no business records were created. Current published0044bea covers earlier receipt wording, QR-caption removal and RTL column order. Keep104 unrelated/unapplied. Customer registry is sales contacts, not new login accounts.
+
 ## 2026-11-09 - Plain receipt phrase replaces acknowledgement
 
 Follow-up invoice columns RTL: product, unit, quantity, net unit price, VAT rate/amount, net/gross totals. Gross-input quotations retain their original stored amounts; invoice unit-price display derives net with up to6 decimals. Creation remains inclusive.

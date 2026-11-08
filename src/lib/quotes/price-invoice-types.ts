@@ -4,6 +4,8 @@ export type InvoiceSeller = { name: string; vat_number: string; commercial_regis
 export type InvoiceBuyer = { name: string; phone: string; address: string; vat_number: string };
 export type PriceInvoiceInput = { invoice_type: "standard" | "simplified"; buyer: InvoiceBuyer; supply_date: string };
 export type PriceInvoice = PriceInvoiceInput & {
+  customer_id?: string | null;
+  customer_number?: string | null;
   pricing_basis?: PriceQuotationPricingBasis;
   id: string;
   status: "draft" | "issued";

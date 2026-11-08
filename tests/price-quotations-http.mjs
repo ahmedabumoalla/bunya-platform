@@ -115,3 +115,7 @@ for(const [items,delivery,rate,total,vatAmount] of [
   assert.equal(actual.total,total);assert.equal(actual.vat_amount,vatAmount);
 }
 console.log('PASS inclusive API and money: exact gross totals, delivery, fractional quantities, zero VAT, invalid basis, unchanged legacy default.');
+
+response=await route.POST(request('POST',{...inclusiveDraft,customer_id:sourceId}));assert.equal(response.status,201);assert.equal(savedPayload.p_payload.customer_id,sourceId);
+assert.equal((await route.POST(request('POST',{...inclusiveDraft,customer_id:'invalid'}))).status,400);
+console.log('PASS selected customer identity is validated and forwarded with canonical quotation.');

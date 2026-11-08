@@ -14,6 +14,8 @@ export type PriceQuotationItem = {
 };
 
 export type PriceQuotation = {
+  customer_id?: string | null;
+  customer_number?: string | null;
   pricing_basis?: PriceQuotationPricingBasis;
   id: string;
   quotation_code: string;
@@ -52,6 +54,7 @@ export type PriceQuotationDraftItem = {
   variant_ids?: string[];
 };
 export type PriceQuotationDraft = {
+  customer_id?: string;
   pricing_basis?: PriceQuotationPricingBasis;
   idempotency_key: string;
   source_request_id?: string | null;
@@ -76,4 +79,14 @@ export type PriceQuotationCatalogProduct = {
   variants: { id?: string; sku: string; attributes: { label: string; value: string }[]; selection_keys?: string[] }[];
   measurements?: { id: string; label: string; unit: string }[];
   image_url: string;
+};
+
+export type SalesCustomer = {
+  id: string;
+  customer_number: string;
+  phone: string;
+  name: string;
+  address: string;
+  tax_number: string;
+  updated_at: string;
 };

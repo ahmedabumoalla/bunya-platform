@@ -18,16 +18,24 @@ export async function priceInvoiceSettings(context: ManagedQuoteContext): Promis
   if (result.error || !result.data) throw new ManagedQuoteError(503, "إعدادات الفوترة غير متاحة حاليًا. أعد المحاولة.");
   return result.data as PriceInvoiceSettings;
 }
+async function invoiceCustomerReference(context: ManagedQuoteContext, phone: string) {
+  if (!/^\+9665\d{8}$/.test(phone)) return { customer_id: null, customer_number: null };
+  const result = await context.admin.from("sales_customers").select("id,customer_number").eq("phone", phone).maybeSingle();
+  if (result.error) throw new ManagedQuoteError(503, "تعذر تحميل رقم العميل. أعد المحاولة.");
+  return { customer_id: result.data?.id ?? null, customer_number: result.data?.customer_number ?? null };
+}
 function visibleInvoice(row: Record<string, unknown>): PriceInvoice {
   const { id, invoice_number, invoice_type, issued_at, supply_date, quotation_id, quotation_code, seller, buyer, items, subtotal, delivery_fee, vat_rate, vat_amount, total, currency } = row;
-  const invoice = { pricing_basis: row.pricing_basis ?? "exclusive", id, status: "issued", invoice_number, invoice_type, issued_at, supply_date, quotation_id, quotation_code, seller, buyer, items, subtotal: Number(subtotal), delivery_fee: Number(delivery_fee), vat_rate: Number(vat_rate), vat_amount: Number(vat_amount), total: Number(total), currency } as Omit<PriceInvoice, "qr_payload">;
+  const invoice = { customer_id: row.customer_id ?? null, customer_number: row.customer_number ?? null, pricing_basis: row.pricing_basis ?? "exclusive", id, status: "issued", invoice_number, invoice_type, issued_at, supply_date, quotation_id, quotation_code, seller, buyer, items, subtotal: Number(subtotal), delivery_fee: Number(delivery_fee), vat_rate: Number(vat_rate), vat_amount: Number(vat_amount), total: Number(total), currency } as Omit<PriceInvoice, "qr_payload">;
   return { ...invoice, sales_policy: priceInvoicePolicy(), qr_payload: priceInvoiceQr({ seller_name: invoice.seller.name, seller_vat: invoice.seller.vat_number, issued_at: invoice.issued_at, total: invoice.total, vat_amount: invoice.vat_amount }) };
 }
 export async function readPriceInvoice(context: ManagedQuoteContext, quoteId: string): Promise<PriceInvoice | null> {
   await readPriceQuotation(context, quoteId);
   const result = await context.admin.from("price_invoices").select("*").eq("quotation_id", quoteId).maybeSingle();
   if (result.error) throw new ManagedQuoteError(503, "تعذر تحميل الفاتورة. أعد المحاولة.");
-  return result.data ? visibleInvoice(result.data) : null;
+  if (!result.data) return null;
+  const reference = result.data.customer_number ? {} : await invoiceCustomerReference(context, result.data.buyer?.phone || "");
+  return visibleInvoice({ ...result.data, ...reference });
 }
 export async function previewPriceInvoice(context: ManagedQuoteContext, quoteId: string, input: unknown): Promise<PriceInvoice> {
   let draft;
@@ -35,7 +43,8 @@ export async function previewPriceInvoice(context: ManagedQuoteContext, quoteId:
   const [quote, settings] = await Promise.all([readPriceQuotation(context, quoteId), priceInvoiceSettings(context)]);
   try { validateInvoiceSeller(settings.seller); } catch (error) { throw new ManagedQuoteError(409, (error as Error).message); }
   if (quote.vat_rate !== 15) throw new ManagedQuoteError(409, "التحويل متاح حاليًا للعروض الخاضعة لضريبة 15٪. أنشئ عرضًا بهذه النسبة أو راجع المعالجة الضريبية قبل إصدار الفاتورة.");
-  return { ...draft, pricing_basis: quote.pricing_basis ?? "exclusive", id: "draft", status: "draft", invoice_number: "DRAFT", issued_at: new Date().toISOString(), quotation_id: quote.id, quotation_code: quote.quotation_code, seller: settings.seller, items: quote.items, subtotal: quote.subtotal, delivery_fee: quote.delivery_fee, vat_rate: quote.vat_rate, vat_amount: quote.vat_amount, total: quote.total, currency: "SAR", qr_payload: "", sales_policy: priceInvoicePolicy() };
+  const reference = await invoiceCustomerReference(context, draft.buyer.phone);
+  return { ...draft, ...reference, pricing_basis: quote.pricing_basis ?? "exclusive", id: "draft", status: "draft", invoice_number: "DRAFT", issued_at: new Date().toISOString(), quotation_id: quote.id, quotation_code: quote.quotation_code, seller: settings.seller, items: quote.items, subtotal: quote.subtotal, delivery_fee: quote.delivery_fee, vat_rate: quote.vat_rate, vat_amount: quote.vat_amount, total: quote.total, currency: "SAR", qr_payload: "", sales_policy: priceInvoicePolicy() };
 }
 export async function createPriceInvoice(context: ManagedQuoteContext, quoteId: string, input: unknown) {
   let draft;

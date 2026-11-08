@@ -107,5 +107,6 @@
   "106_restore_designated_administrators.sql": "a304e1e086d00c0dfeecaebe072014bd4e1c59a3e41c8ad6dd4d2ba69313de4a",
   "107_price_quotation_invoices.sql": "ed588d26693949a5aea6769779ef1310319f89e0542d3833153a56bd938d7e8b",
   "108_enable_confirmed_phase_one_invoices.sql": "8dd38494c8dc2156769e59470e91e01b2971f2f04d38e62f76c3b2db5b23c276",
-  "109_price_quotation_inclusive_pricing.sql": "3203cdebc1538350057d0e4c5777f88853016fed85f2c9fc5436066f20058cc0"
+  "109_price_quotation_inclusive_pricing.sql": "3203cdebc1538350057d0e4c5777f88853016fed85f2c9fc5436066f20058cc0",
+  "110_saved_sales_customers.sql": "ccbde7f58961eee53e53f3ffd2458c4a978196481ac9d90d4ed3464353fe8c10"
 }

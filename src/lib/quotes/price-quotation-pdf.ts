@@ -47,7 +47,7 @@ export async function renderPriceDocumentPdf(input: PriceQuotation | PriceInvoic
   const invoiceMoney = invoice ? priceInvoiceBreakdown(invoice) : null;
   const documentTitle = invoice ? invoice.invoice_type === "standard" ? "فاتورة ضريبية" : "فاتورة ضريبية مبسطة" : "عرض سعر";
   const documentSubtitle = invoice ? invoice.invoice_type === "standard" ? "Tax invoice" : "Simplified tax invoice" : "Quotation";
-  const bodyTop = draft ? 164 : 128;
+  let bodyTop = draft ? 164 : 128;
   const policy = "invoice_number" in input ? [] : priceQuotationPolicy(input);
   if (invoice?.status === "issued" && !qrPng) throw new Error("An issued invoice requires its persisted tax QR code");
   const pdf = await PDFDocument.create();
@@ -78,38 +78,82 @@ export async function renderPriceDocumentPdf(input: PriceQuotation | PriceInvoic
   async function put(page: PDFPage, value: string, x: number, top: number, width: number, size = 10, ink = INK, align: "right" | "center" | "left" = "right") {
     const block = await text(value, width, size, ink, align); draw(page, block, x, top, width, align); return block.height;
   }
+  const sellerHeaderWidth = 246;
+  const sellerHeader = invoice ? await Promise.all([
+    [invoice.seller.name, 10],
+    [`السجل التجاري: ${inlineValue(invoice.seller.commercial_registration)}`, 8.5],
+    [`الرقم الضريبي: ${inlineValue(invoice.seller.vat_number)}`, 8.5],
+    [invoice.seller.address, 8.5],
+  ].map(([value, size]) => text(String(value), sellerHeaderWidth, Number(size)))) : [];
+  const invoiceHeaderBottom = Math.max(178, 104 + sellerHeader.reduce((height, block) => height + block.height + 5, 0)) + 10;
+  if (invoice) bodyTop = invoiceHeaderBottom + (draft ? 52 : 14);
   async function newPage(subtitle = documentTitle) {
     const page = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+    if (invoice) {
+      const sellerX = PAGE_WIDTH - MARGIN - sellerHeaderWidth;
+      const infoWidth = CONTENT - sellerHeaderWidth - 26;
+      page.drawImage(logo, { x: PAGE_WIDTH - MARGIN - 124, y: PAGE_HEIGHT - 99, width: 124, height: 75 });
+      let sellerTop = 104;
+      for (const block of sellerHeader) { draw(page, block, sellerX, sellerTop, sellerHeaderWidth); sellerTop += block.height + 5; }
+      await put(page, subtitle, MARGIN, 31, infoWidth, 20, INK, "center");
+      await put(page, documentSubtitle, MARGIN, 62, infoWidth, 10, MUTED, "center");
+      const issued = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Riyadh", dateStyle: "short", timeStyle: "short" }).format(new Date(invoice.issued_at));
+      const metadata = [
+        ["رقم الفاتورة", quote.quotation_code],
+        [draft ? "تاريخ المعاينة" : "تاريخ الإصدار", issued],
+        ["تاريخ التوريد", date(invoice.supply_date)],
+      ];
+      for (const [index, [label, value]] of metadata.entries()) {
+        await put(page, label, MARGIN + infoWidth - 83, 101 + index * 23, 83, 9, MUTED);
+        await put(page, value, MARGIN, 101 + index * 23, infoWidth - 92, 9, INK, "left");
+      }
+      page.drawLine({ start: { x: MARGIN, y: PAGE_HEIGHT - invoiceHeaderBottom }, end: { x: PAGE_WIDTH - MARGIN, y: PAGE_HEIGHT - invoiceHeaderBottom }, color: color(TEAL), thickness: 1 });
+      if (draft) {
+        box(page, MARGIN, invoiceHeaderBottom + 10, CONTENT, 26, PALE);
+        await put(page, "معاينة تجريبية — غير صالحة كفاتورة ضريبية", MARGIN + 10, invoiceHeaderBottom + 17, CONTENT - 20, 11, INK, "center");
+      }
+      return page;
+    }
     page.drawImage(logo, { x: PAGE_WIDTH - MARGIN - 132, y: PAGE_HEIGHT - 102, width: 132, height: 80 });
-    await put(page, subtitle, 215, 42, 162, invoice ? 16 : 21, INK, "center");
+    await put(page, subtitle, 215, 42, 162, 21, INK, "center");
     await put(page, subtitle === "سياسة البيع" ? "Sales policy" : documentSubtitle, 215, 76, 162, 10, MUTED, "center");
     await put(page, quote.quotation_code, MARGIN, 35, 178, 10, INK, "left");
-    const issued = invoice ? new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Riyadh", dateStyle: "short", timeStyle: "short" }).format(new Date(invoice.issued_at)) : date(quote.created_at);
-    await put(page, `${invoice ? draft ? "تاريخ المعاينة" : "تاريخ الإصدار" : "تاريخ العرض"}: ${inlineValue(issued)}`, MARGIN, 59, 178, 8.5);
-    await put(page, invoice ? `تاريخ التوريد: ${inlineValue(date(invoice.supply_date))}` : quote.valid_until ? `صالح حتى: ${inlineValue(date(quote.valid_until))}` : "العملة: ريال سعودي", MARGIN, 80, 178, 9);
+    await put(page, `تاريخ العرض: ${inlineValue(date(quote.created_at))}`, MARGIN, 59, 178, 8.5);
+    await put(page, quote.valid_until ? `صالح حتى: ${inlineValue(date(quote.valid_until))}` : "العملة: ريال سعودي", MARGIN, 80, 178, 9);
     page.drawLine({ start: { x: MARGIN, y: PAGE_HEIGHT - 114 }, end: { x: PAGE_WIDTH - MARGIN, y: PAGE_HEIGHT - 114 }, color: color(TEAL), thickness: 1 });
-    if (draft) {
-      box(page, MARGIN, 123, CONTENT, 26, PALE);
-      await put(page, "معاينة تجريبية — غير صالحة كفاتورة ضريبية", MARGIN + 10, 130, CONTENT - 20, 11, INK, "center");
-    }
     return page;
   }
   let page = await newPage(), top = bodyTop;
   const gap = 10, half = (CONTENT - gap) / 2;
   const seller = invoice ? [invoice.seller.name, `السجل التجاري: ${inlineValue(invoice.seller.commercial_registration)}`, `الرقم الضريبي: ${inlineValue(invoice.seller.vat_number)}`, invoice.seller.address]
     : ["شركة العنوان الحصري", `السجل التجاري: ${inlineValue("5850157983")}`, `الرقم الضريبي: ${inlineValue("312872746700003")}`, `العنوان الوطني: ${inlineValue("AKAA8043")}`, "8043 حي الخالدية، خميس مشيط 62411", "الرقم الإضافي: 3076 — المملكة العربية السعودية"];
-  const customer = [quote.customer_name || "العميل", `الجوال: ${inlineValue(quote.customer_phone)}`, ...(quote.customer_tax_number ? [`الرقم الضريبي: ${inlineValue(quote.customer_tax_number)}`] : []), ...(quote.customer_address ? [quote.customer_address] : []), ...(quote.source_request_code ? [`مرجع الطلب: ${inlineValue(quote.source_request_code)}`] : [])];
-  const cardSpacing = invoice ? 4 : 7;
-  const sellerBlocks = await Promise.all(seller.map(line => text(line, half - 20, invoice ? 8.5 : 9)));
-  const customerBlocks = await Promise.all(customer.map(line => text(line, half - 20, invoice ? 8.5 : 9)));
-  const cardHeight = (invoice ? 37 : 43) + Math.max(...[sellerBlocks, customerBlocks].map(blocks => blocks.reduce((height, block) => height + block.height + cardSpacing, 0)));
-  for (const [x, title, blocks] of [[MARGIN + half + gap, "بيانات البائع", sellerBlocks], [MARGIN, invoice ? "بيانات المشتري" : "بيانات العميل", customerBlocks]] as const) {
-    box(page, x, top, half, cardHeight); box(page, x, top, half, 26, TEAL);
-    await put(page, title, x + 10, top + 7, half - 20, 10, "#ffffff");
-    let rowTop = top + (invoice ? 33 : 38);
-    for (const block of blocks) { draw(page, block, x + 10, rowTop, half - 20); rowTop += block.height + cardSpacing; }
+  const customerNumber = "customer_number" in input && typeof input.customer_number === "string" ? input.customer_number : "";
+  const customer = [quote.customer_name || "العميل", ...(customerNumber ? [`رقم العميل: ${inlineValue(customerNumber)}`] : []), `الجوال: ${inlineValue(quote.customer_phone)}`, ...(quote.customer_tax_number ? [`الرقم الضريبي: ${inlineValue(quote.customer_tax_number)}`] : []), ...(quote.customer_address ? [quote.customer_address] : []), ...(quote.source_request_code ? [`مرجع الطلب: ${inlineValue(quote.source_request_code)}`] : [])];
+  if (invoice) {
+    const columns = [customer.slice(0, customerNumber ? 3 : 2), customer.slice(customerNumber ? 3 : 2)];
+    const blocks = await Promise.all(columns.map(column => Promise.all(column.map(line => text(line, half - 20, 9)))));
+    const cardHeight = 37 + Math.max(...blocks.map(column => column.reduce((height, block) => height + block.height + 5, 0)));
+    box(page, MARGIN, top, CONTENT, cardHeight); box(page, MARGIN, top, CONTENT, 26, TEAL);
+    await put(page, "بيانات العميل", MARGIN + 10, top + 7, CONTENT - 20, 10, "#ffffff");
+    for (const [index, column] of blocks.entries()) {
+      const x = index === 0 ? MARGIN + half + gap : MARGIN;
+      let rowTop = top + 33;
+      for (const block of column) { draw(page, block, x + 10, rowTop, half - 20); rowTop += block.height + 5; }
+    }
+    top += cardHeight + 12;
+  } else {
+    const cardSpacing = 7;
+    const sellerBlocks = await Promise.all(seller.map(line => text(line, half - 20, 9)));
+    const customerBlocks = await Promise.all(customer.map(line => text(line, half - 20, 9)));
+    const cardHeight = 43 + Math.max(...[sellerBlocks, customerBlocks].map(blocks => blocks.reduce((height, block) => height + block.height + cardSpacing, 0)));
+    for (const [x, title, blocks] of [[MARGIN + half + gap, "بيانات البائع", sellerBlocks], [MARGIN, "بيانات العميل", customerBlocks]] as const) {
+      box(page, x, top, half, cardHeight); box(page, x, top, half, 26, TEAL);
+      await put(page, title, x + 10, top + 7, half - 20, 10, "#ffffff");
+      let rowTop = top + 38;
+      for (const block of blocks) { draw(page, block, x + 10, rowTop, half - 20); rowTop += block.height + cardSpacing; }
+    }
+    top += cardHeight + 18;
   }
-  top += cardHeight + (invoice ? 12 : 18);
   // Left-to-right column positions, with the product description on the RTL side.
   const widths = invoice ? [67, 67, 49, 35, 59, 40, 35, CONTENT - 370, 18] : [91, 80, 66, CONTENT - 261, 24];
   const labels = invoice

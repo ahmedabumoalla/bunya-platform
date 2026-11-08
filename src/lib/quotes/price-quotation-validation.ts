@@ -15,6 +15,7 @@ function number(value: unknown, max: number, decimals: number, positive = false)
 export function normalizePriceQuotationDraft(value: unknown): PriceQuotationDraft {
   if (!record(value) || typeof value.idempotency_key !== "string" || !uuid.test(value.idempotency_key)) throw new Error("تعذر التعرف على المسودة. أعد فتح إنشاء العرض.");
   if (value.pricing_basis !== undefined && value.pricing_basis !== "inclusive" && value.pricing_basis !== "exclusive") throw new Error("أساس احتساب الضريبة غير صالح.");
+  if (value.customer_id !== undefined && (typeof value.customer_id !== "string" || !uuid.test(value.customer_id))) throw new Error("العميل المحدد غير صالح. أعد اختياره من قائمة العملاء.");
   const source = value.source_request_id == null || value.source_request_id === "" ? null : value.source_request_id;
   if (source !== null && (typeof source !== "string" || !uuid.test(source))) throw new Error("طلب عرض السعر المرتبط غير صالح.");
   const phone = text(value.customer_phone, 30).replace(/[\s()+-]/g, "");
@@ -37,7 +38,7 @@ export function normalizePriceQuotationDraft(value: unknown): PriceQuotationDraf
   if (until && (!Number.isFinite(until.getTime()) || !/^\d{4}-\d{2}-\d{2}(?:T|$)/.test(rawUntil))) throw new Error("تاريخ صلاحية العرض غير صالح.");
   const tax = text(value.customer_tax_number, 15);
   if (tax && !/^\d{15}$/.test(tax)) throw new Error("الرقم الضريبي للعميل يجب أن يتكون من 15 رقمًا، أو اتركه فارغًا.");
-  return { ...(value.pricing_basis ? { pricing_basis: value.pricing_basis } : {}), idempotency_key: value.idempotency_key, source_request_id: source, customer_name: text(value.customer_name, 160), customer_phone: `+${digits}`, customer_address: text(value.customer_address, 400), customer_tax_number: tax, delivery_city: text(value.delivery_city, 160), delivery_window: text(value.delivery_window, 240), items, vat_rate: number(value.vat_rate, 100, 2), delivery_fee: number(value.delivery_fee, 10000000, 2), valid_until: until?.toISOString() ?? null, terms: text(value.terms, 3000) };
+  return { ...(value.customer_id ? { customer_id: value.customer_id } : {}), ...(value.pricing_basis ? { pricing_basis: value.pricing_basis } : {}), idempotency_key: value.idempotency_key, source_request_id: source, customer_name: text(value.customer_name, 160), customer_phone: `+${digits}`, customer_address: text(value.customer_address, 400), customer_tax_number: tax, delivery_city: text(value.delivery_city, 160), delivery_window: text(value.delivery_window, 240), items, vat_rate: number(value.vat_rate, 100, 2), delivery_fee: number(value.delivery_fee, 10000000, 2), valid_until: until?.toISOString() ?? null, terms: text(value.terms, 3000) };
 }
 
 // All arithmetic is in integer fils; quantity is in thousandths. Round half up
