@@ -1,5 +1,13 @@
 # Bunya Platform — Project Reference
 
+## 2026-11-09 - Two administrators restricted from sales documents
+
+Owner superseded full document access from106: the same two immutable operator IDs must not access standalone price quotations/invoices or legacy invoices; rest platform remains live/open.111 applied after successful rollback rehearsal: protected RLS for invoice/audit/files/Storage/notifications, six service RPC actor guards, no role/archive/financial data changes. Web guards/navigation/userdetails/payment/retry fixes built/tested, awaiting publication. Keep request/sourcing/finance workflows and other notifications available. Owner access and owner-only impersonation unchanged; details/evidence in docs/task-state.md.
+
+## 2026-11-09 02:54 - Saved customers and revised invoice header LIVE
+
+Released6a71e5a; Vercel dpl_Gpv7BTNkAJNzkFfz6cutRGmuLi2w READY, official www alias verified. Company details now beneath logo; customer card uses بيانات العميل and stable CUS number. Quote creation searches saved customers by name/mobile/number and fills saved details; new quote atomically saves/reuses contact. Existing customer backfilled. Live search/API/issued+preview PDF/QR/access controls pass, actual PDFs visually checked. No new quote/invoice/message created by verification; temporary session revoked.110 applied,104 untouched; full evidence in docs/task-state.md.
+
 ## 2026-11-09 02:52 - Saved customer database activated
 
 Management login restored;110 applied and history recorded after successful rollback rehearsal. One existing customer backfilled and quotation linked. Independent hashes/counts prove issued financial data, invoice numbering, Auth/roles and notifications unchanged. RLS/service-only access verified; security advisors unchanged;104 untouched. Existing successful local build/tests reused only after exact source/config/dependency/font fingerprint comparison. Header and customer UI publication pending below release workflow.

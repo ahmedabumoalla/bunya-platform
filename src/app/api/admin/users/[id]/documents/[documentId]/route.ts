@@ -18,6 +18,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     const metadata = file ?? document;
     if (["quarantined", "rejected"].includes(String(metadata.scan_status))) throw new UserDetailError(403, "المستند محجوب أمنياً.");
     const bucket = String(metadata.bucket_id || (source === "provider" ? "provider-documents" : document.application_id ? "join-applications" : "contractor-documents"));
+    if (bucket === "invoice-documents" && access.permissions.has("sales_documents.denied")) throw new UserDetailError(403, "هذا القسم غير متاح لهذا الحساب.");
     const path = String(metadata.object_path || document.storage_path || "");
     if (!path) throw new UserDetailError(404, "ملف المستند غير متاح.");
     // Registry ownership alone is insufficient: uploaded metadata can contain a forged object path.

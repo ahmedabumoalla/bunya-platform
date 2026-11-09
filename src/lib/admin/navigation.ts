@@ -1,3 +1,4 @@
+import { salesDocumentPath, salesDocumentsRestricted } from "@/lib/auth/sales-document-access";
 type AdminNavItem = readonly [label: string, href: string, icon: string];
 type AdminNavGroup = readonly [label: string, items: readonly AdminNavItem[]];
 export const adminGroups: readonly AdminNavGroup[] = [
@@ -11,3 +12,8 @@ export const adminGroups: readonly AdminNavGroup[] = [
   ["المالية", [["المالية والأرباح", "/admin/finance", "flow"], ["تصفيات الموردين", "/admin/settlements/providers", "money"], ["تصفيات المقاولين", "/admin/settlements/contractors", "money"], ["الفواتير والاسترجاعات", "/admin/invoices", "document"]]],
   ["التواصل والحوكمة", [["الإشعارات", "/admin/notifications", "bell"], ["الدعم والتذاكر", "/admin/support", "support"], ["السياسات", "/admin/policies", "shield"], ["سجل التدقيق", "/admin/audit", "document"], ["إعدادات المنصة", "/admin/settings", "settings"]]],
 ];
+
+export function adminGroupsForUser(userId: string) {
+  if (!salesDocumentsRestricted(userId)) return adminGroups;
+  return adminGroups.map(([label, items]) => [label === "عروض الأسعار" ? "طلبات التسعير" : label, items.filter(([, href]) => !salesDocumentPath(href))] as AdminNavGroup).filter(([, items]) => items.length);
+}

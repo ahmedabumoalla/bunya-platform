@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { salesDocumentTables } from "@/lib/auth/sales-document-access";
 import { documentQuery, documentSources, fields, overviewSections, recordSources, requireUserDetailAccess, roleNames, rows, translated, UserDetailError, userDetailFailure, userDetailHeaders, userDetailLinks } from "@/lib/admin/user-details";
 import { resolveAuthIdentity } from "@/lib/auth/resolve-identity";
 import { archiveActorStatus } from "@/lib/supabase/archive-server";
@@ -70,7 +71,9 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     } else if (section === "activity") {
       if (!access.permissions.has("audit.read")) throw new UserDetailError(403, "لا تملك صلاحية الاطلاع على سجل التدقيق.");
       // Only safe audit metadata: snapshots may contain unrelated private data or authentication material.
-      const audit = await access.admin.from("audit_logs").select("id,action,entity_table,occurred_at,actor_profile_id,delegated_by_profile_id", { count: "exact" }).or(`actor_profile_id.eq.${id},and(entity_table.eq.profiles,entity_id.eq.${id}),delegated_by_profile_id.eq.${id}`).order("occurred_at", { ascending: false }).order("id", { ascending: false }).range(start, start + pageSize - 1);
+      let auditQuery = access.admin.from("audit_logs").select("id,action,entity_table,occurred_at,actor_profile_id,delegated_by_profile_id", { count: "exact" }).or(`actor_profile_id.eq.${id},and(entity_table.eq.profiles,entity_id.eq.${id}),delegated_by_profile_id.eq.${id}`);
+      if (access.permissions.has("sales_documents.denied")) auditQuery = auditQuery.not("entity_table", "in", `(${salesDocumentTables.join(",")})`);
+      const audit = await auditQuery.order("occurred_at", { ascending: false }).order("id", { ascending: false }).range(start, start + pageSize - 1);
       const auditRows = rows(audit);
       const delegateIds = [...new Set(auditRows.map(row => row.delegated_by_profile_id).filter(Boolean).map(String))];
       const delegates = delegateIds.length ? rows(await access.admin.from("profiles").select("id,full_name,username").in("id", delegateIds)) : [];

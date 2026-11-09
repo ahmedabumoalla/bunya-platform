@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useAuthIdentity } from "@/components/auth/AuthIdentityProvider";
 import type { AppRole } from "@/lib/auth/types";
+import { salesDocumentPath, salesDocumentsRestricted } from "@/lib/auth/sales-document-access";
 import { createClient } from "@/lib/supabase/client";
 
 import { adminRecordPages } from "@/lib/admin/records";
@@ -359,6 +360,7 @@ export function RoleDatabasePortal({ role, children }: { role: AppRole; children
   const priceQuotationMatch = pathname.match(/^\/admin\/price-quotations(?:\/([^/]+))?$/);
 
   const dedicatedView = (() => {
+    if (salesDocumentsRestricted(identity.userId) && salesDocumentPath(pathname)) return <p role="alert">هذا القسم غير متاح لهذا الحساب.</p>;
     if (managedQuoteMatch && (role === "admin" || role === "customer") && managedQuoteMatch[1] === role) return <ManagedQuotes key={pathname} scope={role} id={managedQuoteMatch[2] ?? null} />;
     if (priceQuotationMatch && role === "admin") return <PriceQuotations key={pathname} id={priceQuotationMatch[1] ?? null} />;
     if (role === "admin" && pathname === "/admin") return <AdminDashboard />;

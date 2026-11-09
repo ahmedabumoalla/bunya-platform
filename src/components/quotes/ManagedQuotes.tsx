@@ -5,6 +5,8 @@ import Image from "next/image";
 import { useEffect, useState, type FormEvent } from "react";
 import type { ManagedQuote, ManagedQuotePricing } from "@/lib/quotes/managed-types";
 import styles from "./ManagedQuotes.module.css";
+import { useAuthIdentity } from "@/components/auth/AuthIdentityProvider";
+import { salesDocumentsRestricted } from "@/lib/auth/sales-document-access";
 
 type Scope = "admin" | "customer";
 const statusLabels: Record<string, string> = { submitted: "بانتظار التسعير", offered: "عرض السعر جاهز", accepted: "مقبول — بانتظار التسليم", rejected: "رفض العميل العرض", delivered: "تم التسليم", cancelled: "ملغى" };
@@ -65,6 +67,7 @@ export function ManagedQuoteDetail({ request, scope, canManage, onChanged }: { r
   const [confirmation, setConfirmation] = useState<"accept" | "reject" | null>(null);
   const [openedAt] = useState(() => Date.now());
   const details = request.details as Record<string, unknown>;
+  const identity = useAuthIdentity();
   const editable = canManage && scope === "admin" && ["submitted", "offered", "rejected"].includes(request.status);
   const isOffered = request.status === "offered";
   const expired = Boolean(request.valid_until && new Date(request.valid_until).getTime() <= openedAt);
@@ -88,7 +91,7 @@ export function ManagedQuoteDetail({ request, scope, canManage, onChanged }: { r
   ];
   const mapsUrl = typeof details.mapsUrl === "string" && /^https?:\/\//.test(details.mapsUrl) ? details.mapsUrl : null;
   return <>
-    <section className={styles.summary}><div><p className={styles.referenceLabel}>رقم الطلب</p><h2 className={styles.requestCode} dir="ltr">{request.request_code}</h2></div><div className={styles.summaryMeta}><Status value={request.status} /><p className={styles.date}>تاريخ الطلب: {date(request.created_at)}</p>{scope === "admin" && canManage && <Link className={styles.textLink} href={`/admin/price-quotations/new?request=${request.id}`}>إنشاء عرض PDF للعميل</Link>}</div></section>
+    <section className={styles.summary}><div><p className={styles.referenceLabel}>رقم الطلب</p><h2 className={styles.requestCode} dir="ltr">{request.request_code}</h2></div><div className={styles.summaryMeta}><Status value={request.status} /><p className={styles.date}>تاريخ الطلب: {date(request.created_at)}</p>{scope === "admin" && canManage && !salesDocumentsRestricted(identity.userId) && <Link className={styles.textLink} href={`/admin/price-quotations/new?request=${request.id}`}>إنشاء عرض PDF للعميل</Link>}</div></section>
     {error && <div className={styles.error} role="alert">{error}</div>}
     <div className={styles.detailGrid}>
     <section className={styles.panel}><div className={styles.panelHeading}><h2>المنتجات المطلوبة</h2><span>{request.items.length} صنف</span></div><div className={styles.items}>{request.items.map(item => {

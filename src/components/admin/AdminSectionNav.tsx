@@ -1,11 +1,14 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { adminGroups } from "@/lib/admin/navigation";
+import { adminGroupsForUser } from "@/lib/admin/navigation";
+import { useAuthIdentity } from "@/components/auth/AuthIdentityProvider";
 import { AdminIcon } from "./AdminIcon";
 import { AdminAttentionBadge } from "./AdminAttentionProvider";
 
 export function AdminSectionNav() {
+  const identity = useAuthIdentity();
+  const adminGroups = adminGroupsForUser(identity.userId);
   const pathname = usePathname();
   const group = adminGroups.find(([, items]) => items.some(([, href]) => href !== "/admin" && (pathname === href || pathname.startsWith(`${href}/`))));
   if (!group || pathname === "/admin") return null;

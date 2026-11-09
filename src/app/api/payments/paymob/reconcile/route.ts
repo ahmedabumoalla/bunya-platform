@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { salesDocumentsRestricted } from "@/lib/auth/sales-document-access";
 import { resolveAuthIdentity } from "@/lib/auth/resolve-identity";
 import {
   authRouteOptions,
@@ -21,6 +22,7 @@ export async function POST(request: NextRequest) {
     const auth = await createAuthRequestClient(request);
     if (auth.error || !auth.user)
       throw new PublicJoinError("Authentication required.", 401);
+    if (salesDocumentsRestricted(auth.user.id)) throw new PublicJoinError("هذا القسم غير متاح لهذا الحساب.", 403);
     if (!auth.usesBearer && !isLocalAppOrigin(request)) assertSameOrigin(request);
     const identity = await resolveAuthIdentity(auth.supabase, auth.user);
     if (

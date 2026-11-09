@@ -1,4 +1,5 @@
 import "server-only";
+import { salesDocumentTables, salesDocumentsRestricted } from "@/lib/auth/sales-document-access";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -42,6 +43,7 @@ export async function requireUserDetailAccess(id: string) {
   if (profile.error) throw new Error("Profile lookup failed");
   if (!profile.data) throw new UserDetailError(404, "الحساب غير موجود.");
   const canImpersonate = !impersonationCapability.error && impersonationCapability.data === true;
+  if (salesDocumentsRestricted(data.user.id)) permissions.add("sales_documents.denied");
   const admin = createAdminClient();
   return { admin, permissions, profile: profile.data as AdminRow, actor: identity, canImpersonate };
 }
@@ -90,7 +92,7 @@ export function recordSources(id: string, links: UserDetailLinks, permissions: S
     source("support", "تذاكر الدعم", "support_tickets", "opened_by", [id], "support.manage", "subject", undefined, "status", [["message", "الرسالة"], ["admin_response", "رد الإدارة"]]),
     source("addresses", "العناوين", "customer_addresses", "customer_profile_id", [id], "profiles.read", "label", undefined, "", [["project_name", "المشروع"], ["city", "المدينة"], ["region", "المنطقة"], ["description", "الوصف"], ["recipient_name", "المستلم"], ["recipient_mobile", "جوال المستلم"], ["google_maps_url", "موقع التسليم"], ["is_default", "العنوان الافتراضي", "boolean"]]),
     source("deliveries", "مهام السائق", "provider_delivery_assignments", "assigned_driver_id", links.driverIds, "deliveries.manage", "id", "/admin/deliveries", "status", [["expected_at", "موعد التوصيل", "date"], ["delivered_at", "وقت التسليم", "date"]]),
-  ].filter(item => item.ids.length && permissions.has(item.permission));
+  ].filter(item => item.ids.length && permissions.has(item.permission) && !(item.table === "invoices" && permissions.has("sales_documents.denied")));
 }
 export function documentSources(links: UserDetailLinks, permissions: Set<string>): UserDetailSource[] {
   return [{ key: "files", label: "الملفات المرفوعة" }, ...(permissions.has("reviews.manage") ? [
@@ -102,7 +104,10 @@ export function documentSources(links: UserDetailLinks, permissions: Set<string>
 export function documentQuery(access: UserDetailAccess, links: UserDetailLinks, id: string, source: string, full = false) {
   if (!documentSources(links, access.permissions).some(item => item.key === source)) throw new UserDetailError(403, "لا تملك صلاحية عرض هذه المستندات.");
   const { admin } = access;
-  if (source === "files") return admin.from("files").select(`id,original_name,mime_type,size_bytes,created_at,scan_status${full ? ",bucket_id,object_path" : ""}`, { count: "exact" }).eq("owner_profile_id", id).is("deleted_at", null);
+  if (source === "files") {
+    const query = admin.from("files").select(`id,original_name,mime_type,size_bytes,created_at,scan_status${full ? ",bucket_id,object_path" : ""}`, { count: "exact" }).eq("owner_profile_id", id).is("deleted_at", null);
+    return access.permissions.has("sales_documents.denied") ? query.neq("bucket_id", "invoice-documents").not("purpose", "in", `(${salesDocumentTables.join(",")})`) : query;
+  }
   if (source === "provider") return admin.from("provider_documents").select(`id,file_name,document_type,status,expires_at,size_bytes,mime_type,created_at${full ? ",storage_path" : ""}`, { count: "exact" }).in("provider_id", links.providerIds);
   if (source === "provider_application") return admin.from("provider_application_documents").select(`id,application_id,document_type,status,created_at,files!inner(original_name,mime_type,size_bytes,scan_status,deleted_at${full ? ",bucket_id,object_path" : ""})`, { count: "exact" }).in("application_id", links.providerApplicationIds).eq("is_current", true).is("files.deleted_at", null);
   const filters = [...(links.contractorIds.length ? [`contractor_profile_id.in.(${links.contractorIds.join(",")})`] : []), ...(links.contractorApplicationIds.length ? [`application_id.in.(${links.contractorApplicationIds.join(",")})`] : [])];

@@ -26,7 +26,7 @@ const managed={ManagedQuoteError,managedQuoteId:/^[a-f0-9-]{36}$/,managedQuoteCo
 const catalog=load('src/lib/quotes/price-quotation-catalog.ts',{'server-only':{},'@/data/catalog/imported.json':manifest,'@/data/catalog/quote-options.json':options,'./managed-server':managed,'./managed-catalog':managedCatalog,'./price-quotation-presentation':presentation});
 let renderCalls=0,catalogCalls=0;
 const pdfRenderer={renderPriceQuotationPdf:async()=>{renderCalls++;return new Uint8Array([37,80,68,70]);}};
-const server=load('src/lib/quotes/price-quotation-server.ts',{'server-only':{},'./managed-server':managed,'@/lib/supabase/archive-server':{archiveActorStatus:async()=>({active:frozen})},'./price-quotation-validation':validation,'./price-quotation-catalog':catalog,'./price-quotation-presentation':presentation,'./price-quotation-policy':{PRICE_QUOTATION_POLICY_VERSION:'exclusive-address-sales-v1'},'./price-quotation-pdf':pdfRenderer,'@/lib/notifications/providers/green-api':{sendGreenApiFile:async payload=>{sent.push(payload);return {status:providerStatus,providerMessageId:providerStatus==='submitted'?'provider-id':null,sanitizedError:providerError};}}});
+const server=load('src/lib/quotes/price-quotation-server.ts',{'server-only':{},'@/lib/auth/sales-document-access':load('src/lib/auth/sales-document-access.ts'),'./managed-server':managed,'@/lib/supabase/archive-server':{archiveActorStatus:async()=>({active:frozen})},'./price-quotation-validation':validation,'./price-quotation-catalog':catalog,'./price-quotation-presentation':presentation,'./price-quotation-policy':{PRICE_QUOTATION_POLICY_VERSION:'exclusive-address-sales-v1'},'./price-quotation-pdf':pdfRenderer,'@/lib/notifications/providers/green-api':{sendGreenApiFile:async payload=>{sent.push(payload);return {status:providerStatus,providerMessageId:providerStatus==='submitted'?'provider-id':null,sanitizedError:providerError};}}});
 const route=load('src/app/api/price-quotations/route.ts',{'@/lib/quotes/price-quotation-server':server,'@/lib/quotes/managed-server':managed});
 const detail=load('src/app/api/price-quotations/[id]/route.ts',{'@/lib/quotes/price-quotation-server':server});
 const sendRoute=load('src/app/api/price-quotations/[id]/send/route.ts',{'@/lib/quotes/price-quotation-server':server});
@@ -40,6 +40,18 @@ const guardedReads=[()=>pdfRoute.GET(request(),params),()=>catalogRoute.GET(requ
 authenticated=false;assert.equal((await route.GET(request())).status,401);for(const read of guardedReads)assert.equal((await read()).status,401);authenticated=true;
 canManage=false;assert.equal((await route.POST(request('POST',draft))).status,403);for(const read of guardedReads)assert.equal((await read()).status,403);canManage=true;
 frozen=true;for(const fn of [()=>route.GET(request()),()=>route.POST(request('POST',draft)),()=>detail.GET(request(),params),()=>sendRoute.POST(request('POST'),params),...guardedReads])assert.equal((await fn()).status,403);frozen=false;
+const invoiceServer=load('src/lib/quotes/price-invoice-server.ts',{'server-only':{},'./managed-server':managed,'./price-quotation-server':server,'./price-invoice-validation':{},'./price-invoice-policy':{}});
+const invoiceMocks={'@/lib/quotes/managed-server':managed,'@/lib/quotes/price-invoice-server':invoiceServer,'@/lib/quotes/price-quotation-server':server,'@/lib/quotes/price-invoice-pdf':{renderPriceInvoicePdf:()=>{throw Error('Restricted render');}}};
+const invoices=load('src/app/api/price-quotations/[id]/invoice/route.ts',invoiceMocks);
+const invoicePdf=load('src/app/api/price-quotations/[id]/invoice/pdf/route.ts',invoiceMocks);
+const invoicePreview=load('src/app/api/price-quotations/[id]/invoice/preview/route.ts',invoiceMocks);
+const customers=load('src/app/api/price-quotations/customers/route.ts',{'@/lib/quotes/price-quotation-server':server,'@/lib/quotes/managed-server':managed});
+for(const actor of ['7f4152b6-63d2-49ec-866f-681a3308f670','d5b7d59e-3a22-4d59-8096-d546c9bd8c4e']) {
+  context.userId=actor;
+  for(const fn of [()=>route.GET(request()),()=>route.POST(request('POST',draft)),()=>detail.GET(request(),params),()=>sendRoute.POST(request('POST'),params),...guardedReads])assert.equal((await fn()).status,403);
+  for(const fn of [()=>customers.GET(request()),()=>invoices.GET(request(),params),()=>invoices.POST(request('POST',{}),params),()=>invoicePdf.GET(request(),params),()=>invoicePreview.POST(request('POST',{}),params)])assert.equal((await fn()).status,403);
+}
+context.userId=id;
 assert.equal(renderCalls,0,'Unauthorized or frozen users never trigger PDF rendering');assert.equal(catalogCalls,0,'Unauthorized or frozen users never read the catalog');
 assert.equal((await route.POST(request('POST',draft,'/api/price-quotations',{'sec-fetch-site':'cross-site'}))).status,403);
 assert.equal((await route.GET(request('GET',undefined,'/api/price-quotations?page=-1'))).status,400);

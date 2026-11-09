@@ -1,4 +1,5 @@
 import "server-only";
+import { salesDocumentsRestricted } from "@/lib/auth/sales-document-access";
 import { createHash, randomUUID } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { managedQuoteContext, ManagedQuoteError, managedQuoteId, readManagedQuote, type ManagedQuoteContext } from "./managed-server";
@@ -14,6 +15,7 @@ import { quotationItemPresentation } from "./price-quotation-presentation";
 export async function priceQuotationContext(request: NextRequest) {
   if (request.headers.get("sec-fetch-site") === "cross-site") throw new ManagedQuoteError(403, "مصدر الطلب غير صالح.");
   const context = await managedQuoteContext(request);
+  if (salesDocumentsRestricted(context.userId)) throw new ManagedQuoteError(403, "هذا القسم غير متاح لهذا الحساب.");
   if (!context.canManage) throw new ManagedQuoteError(403, "لا تملك صلاحية إعداد عروض الأسعار.");
   if ((await archiveActorStatus(context.userId)).active) throw new ManagedQuoteError(403, "هذا القسم غير متاح لهذا الحساب.");
   return context;

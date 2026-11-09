@@ -5,7 +5,7 @@ import { lockBodyScroll } from "@/lib/body-scroll-lock";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { adminGroups } from "@/lib/admin/navigation";
+import { adminGroupsForUser } from "@/lib/admin/navigation";
 import { AdminIcon } from "./AdminIcon";
 import { AdminSectionNav } from "./AdminSectionNav";
 import { usePathname } from "next/navigation";
@@ -16,7 +16,6 @@ import { AdminAttentionBadge, AdminAttentionProvider, useAdminAttention } from "
 
 const sidebarPreferenceKey = "bunya-admin-sidebar-state";
 
-const labels = adminGroups.flatMap(([, items]) => items);
 
 export function AdminShell({ children }: { children: ReactNode }) {
   return <AdminAttentionProvider><AdminShellContent>{children}</AdminShellContent></AdminAttentionProvider>;
@@ -24,6 +23,8 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
 function AdminShellContent({ children }: { children: ReactNode }) {
   const identity = useAuthIdentity();
+  const adminGroups = useMemo(() => adminGroupsForUser(identity.userId), [identity.userId]);
+  const labels = useMemo(() => adminGroups.flatMap(([, items]) => items), [adminGroups]);
   const pathname = usePathname();
   const sidebarRef = useRef<HTMLElement>(null);
   const menuRef = useRef<HTMLButtonElement>(null);
@@ -64,7 +65,7 @@ function AdminShellContent({ children }: { children: ReactNode }) {
     return next;
   });
   const activeLabel = [...labels].sort((a, b) => b[1].length - a[1].length).find(([, href]) => href === "/admin" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`))?.[0] ?? "إدارة منصة بُنية";
-  const matches = useMemo(() => search.trim() ? labels.filter(([label]) => label.includes(search.trim())).slice(0, 6) : [], [search]);
+  const matches = useMemo(() => search.trim() ? labels.filter(([label]) => label.includes(search.trim())).slice(0, 6) : [], [search, labels]);
   const viewerName = identity.profile?.fullName ?? "مدير بُنية";
   const roleLabel = identity.details.admin?.roleKey === "super_admin" ? "مدير النظام" : "إدارة المنصة";
 
