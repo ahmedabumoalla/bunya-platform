@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build && node scripts/verify-deployment-size.mjs",
+    "postbuild": "node scripts/speed-guard/verify-page-weight.mjs",
     "start": "next start",
     "lint": "eslint",
     "check:ui-colors": "node scripts/check-ui-foreground-colors.mjs",

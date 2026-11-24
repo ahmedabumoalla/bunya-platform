@@ -1,0 +1,100 @@
+{
+  "site": "https://www.buniahksa.com",
+  "pageWeight": {
+    "growthPercent": 30,
+    "growthMinKb": 80,
+    "newPublicRouteKb": 560,
+    "newRouteKb": 1240,
+    "privatePrefixes": [
+      "/account",
+      "/admin",
+      "/api",
+      "/auth",
+      "/contractor",
+      "/customer",
+      "/merchant",
+      "/driver",
+      "/maintenance"
+    ]
+  },
+  "watch": {
+    "fixedPaths": [
+      "/",
+      "/subscriptions",
+      "/contractors",
+      "/api/public/contractors"
+    ],
+    "slowMs": 3000,
+    "timeoutMs": 15000,
+    "failuresInARow": 3,
+    "repeatAlertMinutes": 30
+  },
+  "statistics": {
+    "visitFile": "lib/analytics/speed-guard-visit.ts",
+    "trackers": []
+  },
+  "lighthouse": {
+    "fixedPaths": [
+      "/",
+      "/subscriptions",
+      "/contractors"
+    ],
+    "runs": 3,
+    "blockedUrlPatterns": [
+      "*/_vercel/insights/*",
+      "*/_vercel/speed-insights/*",
+      "*/api/analytics/*",
+      "*.google-analytics.com/*"
+    ],
+    "calibration": {
+      "date": "2026-11-24",
+      "runsPerPage": 2,
+      "lighthouseVersion": "12.8.2",
+      "mobile": true,
+      "measurements": [
+        {
+          "path": "/",
+          "lcpMs": 4885,
+          "ttfbMs": 81,
+          "totalKb": 1466,
+          "score": 81.5
+        },
+        {
+          "path": "/subscriptions",
+          "lcpMs": 4326,
+          "ttfbMs": 93,
+          "totalKb": 692,
+          "score": 85
+        },
+        {
+          "path": "/contractors",
+          "lcpMs": 3908,
+          "ttfbMs": 83,
+          "totalKb": 711,
+          "score": 88
+        }
+      ]
+    },
+    "budgetsByPath": {
+      "/": {
+        "lcpMs": 6500,
+        "ttfbMs": 1500,
+        "totalKb": 1850,
+        "score": 69
+      },
+      "/subscriptions": {
+        "lcpMs": 6000,
+        "ttfbMs": 1500,
+        "totalKb": 900,
+        "score": 73
+      },
+      "/contractors": {
+        "lcpMs": 5500,
+        "ttfbMs": 1500,
+        "totalKb": 900,
+        "score": 76
+      }
+    }
+  },
+  "whatsAppEnabled": false
+}

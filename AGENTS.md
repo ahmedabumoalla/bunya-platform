@@ -24,3 +24,7 @@ Before starting any task, read `PROJECT_REFERENCE.md` in the repository root. Up
 Run `node scripts/check-deployment-size.mjs` before every production push. Keep the guard in both the package and Vercel build commands and in the GitHub workflow. Never remove, disable or bypass it or raise limits to ship. End every deployment report with the guard result and measured build time. If a deployment exceeds five minutes, stop releasing and investigate.
 
 On 2026-11-24 the local Next.js production traces covered 163 routes, with 89 MiB largest and 980 MiB combined. The configured ceilings are 134 MiB per route and 1,470 MiB combined. The PDF renderer bundles its logo under `src/lib/quotes/assets` because Next.js applies public-file excludes after includes.
+
+## Page speed
+
+Run `node scripts/speed-guard/check.mjs` before pushing and include the result in the deployment report. Keep the postbuild weight check, production Lighthouse audit and ten-minute GET monitor enabled. Update measured baselines only after the user accepts the growth and record the reason. Exclude BrandaSpeedGuard and Chrome-Lighthouse visits from any new visit tracker before measuring that page.

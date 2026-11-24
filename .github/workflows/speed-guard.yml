@@ -1,0 +1,25 @@
+name: Speed guard stays wired
+# حارس السرعة. Runs on any branch when one of its files changes and fails if the guard or its wiring is gone.
+# No build, no network, no secrets.
+on:
+  workflow_dispatch:
+  push:
+    paths: ['package.json', 'speed-guard.config.json', 'scripts/speed-guard/**', 'lib/analytics/**', '.github/workflows/speed-guard*.yml']
+permissions:
+  contents: read
+jobs:
+  wiring:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            package.json
+            speed-guard.config.json
+            scripts/speed-guard/
+            lib/analytics/
+            .github/workflows/speed-guard*.yml
+      - name: The guard and its wiring are in place
+        run: node scripts/speed-guard/check.mjs

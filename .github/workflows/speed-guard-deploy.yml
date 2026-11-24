@@ -1,0 +1,50 @@
+name: Speed guard after deployment
+# حارس السرعة, layer 2: after each push to main, wait for the Vercel production build of that commit, then open the
+# main public pages in Lighthouse on a throttled mobile profile. Alerts on WhatsApp and by this run failing when a
+# page passes its budget. It never rolls back: that decision stays with the user
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+  statuses: read
+concurrency:
+  group: speed-guard-deploy
+  cancel-in-progress: true
+jobs:
+  lighthouse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            speed-guard.config.json
+            scripts/speed-guard/
+      - name: Wait for the Vercel production build of this commit
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for i in $(seq 1 60); do
+            state=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/status" --jq '[.statuses[] | select(.context | test("vercel"; "i"))][0].state // "none"')
+            echo "Vercel state: $state"
+            if [ "$state" = "success" ]; then sleep 60; exit 0; fi
+            if [ "$state" = "failure" ] || [ "$state" = "error" ]; then echo "The build did not deploy, nothing to measure"; echo "SKIP=1" >> "$GITHUB_ENV"; exit 0; fi
+            sleep 20
+          done
+          echo "No Vercel result after 20 minutes, nothing to measure"; echo "SKIP=1" >> "$GITHUB_ENV"
+      - name: Install Lighthouse
+        if: env.SKIP != '1'
+        run: npm install --no-save --no-audit --no-fund lighthouse@12.8.2
+      - name: Measure the pages
+        if: env.SKIP != '1'
+        run: node scripts/speed-guard/lighthouse.mjs
+        env:
+          LIGHTHOUSE_BIN: node_modules/.bin/lighthouse
+          SPEED_GUARD_WA_API_URL: ${{ secrets.SPEED_GUARD_WA_API_URL }}
+          SPEED_GUARD_WA_INSTANCE: ${{ secrets.SPEED_GUARD_WA_INSTANCE }}
+          SPEED_GUARD_WA_TOKEN: ${{ secrets.SPEED_GUARD_WA_TOKEN }}
+          SPEED_GUARD_WA_TO: ${{ secrets.SPEED_GUARD_WA_TO }}

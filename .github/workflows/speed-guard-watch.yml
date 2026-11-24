@@ -1,0 +1,43 @@
+name: Speed guard watch
+# حارس السرعة, layer 3: every ten minutes, time the public pages and the catalogue (which reads the database) on the
+# live site, alert once on WhatsApp and by this run failing when a page type is slow three runs in a row, then once
+# when it recovers. GET requests only, from GitHub, so it keeps working when the platform itself is down
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/10 * * * *'
+permissions:
+  contents: read
+concurrency:
+  group: speed-guard-watch
+  cancel-in-progress: false
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            speed-guard.config.json
+            scripts/speed-guard/
+      - name: Last state
+        uses: actions/cache/restore@v4
+        with:
+          path: .speed-guard-state
+          key: speed-guard-state-${{ github.run_id }}
+          restore-keys: speed-guard-state-
+      - name: Time the pages
+        run: node scripts/speed-guard/watch.mjs
+        env:
+          SPEED_GUARD_WA_API_URL: ${{ secrets.SPEED_GUARD_WA_API_URL }}
+          SPEED_GUARD_WA_INSTANCE: ${{ secrets.SPEED_GUARD_WA_INSTANCE }}
+          SPEED_GUARD_WA_TOKEN: ${{ secrets.SPEED_GUARD_WA_TOKEN }}
+          SPEED_GUARD_WA_TO: ${{ secrets.SPEED_GUARD_WA_TO }}
+      - name: Keep state
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .speed-guard-state
+          key: speed-guard-state-${{ github.run_id }}
