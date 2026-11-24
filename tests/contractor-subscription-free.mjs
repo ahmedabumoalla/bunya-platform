@@ -34,8 +34,10 @@ const rate=fields.find(field=>field.key==='platform_commission_rate'),amount=fie
 assert.equal(records.formatRecordField({platform_commission_rate:5},rate),'5٪');
 assert.equal(records.formatRecordField({platform_commission_amount:1250},amount),'1,250.00 ر.س');
 assert.equal(records.formatRecordField({platform_commission_amount:null},amount),'غير مسجل');
-let cursor=0;const state=[{title:'Project',description:'Scope'},'',false,false,0];
-const proposal=load('src/components/contractor/ContractorWorkflows.tsx',{'react':{...React,useState:()=>[state[cursor++],()=>{}],useEffect(){}},'react/jsx-runtime':jsx,'next/link':{default:({children,...props})=>React.createElement('a',props,children)},'next/navigation':{useRouter:()=>({})},'@/components/customer/CustomerProjectWorkflows':{},'@/components/operations/RoleOperations':{},'@/lib/supabase/client':{createClient(){throw Error('No render-time query expected')}}});
+let cursor=0;const state=[{title:'Project',description:'Scope',estimated_budget_min:5000,estimated_budget_max:8000,budget_negotiable:true},'',false,false,0];
+const brief=load('src/components/contractor/OpportunityBrief.tsx',{'react/jsx-runtime':jsx,'@/components/customer/ProjectMedia':{ProjectMediaGallery:()=>null}});
+const proposal=load('src/components/contractor/ContractorWorkflows.tsx',{'./OpportunityBrief':brief,'react':{...React,useState:()=>[state[cursor++],()=>{}],useEffect(){}},'react/jsx-runtime':jsx,'next/link':{default:({children,...props})=>React.createElement('a',props,children)},'next/navigation':{useRouter:()=>({})},'@/components/customer/CustomerProjectWorkflows':{},'@/components/operations/RoleOperations':{},'@/lib/supabase/client':{createClient(){throw Error('No render-time query expected')}}});
 const html=renderToStaticMarkup(proposal.OpportunityProposal({id:'opportunity'}));
+assert.ok(html.indexOf('الميزانية التقديرية') < html.indexOf('<form'));assert.match(html,/قابلة للتفاوض/);assert.match(html,/مفتوح دون موعد نهائي/);assert.match(html,/<details[^>]*><summary>/);
 assert.match(html,/٥٪/);assert.match(html,/دون اشتراك شهري/);assert.match(html,/name="policy"/);assert.match(html,/name="amount"/);
 console.log('PASS contractor monthly-plan exclusion; unchanged provider plan; actual/historical commission display; proposal 5% disclosure and existing policy/amount fields');

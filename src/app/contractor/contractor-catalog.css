@@ -155,11 +155,13 @@
 .contractor-app[data-contractor-design="refined"] .contractor-catalog-gallery figcaption { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; }
 .contractor-app[data-contractor-design="refined"] .contractor-catalog-gallery figcaption > span { min-width: 0; flex: 1 1 95px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--catalog-muted); font-size: 12px; }
 .contractor-app[data-contractor-design="refined"] .contractor-catalog-gallery button[aria-pressed="true"] { background: #f6ede6; border-color: transparent; }
-.contractor-app[data-contractor-design="refined"] .contractor-proposal-layout { display: grid; grid-template-columns: minmax(230px, .7fr) minmax(0, 1.6fr); align-items: start; gap: 16px; }
+.contractor-app[data-contractor-design="refined"] .contractor-proposal-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+.contractor-offer-disclosure summary { cursor: pointer; padding: 1rem 1.35rem; background: #343b37; color: white; border-radius: 12px; font-weight: 700; }
+.contractor-offer-disclosure[open] summary { margin-block-end: .75rem; }
 .contractor-app[data-contractor-design="refined"] .contractor-proposal-brief { padding: 24px; }
 .contractor-app[data-contractor-design="refined"] .contractor-proposal-brief h2 { margin: 12px 0; font-size: 21px; line-height: 1.7; overflow-wrap: anywhere; }
 .contractor-app[data-contractor-design="refined"] .contractor-proposal-brief > p { margin: 0 0 22px; color: var(--catalog-muted); font-size: 13px; line-height: 1.9; white-space: pre-line; }
-.contractor-app[data-contractor-design="refined"] .contractor-proposal-brief .contractor-catalog-facts { grid-template-columns: minmax(0, 1fr); }
+.contractor-app[data-contractor-design="refined"] .contractor-proposal-brief .contractor-catalog-facts { grid-template-columns: repeat(auto-fit,minmax(min(100%,15rem),1fr)); gap: 1rem; }
 .contractor-app[data-contractor-design="refined"] .contractor-proposal-scope { margin-top: 20px; }
 .contractor-app[data-contractor-design="refined"] .contractor-proposal-scope h3 { margin: 0 0 8px; font-size: 14px; }
 .contractor-app[data-contractor-design="refined"] .contractor-proposal-scope :is(p, ul) { margin: 0; color: var(--catalog-muted); font-size: 13px; line-height: 1.9; overflow-wrap: anywhere; }

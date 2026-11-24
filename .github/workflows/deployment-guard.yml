@@ -1,0 +1,29 @@
+name: Deployment guard stays wired
+# The deployment guard («الحارس»). Independent of the host and of whoever pushes: runs on any branch when a file
+# that carries the guard or its wiring changes, and fails if the guard or either wiring is gone. No build, no secrets
+on:
+  workflow_dispatch:
+  push:
+    paths: ['package.json', 'vercel.json', 'next.config.ts', 'next.config.mjs', 'next.config.js', 'deployment-guard.config.json', 'scripts/verify-deployment-size.mjs', 'scripts/check-deployment-size.mjs', '.github/workflows/deployment-guard.yml']
+permissions:
+  contents: read
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            package.json
+            vercel.json
+            next.config.ts
+            next.config.mjs
+            next.config.js
+            deployment-guard.config.json
+            scripts/verify-deployment-size.mjs
+            scripts/check-deployment-size.mjs
+            .github/workflows/deployment-guard.yml
+      - name: The guard and both wirings are in place
+        run: node scripts/check-deployment-size.mjs

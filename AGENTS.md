@@ -18,3 +18,9 @@ Before starting any task, read `PROJECT_REFERENCE.md` in the repository root. Up
 - Avoid broad repository scans, repeated reviews, browser checks, builds, and test suites unless they are necessary to diagnose the reported defect or explicitly requested.
 - Prefer one targeted verification proportional to the change. Do not rebuild Android/iOS artifacts unless the user explicitly requests a new build.
 - Keep progress updates and final responses concise, and never delay delivery for optional polish or speculative checks.
+
+## Deployment size
+
+Run `node scripts/check-deployment-size.mjs` before every production push. Keep the guard in both the package and Vercel build commands and in the GitHub workflow. Never remove, disable or bypass it or raise limits to ship. End every deployment report with the guard result and measured build time. If a deployment exceeds five minutes, stop releasing and investigate.
+
+On 2026-11-24 the local Next.js production traces covered 163 routes, with 89 MiB largest and 980 MiB combined. The configured ceilings are 134 MiB per route and 1,470 MiB combined. The PDF renderer bundles its logo under `src/lib/quotes/assets` because Next.js applies public-file excludes after includes.

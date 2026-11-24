@@ -1,4 +1,4 @@
-// Actual migration092 and existing PostgreSQL tables/policies; isolated, no live messages.
+// Actual migrations092/113 and existing PostgreSQL tables/policies; isolated, no live messages.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
@@ -74,6 +74,16 @@ insert into project_request_specialties values('${id(90)}','Build');
 insert into contractor_opportunities(id,project_request_id,contractor_profile_id,status,expires_at) values('${id(91)}','${id(90)}','${id(210)}','proposed','2030-02-01');
 insert into contractor_proposals(id,proposal_code,opportunity_id,contractor_profile_id,amount,policy_accepted,status,submitted_at,valid_until) values('${id(92)}','legacy-proposal','${id(91)}','${id(210)}',100,true,'under_review',now(),'2030-02-01');`);
 await db.exec(migration);
+await db.exec(source('113_open_project_opportunities.sql'));
+await db.exec(source('114_open_project_without_deadline.sql'));
+await db.exec(base.match(/create table public\.customer_project_request_attachments \([\s\S]*?\n\);/)[0]);
+await db.exec(`create schema storage;
+create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
+create table storage.objects(bucket_id text,name text,metadata jsonb,primary key(bucket_id,name));
+alter table storage.objects enable row level security;
+grant usage on schema storage to authenticated;
+grant select,insert,delete on storage.objects to authenticated;`);
+await db.exec(source('115_project_opportunity_media.sql'));
 assert.equal(await scalar('select search_status from project_requests where id=$1',[id(90)]),'searching');
 assert.equal(await scalar('select status from contractor_proposals where id=$1',[id(92)]),'under_review');
 assert.equal(await scalar('select count(*)::int from outbox_events'),0);
@@ -230,6 +240,118 @@ await test('account-only legacy earnings remain untouched; authenticated contrac
  await db.query(`insert into contractor_financial_transactions(transaction_code,contractor_profile_id,transaction_type,financial_kind,amount,status,balance_after) values('account-credit',$1,'advance','advance',100,'available',100)`,[id(210)]);
  assert.equal(await scalar("select count(*)::int from contractor_financial_transactions where financial_kind='commission'"),0);
  await actor(10);await reject(()=>db.query(`insert into contractor_financial_transactions(transaction_code,contractor_profile_id,transaction_type,financial_kind,amount,status,balance_after) values('forged-credit',$1,'advance','advance',100,'available',100)`,[id(210)]),/row-level security/);
+});
+async function openRequest(key='open-request-001') {
+ const r=await request(key,{city:'Unmatched city',region:'Unmatched region'});
+ await actor(9);await scalar('select publish_open_project_opportunities($1)',[r]);return r;
+}
+async function openOffer(r,user=10,{submit=true,key=`open-offer-${user}`,...overrides}={}) {
+ await actor(user);
+ const op=(await q('select * from get_contractor_opportunities()')).find(row=>row.project_request_id===r);
+ assert.ok(op,`opportunity visible to ${user}`);
+ const payload={amount:1000,execution_duration:'One month',proposed_start_at:'2030-01-01',scope_details:'Scope',valid_until:'2030-02-01T12:00:00Z',policy_accepted:true,...overrides};
+ const p=await scalar('select save_contractor_proposal($1,$2,$3,$4,$5)',[op.opportunity_id,payload,[{name:'Completion',description:'Complete work',duration:'One month',value_percentage:100,expected_at:'2030-02-01'}],submit,key]);
+ return {id:p,op:op.opportunity_id,payload};
+}
+await test('open publication is admin-only, opt-in, replay-safe and creates no messages',async()=>{
+ const r=await request('unmatched-001',{city:'Unmatched',region:'Unmatched'});
+ await actor(1);await reject(()=>db.query('select publish_open_project_opportunities($1)',[r]),/administrator/);
+ await reject(()=>db.query('update project_requests set open_bidding=true where id=$1',[r]),/authorized command/);
+ await actor(10);await reject(()=>db.query('select publish_open_project_opportunities($1)',[r]),/administrator/);
+ await actor(null,'anon');await reject(()=>db.query('select publish_open_project_opportunities($1)',[r]),/permission denied/);
+ await owner();const before=await scalar('select count(*)::int from outbox_events');
+ await actor(9);assert.equal((await scalar('select publish_open_project_opportunities($1)',[r])).opportunities,5);
+ assert.equal((await scalar('select publish_open_project_opportunities($1)',[r])).opportunities,5);
+ await owner();assert.equal(await scalar('select count(*)::int from outbox_events'),before);
+ assert.equal(await scalar("select count(*)::int from audit_logs where action='project_open_bidding_published'"),1);
+ assert.equal(await scalar('select count(*)::int from contractor_opportunities where is_current'),0);
+ for(const n of [10,11,12,13,14]) {await actor(n);const rows=await q('select * from get_contractor_opportunities()');assert.equal(rows.length,1);assert.equal(rows[0].project_request_id,r);assert.equal('customer_profile_id' in rows[0],false);assert.equal('phone' in rows[0],false);}
+ for(const n of [1,2,15,16,17]) {await actor(n);assert.equal((await q('select * from get_contractor_opportunities()')).length,0);}
+});
+await test('multiple unmatched contractors submit; review queue advances and award closes all entries',async()=>{
+ const r=await openRequest();const a=await openOffer(r,12);const b=await openOffer(r,13);
+ await actor(1);assert.equal((await state(r)).active_proposal_id,a.id);
+ await owner();assert.equal(await scalar("select count(*)::int from contractor_proposals where status='under_review'"),2);
+ assert.equal(await scalar("select count(*)::int from outbox_events where event_type='contractor.proposal_submitted'"),1);
+ await decide(a.id,'rejected');await actor(1);assert.equal((await state(r)).active_proposal_id,b.id);
+ const project=await decide(b.id);assert.ok(project);
+ await actor(1);assert.equal((await state(r)).status,'awarded');
+ await actor(10);assert.equal((await q('select * from get_contractor_opportunities()')).length,0);
+ await owner();assert.equal(await scalar('select count(*)::int from contractor_projects'),1);
+ assert.equal(await scalar('select count(*)::int from contractor_opportunities where is_current'),0);
+});
+await test('open draft replay/edit and correction keep other contractors able to submit',async()=>{
+ const r=await openRequest();const draft=await openOffer(r,10,{submit:false});
+ const a=await openOffer(r,10,{key:'draft-final-001'});assert.equal(a.id,draft.id);
+ await decide(a.id,'needs_changes');const b=await openOffer(r,11);
+ await actor(1);assert.equal((await state(r)).status,'awaiting_contractor');
+ await openOffer(r,10,{key:'draft-revised-001',amount:900});
+ await actor(1);assert.equal((await state(r)).active_proposal_id,a.id);
+ await owner();assert.equal(await scalar("select count(*)::int from outbox_events where event_type='contractor.proposal_submitted'"),2);
+ await decide(a.id,'rejected','reject-revised-001');await actor(1);assert.equal((await state(r)).active_proposal_id,b.id);
+});
+await test('open publication cannot replace a running invitation; internal functions are private',async()=>{
+ const r=await request();await actor(9);await reject(()=>db.query('select publish_open_project_opportunities($1)',[r]),/exhausted request/);
+ for(const role of ['anon','authenticated','service_role']) {await actor(10,role);for(const fn of ['sync_open_project_opportunities','advance_open_project_search']) await reject(()=>db.query(`select ${fn}($1)`,[r]),/permission denied/);}
+});
+await test('open offers enforce ownership, paused search and one award',async()=>{
+ const r=await openRequest();const a=await openOffer(r,10);const b=await openOffer(r,11);
+ await actor(2);await reject(()=>db.query('select decide_contractor_proposal($1,$2,$3,$4)',[a.id,'accepted','Not my request','forged-001']),/Not authorized/);
+ await actor(1);await db.query('select stop_project_contractor_search($1,$2)',[r,'open-stop-001']);
+ await actor(12);assert.equal((await q('select * from get_contractor_opportunities()')).length,0);
+ await actor(1);await db.query('select resume_project_contractor_search($1,$2)',[r,'open-resume-001']);
+ // Resuming must restore the current flag for the active proposal.
+ await decide(a.id);await reject(()=>decide(b.id,'accepted','award-second-001'),/not currently reviewable/);
+});
+await test('revocation and queued expiry cannot expose or award an invalid open offer',async()=>{
+ const r=await openRequest();const a=await openOffer(r,10);const b=await openOffer(r,11);const c=await openOffer(r,12);
+ await owner();await db.query("update user_roles set revoked_at=now() where profile_id=$1 and role='contractor'",[id(10)]);
+ await db.query("update contractor_proposals set submitted_at=now()-interval '2 days',valid_until=now()-interval '1 second' where id=$1",[b.id]);
+ await actor(10);assert.equal((await q('select * from get_contractor_opportunities()')).length,0);
+ await actor(1);await reject(()=>db.query('select decide_contractor_proposal($1,$2,$3,$4)',[a.id,'accepted','Should be denied','revoked-001']),/independent contractor/);
+ await tick(r);await actor(1);assert.equal((await state(r)).active_proposal_id,c.id);
+ await actor(11);await reject(()=>db.query('select save_contractor_proposal($1,$2,$3,true,$4)',[a.op,a.payload,[],'wrong-owner-001']),/unavailable/);
+});
+await test('open worker enrolls newly approved contractors without notices and expiry hides unsubmitted opportunities',async()=>{
+ const r=await openRequest();await owner();const count=await scalar('select count(*)::int from outbox_events');
+ await db.query("update contractor_profiles set approval_status='approved' where id=$1",[id(217)]);await tick(r);
+ await actor(17);assert.equal((await q('select * from get_contractor_opportunities()')).length,1);
+ await owner();assert.equal(await scalar('select count(*)::int from outbox_events'),count);
+ await db.query("update contractor_opportunities set expires_at=now()-interval '1 second' where project_request_id=$1",[r]);
+ await actor(10);assert.equal((await q('select * from get_contractor_opportunities()')).length,0);
+ const op=await scalar('select id from contractor_opportunities where project_request_id=$1 and contractor_profile_id=$2',[r,id(210)]);
+ await reject(()=>db.query('select save_contractor_proposal($1,$2,$3,true,$4)',[op,{amount:1},[],'expired-open-001']),/unavailable/);
+});
+await test('past project deadline opens indefinitely; a revision keeps its own deadline',async()=>{
+ const r=await request('old-open-request',{city:'Elsewhere',region:'Elsewhere'});
+ await owner();await db.query("update project_requests set created_at=now()-interval '4 days',proposal_deadline_at=now()-interval '2 days' where id=$1",[r]);
+ await actor(10);await reject(()=>db.query('select publish_open_project_internal($1)',[r]),/permission denied/);
+ await actor(9);await scalar('select publish_open_project_opportunities($1)',[r]);
+ await actor(10);assert.equal(await scalar('select proposal_deadline_at from get_contractor_opportunities() where project_request_id=$1',[r]),null);
+ const a=await openOffer(r,10);await decide(a.id,'needs_changes');
+ await owner();assert.equal(await scalar('select proposal_deadline_at from project_requests where id=$1',[r]),null);
+ await actor(10);assert.equal(await scalar('select isfinite(proposal_deadline_at) from get_contractor_opportunities() where project_request_id=$1',[r]),true);
+ await openOffer(r,11);await tick(r);
+ await actor(12);assert.equal(await scalar('select proposal_deadline_at from get_contractor_opportunities() where project_request_id=$1',[r]),null);
+});
+await test('image/video submit is atomic; only the customer and invited contractor can load media',async()=>{
+ const path=n=>`${id(1)}/media/${id(n)}.${n===40?'jpg':'mp4'}`;
+ const media=[{path:path(40),name:'site.jpg'},{path:path(41),name:'walkthrough.mp4'}];
+ const submit=(key,files=media)=>scalar('select submit_project_with_media($1,$2,$3,$4::jsonb)',[requestPayload,['Build'],key,JSON.stringify(files)]);
+ const gallery=r=>q('select * from project_visible_media($1)',[r]);
+ const storage=()=>q("select name from storage.objects where bucket_id='project-media'");
+ await actor(1);
+ for(const [i,m] of media.entries()) await db.query("insert into storage.objects values('project-media',$1,$2)",[m.path,{size:256,mimetype:i?'video/mp4':'image/jpeg'}]);
+ await reject(()=>submit('invalid-media-001',[media[0],{path:path(42),name:'missing.mp4'}]));
+ await owner();assert.equal(await scalar('select count(*)::int from project_requests'),0);
+ await actor(1);const r=await submit('media-submit-001');assert.equal(await submit('media-submit-001'),r);
+ assert.equal((await gallery(r)).length,2);await reject(()=>submit('media-submit-001',[media[0]]),/original submission/);
+ await actor(2);assert.equal((await gallery(r)).length,0);assert.equal((await storage()).length,0);
+ await reject(()=>submit('foreign-media-01'),/Invalid media path/);
+ await actor(10);assert.equal((await gallery(r)).length,2);assert.equal((await storage()).length,2);
+ await actor(11);assert.equal((await gallery(r)).length,0);assert.equal((await storage()).length,0);
+ await actor(1);await db.query('select stop_project_contractor_search($1,$2)',[r,'stop-media-001']);
+ await actor(10);assert.equal((await gallery(r)).length,0);assert.equal((await storage()).length,0);
 });
 console.log(`${passed} contractor search SQL scenarios passed`);
 await db.close();

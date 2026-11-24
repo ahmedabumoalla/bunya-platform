@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { customerReadableText } from "@/lib/customer/presentation";
 import styles from "./CustomerProjectWorkflows.module.css";
+import { mediaAccept, mediaError, ProjectMediaGallery, stageProjectMedia } from "./ProjectMedia";
 
 export const customerProjectSelect = "id,request_code,title,project_type,description,scope,city,region,estimated_budget_min,estimated_budget_max,expected_start_at,estimated_duration,proposal_deadline_at,minimum_rating,budget_negotiable,lifecycle_status,project_request_specialties(specialty_name)";
 export const customerProposalSelect = "id,proposal_code,amount,vat_inclusive,execution_duration,proposed_start_at,scope_details,includes,excludes,valid_until,warranty,team,notes,status,submitted_at,rejection_reason,change_request,contractor_profile_id,contractor_opportunities!inner(project_request_id),contractor_proposal_stages(name,description,duration,value_percentage,expected_at,sort_order)";
@@ -82,6 +83,9 @@ export function ProjectRequestForm() {
   const router = useRouter();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
+  const [uploadStatus, setUploadStatus] = useState("");
+  const uploaded = useRef(new Map<File,string>());
   const inFlight = useRef(false);
   const attempt = useRef<{ fingerprint: string; key: string } | null>(null);
 
@@ -106,20 +110,29 @@ export function ProjectRequestForm() {
       city: value("city"), region: value("region"), budget_min: min, budget_max: max,
       expected_start_at: value("expected_start_at"), estimated_duration: value("estimated_duration"),
       minimum_rating: value("minimum_rating"),
+      quantity_label: value("quantity_label"),
       budget_negotiable: data.get("budget_negotiable") === "on",
     };
-    const fingerprint = JSON.stringify({ request, specialties });
+    const fingerprint = JSON.stringify({ request, specialties, files: files.map(f => [f.name,f.size,f.lastModified]) });
     if (attempt.current?.fingerprint !== fingerprint) attempt.current = { fingerprint, key: crypto.randomUUID() };
     inFlight.current = true; setBusy(true); setError("");
     try {
-      const result = await createClient().rpc("submit_customer_project_request", {
+      const args = {
         p_request: request, p_specialties: specialties, p_idempotency_key: attempt.current.key,
-      });
+      };
+      let attachments;
+      try { attachments = files.length ? await stageProjectMedia(files, uploaded.current, setUploadStatus) : []; }
+      catch (failure) { setError(failure instanceof Error ? failure.message : "تعذر رفع المرفقات. أعد المحاولة."); return; }
+      setUploadStatus("جارٍ نشر المشروع…");
+      const client = createClient();
+      const result = attachments.length
+        ? await client.rpc("submit_project_with_media", {...args,p_media:attachments})
+        : await client.rpc("submit_customer_project_request", args);
       if (result.error) { setError(requestError(result.error.message)); return; }
       if (!result.data) { setError("لم يصل تأكيد نشر المشروع. أعد المحاولة للتحقق من حالة الطلب."); return; }
       router.push(`/customer/project-requests/${encodeURIComponent(String(result.data))}`);
     } catch { setError("تعذر الاتصال. تحقق من الإنترنت وأعد المحاولة؛ بياناتك باقية في النموذج."); }
-    finally { inFlight.current = false; setBusy(false); }
+    finally { inFlight.current = false; setBusy(false); setUploadStatus(""); }
   }
 
   return <main className={styles.page}>
@@ -131,6 +144,7 @@ export function ProjectRequestForm() {
           <div className={styles.fields}>
             <Field label="عنوان المشروع" wide><input name="title" required maxLength={180} placeholder="مثال: تشطيب فيلا سكنية في شمال الرياض" /></Field>
             <Field label="نوع المشروع" hint="اختر اقتراحًا أو اكتب نوع المشروع المناسب."><input name="project_type" required list="customer-project-types" placeholder="اختر أو اكتب نوع المشروع" /><datalist id="customer-project-types">{projectTypes.map(type => <option key={type} value={type} />)}</datalist></Field>
+            <Field label="الكميات أو المقاسات (اختياري)" wide><input name="quantity_label" maxLength={250} placeholder="مثال: ٨ واجهات زجاجية بإجمالي ٦٠ م²"/></Field>
             <Field label="التخصصات المطلوبة" hint="افصل بين التخصصات بفاصلة: بناء عظم، تشطيب."><input name="specialties" required placeholder="مثال: بناء عظم، تشطيب" /></Field>
             <Field label="وصف المشروع" wide><textarea name="description" required rows={4} placeholder="صف العقار وحالته الحالية والنتيجة التي ترغب بالوصول إليها." /></Field>
             <Field label="نطاق العمل" hint="اذكر الأعمال المطلوبة والكميات أو المساحات إن توفرت." wide><textarea name="scope" required rows={4} placeholder="مثال: أعمال الدهانات والأرضيات والتمديدات الكهربائية لمساحة ٣٠٠ م²." /></Field>
@@ -152,6 +166,29 @@ export function ProjectRequestForm() {
             <Field label="المدة التقديرية"><input name="estimated_duration" required placeholder="مثال: ٣ أشهر" /></Field>
           </div>
         </fieldset>
+        <fieldset className={styles.section} disabled={busy}>
+          <legend>صور وفيديوهات المشروع (اختياري)</legend>
+          <Field label="إضافة صور أو فيديوهات" hint="تظهر للمقاول في تفاصيل الفرصة. حتى ٨ ملفات، بحد ٥٠ ميغابايت للملف. الصيغ: JPG، PNG، WebP، MP4، WebM، MOV." wide>
+            <input type="file" multiple accept={mediaAccept} onChange={event => {
+              const next = [...files, ...Array.from(event.currentTarget.files ?? [])];
+              event.currentTarget.value = "";
+              const message = mediaError(next);
+              setError(message);
+              if (!message) setFiles(next);
+            }}/>
+          </Field>
+          {files.length > 0 && <ul>{files.map((file,index) => <li key={index}>
+            <bdi>{file.name}</bdi>{" "}<button type="button" aria-label={`إزالة ${file.name}`} onClick={() => {
+              const path = uploaded.current.get(file);
+              if (path) {
+                void createClient().storage.from("project-media").remove([path]);
+                uploaded.current.delete(file);
+              }
+              setFiles(files.filter((_,i) => i !== index));
+            }}>إزالة</button>
+          </li>)}</ul>}
+        </fieldset>
+        {uploadStatus && <p role="status">{uploadStatus}</p>}
         <div className={styles.submitArea}>{error ? <p className={styles.error} role="alert">{error}</p> : null}<p>نطلب عرضًا من مقاول مناسب يخدم موقع مشروعك، ونمنحه يومَي عمل للرد. إذا لم يرد أو رفضت عرضه، ننتقل للمقاول التالي حتى تقبل عرضًا أو توقف البحث من تفاصيل المشروع.</p><div className={styles.actions}><button className={styles.primary} type="submit" disabled={busy}>{busy ? "جارٍ نشر المشروع…" : "نشر المشروع والبحث عن مقاول"}</button><Link href="/customer/project-requests" className={styles.secondary}>العودة إلى مشاريعي</Link></div></div>
       </form>
       <aside className={styles.guide} aria-label="دليل طلب المشروع"><span className={styles.eyebrow}>من الفكرة إلى التنفيذ</span><h2>تفاصيل أفضل،<br />عروض أوضح.</h2><p>أنت تتحكم في البحث، ولا يُسند المشروع إلا بعد موافقتك.</p><ol><li><strong>صف احتياجك</strong><span>حدد الأعمال المطلوبة والموقع والميزانية.</span></li><li><strong>استقبل عرضًا مناسبًا</strong><span>نتواصل مع المقاولين بالتتابع، ويملك كل مقاول يومَي عمل للرد، باستثناء الجمعة والسبت.</span></li><li><strong>اتخذ قرارك</strong><span>اقبل العرض، اطلب تعديله، أو ارفضه لنبحث عن مقاول آخر. يمكنك إيقاف البحث في أي وقت قبل اختيار المقاول.</span></li></ol><Link href="/customer/support">تحتاج مساعدة في طلبك؟ <span aria-hidden="true">←</span></Link></aside>
@@ -267,6 +304,7 @@ export function ProjectProposalDecisions({ id }: { id: string }) {
   return <main className={styles.page}>
     <PageHeading title={customerReadableText(project.title)} description={`${customerReadableText(project.project_type)} · ${customerReadableText(project.city)} · ${customerReadableText(project.region)}`} />
     <section className={styles.projectSummary} aria-label="ملخص المشروع"><div className={styles.summaryTop}><span className={styles.reference}>طلب <bdi>{project.request_code}</bdi></span><Status value={project.lifecycle_status} /></div><dl className={styles.summaryFacts}><div><dt>الميزانية التقديرية</dt><dd>{project.estimated_budget_min !== null ? `${money(project.estimated_budget_min)} — ` : "حتى "}{money(project.estimated_budget_max)}</dd><small>{project.budget_negotiable ? "قابلة للتفاوض" : "حسب الميزانية المحددة"}</small></div><div><dt>تاريخ البدء المتوقع</dt><dd>{dateLabel(project.expected_start_at)}</dd><small>مدة التنفيذ: {customerReadableText(project.estimated_duration)}</small></div><div><dt>مهلة رد كل مقاول</dt><dd>يومَا عمل</dd><small>بتوقيت الرياض، باستثناء الجمعة والسبت</small></div></dl><details className={styles.projectBrief}><summary>تفاصيل الطلب ونطاق العمل</summary><div className={styles.briefGrid}><div><h3>وصف المشروع</h3><p>{customerReadableText(project.description)}</p></div><div><h3>نطاق العمل</h3><p>{customerReadableText(project.scope)}</p></div></div><div className={styles.tags}>{project.project_request_specialties?.map(item => <span key={item.specialty_name}>{customerReadableText(item.specialty_name)}</span>)}</div></details></section>
+    <ProjectMediaGallery key={project.id} projectId={project.id}/>
     <section className={styles.searchPanel} aria-label="متابعة البحث عن مقاول" aria-busy={busy || loading}>
       <div className={styles.sectionHeading}><div><span className={styles.eyebrow}>متابعة البحث</span><h2>{search ? searchLabels[search.status] : "جارٍ تحديث حالة البحث"}</h2><p>{search?.status === "awaiting_customer" ? "وصل عرض المقاول. راجعه ثم اقبله، اطلب تعديله، أو ارفضه للانتقال إلى المقاول التالي." : search?.status === "stopped" ? "البحث متوقف بطلبك، والعروض السابقة محفوظة للاطلاع. استأنفه للمتابعة." : search?.status === "exhausted" ? "لا يوجد مقاول إضافي مطابق حاليًا. يبقى الطلب محفوظًا وسنبحث عند توفر مقاول مناسب، أو يمكنك إيقاف البحث." : search?.status === "awarded" ? "اختير المقاول بعد موافقتك، وانتهى البحث لهذا المشروع." : "نتواصل مع مقاول واحد في كل مرة ممن يخدمون موقع مشروعك ويطابقون التخصص المطلوب. إذا لم يرسل عرضًا خلال يومَي عمل، ننتقل تلقائيًا إلى التالي."}</p></div></div>
       {search ? <dl className={styles.searchFacts}>

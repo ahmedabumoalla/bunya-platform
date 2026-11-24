@@ -15,7 +15,7 @@ const INK = "#14234d", TEAL = "#087c89", MUTED = "#52647c", LINE = "#c7dee7", PA
 // One bundled face covers both Arabic and Latin. Salma lacks Latin glyphs and
 // relied on desktop font fallback, which is absent in the production runtime.
 const fontFile = path.join(process.cwd(), "src/app/fonts/IBMPlexSansArabic-Regular.ttf");
-const logoFile = path.join(process.cwd(), "public/brand/exclusive-address.png");
+const logoFile = path.join(process.cwd(), "src/lib/quotes/assets/exclusive-address.png");
 const escapeMarkup = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const directedText = (value: string, align: string) => escapeMarkup(align === "right" ? value.split("\n").map(line => `\u200f${line}`).join("\n") : value);
 // Keep phone prefixes, SKU segments and dimensions in their original order
