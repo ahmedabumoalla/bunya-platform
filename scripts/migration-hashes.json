@@ -110,6 +110,7 @@
   "109_price_quotation_inclusive_pricing.sql": "3203cdebc1538350057d0e4c5777f88853016fed85f2c9fc5436066f20058cc0",
   "110_saved_sales_customers.sql": "ccbde7f58961eee53e53f3ffd2458c4a978196481ac9d90d4ed3464353fe8c10",
   "111_restrict_designated_sales_documents.sql": "dd9a7336ae641a5cf88bed00937eabea5207a673b5775d8e5c7a10c93160cb2f",
+  "112_sales_document_editing.sql": "3e9b43278947af0278d291b6194880894f678c604cf899e66b95e346c7c36dda",
   "113_open_project_opportunities.sql": "76e10be0d15449bca200498b098cfcdf9f6b9e346e71e5d1704bedaab1a22ff7",
   "114_open_project_without_deadline.sql": "7f9db056fad1c1f66fd6877508f5d9086b9cb800d01b07c05b19f43ab9173545",
   "115_project_opportunity_media.sql": "043b85e2f05a65f0df9691ddd39d39cace3ed7128ef869eebbbedf39cafaf2ad"
