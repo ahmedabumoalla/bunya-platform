@@ -46,6 +46,7 @@ export function ProjectMediaGallery({ projectId }: { projectId: string }) {
     const client = createClient();
     async function load() {
       const list = await client.rpc("project_visible_media", {p_project_id: projectId});
+      if (list.error?.code === "PGRST202") return;
       if (list.error) throw list.error;
       const rows = (list.data ?? []) as Omit<Media,"url">[];
       if (!rows.length) { if (active) setMedia([]); return; }

@@ -84,6 +84,15 @@ export function ProjectRequestForm() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
+  const [mediaEnabled, setMediaEnabled] = useState(false);
+  useEffect(() => {
+    let active = true;
+    // An empty filter returns no rows. Allow upload only after the media migration is live.
+    void Promise.resolve(createClient().rpc("project_visible_media", {})).then(({error}) => {
+      if (active) setMediaEnabled(!error);
+    }).catch(() => {});
+    return () => { active = false; };
+  }, []);
   const [uploadStatus, setUploadStatus] = useState("");
   const uploaded = useRef(new Map<File,string>());
   const inFlight = useRef(false);
@@ -166,7 +175,7 @@ export function ProjectRequestForm() {
             <Field label="المدة التقديرية"><input name="estimated_duration" required placeholder="مثال: ٣ أشهر" /></Field>
           </div>
         </fieldset>
-        <fieldset className={styles.section} disabled={busy}>
+        {mediaEnabled && <fieldset className={styles.section} disabled={busy}>
           <legend>صور وفيديوهات المشروع (اختياري)</legend>
           <Field label="إضافة صور أو فيديوهات" hint="تظهر للمقاول في تفاصيل الفرصة. حتى ٨ ملفات، بحد ٥٠ ميغابايت للملف. الصيغ: JPG، PNG، WebP، MP4، WebM، MOV." wide>
             <input type="file" multiple accept={mediaAccept} onChange={event => {
@@ -187,7 +196,7 @@ export function ProjectRequestForm() {
               setFiles(files.filter((_,i) => i !== index));
             }}>إزالة</button>
           </li>)}</ul>}
-        </fieldset>
+        </fieldset>}
         {uploadStatus && <p role="status">{uploadStatus}</p>}
         <div className={styles.submitArea}>{error ? <p className={styles.error} role="alert">{error}</p> : null}<p>نطلب عرضًا من مقاول مناسب يخدم موقع مشروعك، ونمنحه يومَي عمل للرد. إذا لم يرد أو رفضت عرضه، ننتقل للمقاول التالي حتى تقبل عرضًا أو توقف البحث من تفاصيل المشروع.</p><div className={styles.actions}><button className={styles.primary} type="submit" disabled={busy}>{busy ? "جارٍ نشر المشروع…" : "نشر المشروع والبحث عن مقاول"}</button><Link href="/customer/project-requests" className={styles.secondary}>العودة إلى مشاريعي</Link></div></div>
       </form>
